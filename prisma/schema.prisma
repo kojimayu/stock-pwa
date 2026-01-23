@@ -1,0 +1,44 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Vendor {
+  id        Int           @id @default(autoincrement())
+  name      String
+  pinCode   String        @unique // PINコードは重複不可の方が安全
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  
+  transactions Transaction[]
+}
+
+model Product {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String
+  priceA    Int      // 価格A
+  priceB    Int      // 価格B
+  stock     Int      @default(0)
+  minStock  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  date        DateTime @default(now())
+  vendorId    Int
+  items       String   // JSON文字列として保存 (SQLiteの制限回避と柔軟性のため)
+  totalAmount Int
+  createdAt   DateTime @default(now())
+
+  vendor      Vendor   @relation(fields: [vendorId], references: [id])
+}

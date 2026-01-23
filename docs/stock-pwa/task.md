@@ -1,0 +1,45 @@
+# タスク一覧 (Task List)
+
+- [x] **Phase 1: 土台構築 (Foundation Setup)**
+    - [/] **UIライブラリ (shadcn/ui)**
+        - [x] Init shadcn/ui
+        - [x] Install components
+        - [x] Install `lucide-react`
+    - [/] **データベース (Prisma)**
+        - [x] Install Prisma
+        - [x] Init Prisma (SQLite)
+        - [x] Define Schema
+    - [x] **PWA設定 (PWA Setup)**
+        - [x] Install `@ducanh2912/next-pwa`
+        - [x] Config `next.config.ts`
+    - [x] **シードデータ (Seed Data)**
+        - [x] Create seed script
+        - [x] Run seed
+    - [x] **完了作業 (Finalize)**
+        - [x] Migration `init`
+
+- [ ] **Phase 2: キオスクUI (タブレット/倉庫)**
+    - [ ] **アーキテクチャ (Architecture)**
+        - [ ] ルートグループ `(kiosk)` の作成（タブレット用レイアウト）
+        - [ ] ルートグループ `(admin)` の作成（PC管理者用レイアウト）
+    - [ ] **業者ログイン (PIN Login)**
+        - [ ] API: `/api/auth/vendor` (PIN検証)
+        - [ ] UI: 数字キーパッドコンポーネント (PIN入力)
+        - [ ] UI: ログイン画面
+    - [ ] **商品選択 (Shop)**
+        - [ ] API: `/api/products` (商品一覧取得)
+        - [ ] UI: 商品カード (画像/アイコン, 名前, 在庫, 価格)
+        - [ ] UI: カテゴリタブ
+        - [ ] Logic: カート状態管理 (Zustand または React Context)
+    - [ ] **出庫・決済 (Checkout)**
+        - [ ] UI: カート確認モーダル/シート
+        - [ ] API: `/api/transactions` (取引作成・在庫減算)
+        - [ ] UI: 完了画面
+
+- [ ] **Phase 3: 管理画面 (PC/事務所)**
+    - [ ] **ダッシュボード**
+        - [ ] サイドバー付きレイアウト
+        - [ ] 直近の取引履歴テーブル
+    - [ ] **マスタ管理**
+        - [ ] 業者 (Vendor) 管理
+        - [ ] 商品 (Product) 管理
