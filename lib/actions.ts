@@ -7,11 +7,50 @@ export type LoginState = {
     success?: boolean;
 };
 
+import { revalidatePath } from 'next/cache';
+
 export async function getVendors() {
     return await prisma.vendor.findMany({
-        select: { id: true, name: true },
         orderBy: { name: 'asc' },
     });
+}
+
+export async function upsertVendor(data: { id?: number; name: string; pinCode: string }) {
+    if (data.id) {
+        // Update
+        await prisma.vendor.update({
+            where: { id: data.id },
+            data: {
+                name: data.name,
+                pinCode: data.pinCode,
+            },
+        });
+    } else {
+        // Create
+        await prisma.vendor.create({
+            data: {
+                name: data.name,
+                pinCode: data.pinCode,
+            },
+        });
+    }
+    revalidatePath('/admin/vendors');
+}
+
+export async function deleteVendor(id: number) {
+    // Check if vendor has transactions
+    const transactionCount = await prisma.transaction.count({
+        where: { vendorId: id },
+    });
+
+    if (transactionCount > 0) {
+        throw new Error('取引履歴がある業者は削除できません');
+    }
+
+    await prisma.vendor.delete({
+        where: { id },
+    });
+    revalidatePath('/admin/vendors');
 }
 
 export async function verifyPin(vendorId: string | number, pin: string) {
