@@ -50,6 +50,37 @@ async function main() {
     })
     console.log(`Created ${products.count} products`)
 
+    // Create Dummy Transactions
+    const itemsJson = JSON.stringify([
+        { productId: 1, quantity: 2, price: 100 },
+        { productId: 2, quantity: 1, price: 200 }
+    ]);
+
+    await prisma.transaction.createMany({
+        data: [
+            {
+                vendorId: vendor.id,
+                items: itemsJson,
+                totalAmount: 400,
+                date: new Date(), // Now
+            },
+            {
+                vendorId: vendor.id,
+                items: JSON.stringify([{ productId: 1, quantity: 5, price: 100 }]),
+                totalAmount: 500,
+                date: new Date(Date.now() - 86400000), // Yesterday
+            },
+            {
+                vendorId: vendor.id,
+                items: JSON.stringify([{ productId: 2, quantity: 10, price: 200 }]),
+                totalAmount: 2000,
+                date: new Date(Date.now() - 172800000), // 2 days ago
+            }
+        ]
+    })
+    console.log('Created dummy transactions')
+
+
     console.log('Seeding finished.')
 }
 
