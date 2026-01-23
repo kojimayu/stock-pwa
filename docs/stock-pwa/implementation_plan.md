@@ -55,3 +55,13 @@
     - ProductTable
     - ProductFormDialog: マスタ情報の編集用。
     - StockAdjustmentDialog: 在庫数の変更用。
+
+### 8. 取引履歴 (Transaction History)
+- **パス**: /admin/transactions
+- **機能**:
+    - 全取引の時系列一覧表示。
+    - 取引詳細の表示（どの商品が何個、合計金額）。items JSONのパースが必要。
+- **コンポーネント**:
+    - TransactionList (or Page inline if simple)
+- **ロジック**:
+    - getRecentTransactions を流用、またはページネーション対応版を作成（今回は簡易的に全件または100件取得）。

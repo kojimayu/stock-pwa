@@ -148,7 +148,7 @@ export async function adjustStock(productId: number, type: string, quantity: num
 }
 
 // Dashboard Actions
-export async function getRecentTransactions(limit = 10) {
+export async function getTransactions(limit = 100) {
     const transactions = await prisma.transaction.findMany({
         take: limit,
         orderBy: { date: 'desc' },
@@ -157,6 +157,10 @@ export async function getRecentTransactions(limit = 10) {
         },
     });
     return transactions;
+}
+
+export async function getRecentTransactions(limit = 10) {
+    return getTransactions(limit);
 }
 
 export async function getDashboardStats() {
