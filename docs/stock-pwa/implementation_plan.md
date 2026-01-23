@@ -37,3 +37,21 @@
 ### 手動検証
 1. Browser Tool または ローカルサーバーで `http://localhost:3000/admin` にアクセス。
 2. サイドバーが表示され、各リンクが機能する（ページ遷移する、または404にならずプレースホルダーが表示される）ことを確認。
+
+### 5. 商品管理 (Product Management)
+- **パス**: /admin/products
+- **機能**:
+    - **商品一覧**: 基本情報と現在在庫数の表示。
+    - **商品編集**: 名前、カテゴリ、価格A/B、下限在庫数の変更（※在庫数はここでは変更不可）。
+    - **在庫調整 (本格版)**:
+        - 専用の「在庫調整」ダイアログ。
+        - 区分: 「入庫」「棚卸」「その他」を選択。
+        - 数量: 増減値を入力。
+        - 履歴記録: InventoryLog テーブルに理由とともに記録。
+- **データモデル変更**:
+    - InventoryLog モデルの追加 (productId, type, quantity, reason, createdAt)。
+    - Product モデルにリレーション追加。
+- **コンポーネント**:
+    - ProductTable
+    - ProductFormDialog: マスタ情報の編集用。
+    - StockAdjustmentDialog: 在庫数の変更用。

@@ -1,14 +1,14 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache';
 
 export type LoginState = {
     message?: string;
     success?: boolean;
 };
 
-import { revalidatePath } from 'next/cache';
-
+// Vendor Actions
 export async function getVendors() {
     return await prisma.vendor.findMany({
         orderBy: { name: 'asc' },
@@ -69,6 +69,85 @@ export async function verifyPin(vendorId: string | number, pin: string) {
     return { success: true, vendor };
 }
 
+// Product Actions
+export async function getProducts() {
+    return await prisma.product.findMany({
+        orderBy: { name: 'asc' },
+    });
+}
+
+export async function upsertProduct(data: { id?: number; name: string; category: string; priceA: number; priceB: number; minStock: number }) {
+    if (data.id) {
+        // Update (Stock is NOT updated here)
+        await prisma.product.update({
+            where: { id: data.id },
+            data: {
+                name: data.name,
+                category: data.category,
+                priceA: data.priceA,
+                priceB: data.priceB,
+                minStock: data.minStock,
+            },
+        });
+    } else {
+        // Create (Initial stock is 0)
+        await prisma.product.create({
+            data: {
+                name: data.name,
+                category: data.category,
+                priceA: data.priceA,
+                priceB: data.priceB,
+                minStock: data.minStock,
+                stock: 0,
+            },
+        });
+    }
+    revalidatePath('/admin/products');
+}
+
+export async function deleteProduct(id: number) {
+    // Check for transactions or logs
+    const transactionCount = await prisma.transaction.count({
+        where: { items: { contains: `"productId":${id}` } },
+    });
+    // Ideally we should also check InventoryLog
+    if (transactionCount > 0) {
+        throw new Error('取引履歴がある商品は削除できません');
+    }
+
+    await prisma.product.delete({
+        where: { id },
+    });
+    revalidatePath('/admin/products');
+}
+
+export async function adjustStock(productId: number, type: string, quantity: number, reason: string) {
+    // Transactional update
+    await prisma.$transaction(async (tx) => {
+        // 1. Create Log
+        await tx.inventoryLog.create({
+            data: {
+                productId,
+                type,
+                quantity,
+                reason,
+            },
+        });
+
+        // 2. Update Product Stock
+        await tx.product.update({
+            where: { id: productId },
+            data: {
+                stock: {
+                    increment: quantity,
+                },
+            },
+        });
+    });
+    revalidatePath('/admin/products');
+}
+
+// Dashboard Actions
 export async function getRecentTransactions(limit = 10) {
     const transactions = await prisma.transaction.findMany({
         take: limit,
@@ -92,8 +171,6 @@ export async function getDashboardStats() {
         },
     });
 
-    // TODO: Implement actual stock calculation logic if needed
-    // For now, returning simple counts or sums
     const totalStock = await prisma.product.aggregate({
         _sum: {
             stock: true

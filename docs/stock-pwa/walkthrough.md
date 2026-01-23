@@ -32,3 +32,8 @@
 
 ## スクリーンショット
 (ここにスクリーンショットを追加予定)
+
+### 7. 商品管理 (Product Management)
+- **ページ**: /admin/products
+- **機能**: 一覧表示, 基本情報編集(ProductDialog), 在庫調整(StockAdjustmentDialog), 削除
+- **在庫調整**: InventoryLog を介したトランザクション更新(入庫/廃棄/訂正/返品)
