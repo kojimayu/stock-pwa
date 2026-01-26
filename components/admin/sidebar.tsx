@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { LayoutDashboard, Package, FileText, Users, TrendingUp } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, TrendingUp, History } from "lucide-react";
 
 const navigation = [
   { name: "ダッシュボード", href: "/admin", icon: LayoutDashboard },
@@ -7,6 +7,7 @@ const navigation = [
   { name: "利益分析", href: "/admin/analysis", icon: TrendingUp },
   { name: "商品管理", href: "/admin/products", icon: Package },
   { name: "業者管理", href: "/admin/vendors", icon: Users },
+  { name: "操作ログ", href: "/admin/logs", icon: History },
 ];
 
 export function AdminSidebar() {

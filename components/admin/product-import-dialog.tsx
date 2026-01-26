@@ -30,8 +30,10 @@ interface ProductImportRow {
     code: string;
     name: string;
     category: string;
+    subCategory: string;
     priceA: number;
     priceB: number;
+    priceC: number;
     minStock?: number;
     cost: number;
     supplier?: string;
@@ -81,16 +83,18 @@ export function ProductImportDialog() {
 
             data.forEach((row: any) => {
                 const isColor = row.isColor || row.ISCOLOR || row.is_color || row.色展開;
-                const rawCode = String(row.code || row.CODE || row.型番 || row["商品コード"] || "");
+                const rawCode = String(row.code || row.CODE || row.型番 || row["商品コード"] || row["品番"] || "");
                 const baseName = String(row.name || row.NAME || row.品名 || row.商品名 || "");
                 const baseCode = normalizeCode(rawCode);
 
                 const commonProps = {
-                    category: String(row.category || row.CATEGORY || row.カテゴリ || ""),
-                    priceA: Number(row.priceA || row.PRICEA || row.売価A || row.定価 || 0),
-                    priceB: Number(row.priceB || row.PRICEB || row.売価B || row.特価 || 0),
+                    category: String(row.category || row.CATEGORY || row.カテゴリ || row.カテゴリー大 || ""),
+                    subCategory: String(row.subCategory || row.SUBCATEGORY || row.サブカテゴリ || row.カテゴリー中 || ""),
+                    priceA: Number(row.priceA || row.PRICEA || row.売価A || row.売値A || row.定価 || 0),
+                    priceB: Number(row.priceB || row.PRICEB || row.売価B || row.売値B || row.特価 || 0),
+                    priceC: Number(row.priceC || row.PRICEC || row.売価C || row.売値C || 0),
                     minStock: row.minStock || row.MINSTOCK || row.下限在庫 ? Number(row.minStock || row.MINSTOCK || row.下限在庫) : 0,
-                    cost: Number(row.cost || row.COST || row.原価 || row.仕入単価 || 0),
+                    cost: Number(row.cost || row.COST || row.原価 || row.仕入単価 || row.仕入れ値 || 0),
                     supplier: row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー ? String(row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー) : undefined,
                 };
 
@@ -134,8 +138,10 @@ export function ProductImportDialog() {
                 code: p.code,
                 name: p.name,
                 category: p.category,
+                subCategory: p.subCategory,
                 priceA: p.priceA,
                 priceB: p.priceB,
+                priceC: p.priceC,
                 minStock: p.minStock || 0,
                 cost: p.cost,
                 supplier: p.supplier,
@@ -147,7 +153,10 @@ export function ProductImportDialog() {
                 setOpen(false);
                 setPreviewData([]);
             } else {
-                toast.error(result.message || "インポートに失敗しました");
+                toast.error("インポートエラー", {
+                    description: result.message,
+                    duration: 10000, // Show longer
+                });
             }
         } catch (error) {
             toast.error("エラーが発生しました");
@@ -165,15 +174,15 @@ export function ProductImportDialog() {
                     Excel一括登録
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[800px] h-[80vh] flex flex-col">
+            <DialogContent className="sm:max-w-[1000px] h-[80vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Excel一括登録 (Bulk Import)</DialogTitle>
                     <DialogDescription>
                         Excelファイル (.xlsx) を選択してください。
                         <br />
-                        必須: code, name, category, priceA, priceB, cost
+                        必須: 品番, 商品名, カテゴリー大, カテゴリー中, 売値A, 売値B, 仕入れ値
                         <br />
-                        ※`isColor` (または `色展開`) 列に 1 を入力すると、指定の5色に自動展開されます。
+                        ※`色展開` 列に 1 または 〇 を入力すると、5色に自動展開されます。
                     </DialogDescription>
                 </DialogHeader>
 
@@ -192,14 +201,16 @@ export function ProductImportDialog() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Code</TableHead>
-                                        <TableHead>Name</TableHead>
-                                        <TableHead>Color</TableHead>
-                                        <TableHead>Cat.</TableHead>
-                                        <TableHead className="text-right">Price A</TableHead>
-                                        <TableHead className="text-right">Price B</TableHead>
-                                        <TableHead className="text-right">Cost</TableHead>
-                                        <TableHead>Supplier</TableHead>
+                                        <TableHead>品番</TableHead>
+                                        <TableHead>商品名</TableHead>
+                                        <TableHead>大カテ</TableHead>
+                                        <TableHead>中カテ</TableHead>
+                                        <TableHead>色</TableHead>
+                                        <TableHead className="text-right">売価A</TableHead>
+                                        <TableHead className="text-right">売価B</TableHead>
+                                        <TableHead className="text-right">売価C</TableHead>
+                                        <TableHead className="text-right">仕入</TableHead>
+                                        <TableHead>メーカー</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -207,10 +218,12 @@ export function ProductImportDialog() {
                                         <TableRow key={row.code}>
                                             <TableCell className="font-medium">{row.code}</TableCell>
                                             <TableCell>{row.name}</TableCell>
-                                            <TableCell>{row.color || "-"}</TableCell>
                                             <TableCell>{row.category}</TableCell>
+                                            <TableCell>{row.subCategory}</TableCell>
+                                            <TableCell>{row.color || "-"}</TableCell>
                                             <TableCell className="text-right">{row.priceA}</TableCell>
                                             <TableCell className="text-right">{row.priceB}</TableCell>
+                                            <TableCell className="text-right">{row.priceC}</TableCell>
                                             <TableCell className="text-right">{row.cost}</TableCell>
                                             <TableCell>{row.supplier || "-"}</TableCell>
                                         </TableRow>

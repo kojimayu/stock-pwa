@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { ProductImportDialog } from "./product-import-dialog";
+import { ProductExportButton } from "./product-export-button";
 
 type Product = {
     id: number;
@@ -85,7 +86,10 @@ export function ProductList({ products }: ProductListProps) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <ProductImportDialog />
+                <div className="flex gap-2">
+                    <ProductExportButton />
+                    <ProductImportDialog />
+                </div>
                 <Button onClick={handleCreate}>
                     <Plus className="w-4 h-4 mr-2" />
                     商品登録

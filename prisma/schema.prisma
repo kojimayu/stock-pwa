@@ -27,8 +27,10 @@ model Product {
   name      String
   color     String?  // 色
   category  String
+  subCategory String? // カテゴリー中
   priceA    Int      // 販売価格A
   priceB    Int      // 販売価格B
+  priceC    Int      @default(0) // 販売価格C
   cost      Int      @default(0) // 仕入れ単価 (原価)
   supplier  String?  // 仕入先/メーカー
   stock     Int      @default(0)
@@ -59,4 +61,12 @@ model Transaction {
   createdAt   DateTime @default(now())
 
   vendor      Vendor   @relation(fields: [vendorId], references: [id])
+}
+
+model OperationLog {
+  id          Int      @id @default(autoincrement())
+  action      String   // "PRODUCT_CREATE", "PRODUCT_UPDATE", "IMPORT", "VENDOR_UPDATE" etc.
+  target      String   // "Product: code", "Vendor: name"
+  details     String?  // JSON or text
+  performedAt DateTime @default(now())
 }

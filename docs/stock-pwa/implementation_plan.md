@@ -77,6 +77,9 @@
 ### 2. UI実装 (Import & Analysis)
 - **[NEW] `components/admin/product-import-dialog.tsx`**
     - `cost`, `supplier` カラムのインポートに対応。
+- **[NEW] `components/admin/product-export-button.tsx`**
+    - 登録済みデータをExcel形式でダウンロードするボタン。
+    - インポート用フォーマットと互換性を持たせ、編集後の再アップロードを支援。
 - **[MODIFY] `components/admin/product-list.tsx`**
     - 一覧に「原価」「利益率」を表示（利益率 = (売価 - 原価) / 売価）。
     - 利益率が低い商品（例: 10%以下）をアラート表示する機能を追加。
@@ -86,6 +89,7 @@
 ### 3. Server Action
 - **[MODIFY] `lib/actions.ts`**
     - `importProducts`: 新しいカラムに対応。
+    - `getAllProducts`: 全件取得用（Export用）のアクションを追加（既存の `getProducts` を流用可能か確認）。
     - `getDashboardStats`: 在庫資産額（Total Cost）の集計を追加。
 
 ## Future Extensibility: 色違い商品の効率管理 (Color Variants)
@@ -141,3 +145,25 @@
 1.  **インポート動作**: Excelファイルを取り込み、商品一覧に追加されるか。
 2.  **上書き確認**: 既存の商品名をインポートした場合、情報（価格など）が更新され、在庫は維持されるか。
 3.  **移行確認**: 別のPCからアクセスできるか。
+「いつ」「誰が」「何をしたか」を記録し、システム上の重要な変更（価格変更、商品削除、一括インポートなど）を追跡可能にする。
+-
+**[MODIFY]
+prisma/schema.prisma**
+-
+OperationLog モデル追加
+-
+**[MODIFY]
+lib/actions.ts**
+-
+以下の箇所にログ保存処理を追加:
+-
+importProducts:
+Imported N items
+ログ
+-
+deleteProduct:
+削除ログ
+-
+操作ログ一覧を表示するテーブル。
+-
+日時降順で最新の操作を確認可能。

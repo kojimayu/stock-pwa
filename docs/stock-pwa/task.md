@@ -72,7 +72,7 @@
         - [x] Component: `ProductImportDialog`
         - [x] Component: `ProfitChart` (Analysis Page)
     - [/] **マニュアル (Manual)**
-        - [ ] Excelテンプレート形式の定義 (v3: Cost/Supplier入り)
+        - [x] Excelテンプレート形式の定義 (v3: Cost/Supplier入り)
 
 - [ ] **Phase 6: 本番運用準備 (Deployment)**
     - [ ] **バックアップ (Backup)**
@@ -81,3 +81,12 @@
         - [ ] Doc: `docs/MANUAL_DEPLOY.md` (詳細な移行・運用マニュアル)
     - [ ] **リハーサル (Dry Run)**
         - [ ] ローカル環境でバックアップ動作確認
+
+- [x] **Phase 7: 管理者操作ログ (Operation Logs)**
+    - [x] **データベース (Schema)**
+        - [x] Add `OperationLog` model
+    - [x] **バックエンド (Actions)**
+        - [x] Create `logOperation` internal action
+        - [x] Integrate logging into: `upsertProduct`, `importProducts`, `upsertVendor`, `delete...`
+    - [x] **管理画面 (Admin UI)**
+        - [x] Page: `/admin/logs` (ログ閲覧・検索)

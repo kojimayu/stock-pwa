@@ -8,6 +8,22 @@ export type LoginState = {
     success?: boolean;
 };
 
+// Helper for Logging
+async function logOperation(action: string, target: string, details?: string) {
+    try {
+        await prisma.operationLog.create({
+            data: {
+                action,
+                target,
+                details,
+            },
+        });
+    } catch (e) {
+        console.error("Failed to create operation log:", e);
+        // Logging failure should not block the main action
+    }
+}
+
 // Vendor Actions
 export async function getVendors() {
     return await prisma.vendor.findMany({
@@ -26,15 +42,17 @@ export async function upsertVendor(data: { id?: number; name: string; pinCode: s
                 email: data.email,
             },
         });
+        await logOperation("VENDOR_UPDATE", `Vendor: ${data.name} (ID: ${data.id})`, `Updated profile`);
     } else {
         // Create
-        await prisma.vendor.create({
+        const newVendor = await prisma.vendor.create({
             data: {
                 name: data.name,
                 pinCode: data.pinCode,
                 email: data.email,
             },
         });
+        await logOperation("VENDOR_CREATE", `Vendor: ${data.name}`, `Created new vendor`);
     }
     revalidatePath('/admin/vendors');
 }
@@ -49,9 +67,12 @@ export async function deleteVendor(id: number) {
         throw new Error('取引履歴がある業者は削除できません');
     }
 
+    const vendor = await prisma.vendor.findUnique({ where: { id } });
     await prisma.vendor.delete({
         where: { id },
     });
+
+    await logOperation("VENDOR_DELETE", `Vendor: ${vendor?.name || id}`, `Deleted vendor`);
     revalidatePath('/admin/vendors');
 }
 
@@ -103,13 +124,20 @@ export async function upsertProduct(data: {
     code: string;
     name: string;
     category: string;
+    subCategory?: string | null;
     priceA: number;
     priceB: number;
+    priceC: number;
     minStock: number;
     cost: number;
     supplier?: string | null;
     color?: string | null;
 }) {
+    // Validation
+    if (data.cost >= data.priceA) throw new Error(`売価A(${data.priceA})が仕入れ値(${data.cost})を下回っています`);
+    if (data.cost >= data.priceB) throw new Error(`売価B(${data.priceB})が仕入れ値(${data.cost})を下回っています`);
+    if (data.priceC > 0 && data.cost >= data.priceC) throw new Error(`売価C(${data.priceC})が仕入れ値(${data.cost})を下回っています`);
+
     const normalizedCode = normalizeCode(data.code);
 
     if (data.id) {
@@ -120,14 +148,17 @@ export async function upsertProduct(data: {
                 code: normalizedCode,
                 name: data.name,
                 category: data.category,
+                subCategory: data.subCategory,
                 priceA: data.priceA,
                 priceB: data.priceB,
+                priceC: data.priceC,
                 minStock: data.minStock,
                 cost: data.cost,
                 supplier: data.supplier,
                 color: data.color,
             },
         });
+        await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, `PriceA: ${data.priceA}, Cost: ${data.cost}`);
     } else {
         // Create (Initial stock is 0)
         // Check if code exists (for manual creation safety)
@@ -141,8 +172,10 @@ export async function upsertProduct(data: {
                 code: normalizedCode,
                 name: data.name,
                 category: data.category,
+                subCategory: data.subCategory,
                 priceA: data.priceA,
                 priceB: data.priceB,
+                priceC: data.priceC,
                 minStock: data.minStock,
                 stock: 0,
                 cost: data.cost,
@@ -150,6 +183,7 @@ export async function upsertProduct(data: {
                 color: data.color,
             },
         });
+        await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created ${data.name}`);
     }
     revalidatePath('/admin/products');
 }
@@ -158,19 +192,61 @@ export async function importProducts(products: {
     code: string;
     name: string;
     category: string;
+    subCategory: string;
     priceA: number;
     priceB: number;
+    priceC: number;
     minStock: number;
     cost: number;
     supplier?: string | null;
     color?: string | null;
 }[]) {
     try {
+        // 1. Validation Phase
+        const errorDetails: { line: number; message: string; type: 'REQUIRED' | 'PRICE' }[] = [];
+
+        products.forEach((p, index) => {
+            const line = index + 1;
+            // Required check
+            if (!p.code) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: 品番(code)がありません` });
+            if (!p.name) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: 商品名(name)がありません` });
+            if (!p.category) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: カテゴリー大(category)がありません` });
+            if (!p.subCategory) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: カテゴリー中(subCategory)がありません` });
+
+            // Cost validation
+            if (p.cost >= p.priceA) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価A(${p.priceA})が仕入れ値(${p.cost})以下です` });
+            if (p.cost >= p.priceB) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価B(${p.priceB})が仕入れ値(${p.cost})以下です` });
+            if (p.priceC > 0 && p.cost >= p.priceC) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価C(${p.priceC})が仕入れ値(${p.cost})以下です` });
+        });
+
+        if (errorDetails.length > 0) {
+            // Error Message Construction
+            let finalMessage = "";
+            const THRESHOLD = 5;
+
+            if (errorDetails.length <= THRESHOLD) {
+                // Few errors: Show detailed list
+                finalMessage = "バリデーションエラー:\n" + errorDetails.map(e => e.message).join('\n');
+            } else {
+                // Many errors: Show summary
+                const requiredCount = errorDetails.filter(e => e.type === 'REQUIRED').length;
+                const priceCount = errorDetails.filter(e => e.type === 'PRICE').length;
+
+                finalMessage = `インポートエラー (合計 ${errorDetails.length}件)\n` +
+                    `・必須項目未入力: ${requiredCount}件\n` +
+                    `・価格設定エラー(原価割れ等): ${priceCount}件\n\n` +
+                    `データの確認をお願いします。`;
+            }
+
+            return { success: false, message: finalMessage };
+        }
+
+        // 2. Execution Phase
         await prisma.$transaction(async (tx) => {
             for (const p of products) {
                 const normalizedCode = normalizeCode(p.code);
 
-                // Upsert by code
+                // Allow bulk update of prices
                 const existing = await tx.product.findUnique({
                     where: { code: normalizedCode },
                 });
@@ -181,8 +257,10 @@ export async function importProducts(products: {
                         data: {
                             name: p.name,
                             category: p.category,
+                            subCategory: p.subCategory,
                             priceA: p.priceA,
                             priceB: p.priceB,
+                            priceC: p.priceC,
                             minStock: p.minStock,
                             cost: p.cost,
                             supplier: p.supplier,
@@ -195,8 +273,10 @@ export async function importProducts(products: {
                             code: normalizedCode,
                             name: p.name,
                             category: p.category,
+                            subCategory: p.subCategory,
                             priceA: p.priceA,
                             priceB: p.priceB,
+                            priceC: p.priceC,
                             minStock: p.minStock,
                             stock: 0,
                             cost: p.cost,
@@ -207,6 +287,8 @@ export async function importProducts(products: {
                 }
             }
         });
+
+        await logOperation("IMPORT", "Batch Import", `Imported/Updated ${products.length} products`);
         revalidatePath('/admin/products');
         return { success: true, count: products.length };
     } catch (error) {
@@ -225,9 +307,12 @@ export async function deleteProduct(id: number) {
         throw new Error('取引履歴がある商品は削除できません');
     }
 
+    const product = await prisma.product.findUnique({ where: { id } });
     await prisma.product.delete({
         where: { id },
     });
+
+    await logOperation("PRODUCT_DELETE", `Product: ${product?.code || id}`, `Deleted ${product?.name}`);
     revalidatePath('/admin/products');
 }
 
@@ -405,4 +490,12 @@ export async function getVendorTransactions(vendorId: number, limit = 20) {
         take: limit,
     });
     return transactions;
+}
+
+// Operation Logs
+export async function getOperationLogs(limit = 100) {
+    return await prisma.operationLog.findMany({
+        take: limit,
+        orderBy: { performedAt: 'desc' },
+    });
 }
