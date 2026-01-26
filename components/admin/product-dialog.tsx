@@ -26,11 +26,15 @@ interface ProductDialogProps {
     onOpenChange: (open: boolean) => void;
     product?: {
         id: number;
+        code: string;
         name: string;
         category: string;
         priceA: number;
         priceB: number;
         minStock: number;
+        cost: number;
+        supplier?: string | null;
+        color?: string | null;
     } | null;
     onSuccess: () => void;
 }
@@ -47,17 +51,21 @@ export function ProductDialog({ open, onOpenChange, product, onSuccess }: Produc
         try {
             await upsertProduct({
                 id: product?.id,
+                code: formData.get("code") as string,
                 name: formData.get("name") as string,
                 category: formData.get("category") as string,
                 priceA: Number(formData.get("priceA")),
                 priceB: Number(formData.get("priceB")),
                 minStock: Number(formData.get("minStock")),
+                cost: Number(formData.get("cost")),
+                supplier: formData.get("supplier") as string || null,
+                color: formData.get("color") as string || null,
             });
             toast.success(product ? "商品情報を更新しました" : "商品を追加しました");
             onSuccess();
             onOpenChange(false);
         } catch (error) {
-            toast.error("エラーが発生しました");
+            toast.error("エラーが発生しました (コード重複など)");
             console.error(error);
         } finally {
             setLoading(false);
@@ -66,7 +74,7 @@ export function ProductDialog({ open, onOpenChange, product, onSuccess }: Produc
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{product ? "商品情報の編集" : "商品の新規登録"}</DialogTitle>
                     <DialogDescription>
@@ -75,6 +83,19 @@ export function ProductDialog({ open, onOpenChange, product, onSuccess }: Produc
                 </DialogHeader>
                 <form onSubmit={handleSubmit}>
                     <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="code" className="text-right text-sm font-medium">
+                                商品ID (型番)
+                            </label>
+                            <Input
+                                id="code"
+                                name="code"
+                                defaultValue={product?.code || ""}
+                                className="col-span-3"
+                                placeholder="例: DUCT-001, LD-70-I"
+                                required
+                            />
+                        </div>
                         <div className="grid grid-cols-4 items-center gap-4">
                             <label htmlFor="name" className="text-right text-sm font-medium">
                                 商品名
@@ -88,16 +109,52 @@ export function ProductDialog({ open, onOpenChange, product, onSuccess }: Produc
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="color" className="text-right text-sm font-medium">
+                                色 (任意)
+                            </label>
+                            <Input
+                                id="color"
+                                name="color"
+                                defaultValue={product?.color || ""}
+                                className="col-span-3"
+                                placeholder="例: アイボリー, 黒"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
                             <label htmlFor="category" className="text-right text-sm font-medium">
                                 カテゴリ
                             </label>
-                            {/* 簡易的にテキスト入力、本来はマスタ管理かSelect */}
                             <Input
                                 id="category"
                                 name="category"
                                 defaultValue={product?.category || ""}
                                 className="col-span-3"
                                 placeholder="例: 電動工具, 消耗品"
+                                required
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="supplier" className="text-right text-sm font-medium">
+                                仕入先 (任意)
+                            </label>
+                            <Input
+                                id="supplier"
+                                name="supplier"
+                                defaultValue={product?.supplier || ""}
+                                className="col-span-3"
+                                placeholder="例: 因幡電工, Panasonic"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="cost" className="text-right text-sm font-medium">
+                                原価 (仕入値)
+                            </label>
+                            <Input
+                                id="cost"
+                                name="cost"
+                                type="number"
+                                defaultValue={product?.cost || 0}
+                                className="col-span-3"
                                 required
                             />
                         </div>

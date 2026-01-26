@@ -18,7 +18,7 @@ import { toast } from "sonner"; // Assuming sonner is installed as per package.j
 interface VendorDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    vendor?: { id: number; name: string; pinCode: string } | null;
+    vendor?: { id: number; name: string; pinCode: string; email?: string | null } | null;
     onSuccess: () => void;
 }
 
@@ -37,7 +37,8 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
             await upsertVendor({
                 id: vendor?.id,
                 name,
-                pinCode: pin
+                pinCode: pin,
+                email: formData.get("email") as string || null,
             });
             toast.success(vendor ? "業者情報を更新しました" : "業者を追加しました");
             onSuccess();
@@ -86,6 +87,19 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                                 pattern="\d{4}"
                                 title="4桁の数字を入力してください"
                                 required
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="email" className="text-right text-sm font-medium">
+                                メール (任意)
+                            </label>
+                            <Input
+                                id="email"
+                                name="email"
+                                type="email"
+                                defaultValue={vendor?.email || ""}
+                                className="col-span-3"
+                                placeholder="vendor@example.com"
                             />
                         </div>
                     </div>

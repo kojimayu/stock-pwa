@@ -21,6 +21,7 @@ type Vendor = {
     id: number;
     name: string;
     pinCode: string;
+    email?: string | null;
 };
 
 interface VendorListProps {
@@ -73,6 +74,7 @@ export function VendorList({ vendors }: VendorListProps) {
                             <TableHead className="w-[100px]">ID</TableHead>
                             <TableHead>名前</TableHead>
                             <TableHead>PIN</TableHead>
+                            <TableHead>メール</TableHead>
                             <TableHead className="text-right">操作</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -82,6 +84,7 @@ export function VendorList({ vendors }: VendorListProps) {
                                 <TableCell>{vendor.id}</TableCell>
                                 <TableCell className="font-medium">{vendor.name}</TableCell>
                                 <TableCell>{vendor.pinCode}</TableCell>
+                                <TableCell className="text-muted-foreground">{vendor.email || '-'}</TableCell>
                                 <TableCell className="text-right space-x-2">
                                     <Button variant="ghost" size="icon" onClick={() => handleEdit(vendor)}>
                                         <Edit className="w-4 h-4" />
@@ -94,7 +97,7 @@ export function VendorList({ vendors }: VendorListProps) {
                         ))}
                         {vendors.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={5} className="text-center py-10 text-slate-500">
                                     業者が登録されていません
                                 </TableCell>
                             </TableRow>

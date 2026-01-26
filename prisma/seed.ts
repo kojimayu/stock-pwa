@@ -23,28 +23,37 @@ async function main() {
     const products = await prisma.product.createMany({
         data: [
             {
+                code: 'PROD-001',
                 name: '商品A (Category 1)',
                 category: 'Category 1',
                 priceA: 100,
                 priceB: 80,
                 stock: 50,
                 minStock: 10,
+                cost: 60,
+                supplier: 'Vendor X',
+                color: 'White'
             },
             {
+                code: 'PROD-002',
                 name: '商品B (Category 1)',
                 category: 'Category 1',
                 priceA: 200,
                 priceB: 150,
                 stock: 20,
                 minStock: 5,
+                cost: 120,
+                supplier: 'Vendor Y',
             },
             {
+                code: 'PROD-003',
                 name: '商品C (Category 2)',
                 category: 'Category 2',
                 priceA: 500,
                 priceB: 400,
                 stock: 0, // Out of stock
                 minStock: 5,
+                cost: 300,
             },
         ],
     })

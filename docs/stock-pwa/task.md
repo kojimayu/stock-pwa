@@ -33,16 +33,51 @@
 - [ ] **Phase 3: キオスクUI (タブレット/倉庫)**
     - [ ] **アーキテクチャ (Architecture)**
         - [ ] ルートグループ `(kiosk)` の作成（タブレット用レイアウト）
-    - [ ] **業者ログイン (PIN Login)**
-        - [ ] API: `/api/auth/vendor` (PIN検証)
-        - [ ] UI: 数字キーパッドコンポーネント (PIN入力)
-        - [ ] UI: ログイン画面
-    - [ ] **商品選択 (Shop)**
-        - [ ] API: `/api/products` (商品一覧取得)
-        - [ ] UI: 商品カード (画像/アイコン, 名前, 在庫, 価格)
-        - [ ] UI: カテゴリタブ
-        - [ ] Logic: カート状態管理 (Zustand または React Context)
-    - [ ] **出庫・決済 (Checkout)**
-        - [ ] UI: カート確認モーダル/シート
-        - [ ] API: `/api/transactions` (取引作成・在庫減算)
-        - [ ] UI: 完了画面
+    - [x] **業者ログイン (PIN Login)**
+        - [/] API: `/api/auth/vendor` (PIN検証) -> Server Action `loginByPin`
+        - [x] UI: 数字キーパッドコンポーネント (PIN入力)
+        - [x] UI: ログイン画面
+    - [x] **商品選択 (Shop)**
+        - [x] API: `/api/products` (商品一覧取得) -> Server Action `getProducts`
+        - [x] UI: 商品カード (画像/アイコン, 名前, 在庫, 価格)
+        - [x] UI: カテゴリタブ
+        - [x] UI: 数量選択ダイアログ (10, 20, 30...プリセット)
+        - [x] Logic: カート状態管理 (Zustand または React Context)
+    - [x] **出庫・決済 (Checkout)**
+        - [x] UI: カート確認モーダル/シート -> ページ `/shop/checkout`
+        - [x] API: `/api/transactions` (取引作成・在庫減算) -> Server Action
+        - [x] UI: 完了画面 -> `/shop/complete`
+
+- [/] **Phase 4: 通知・メール機能 (Notifications)**
+    - [x] **データベース (Schema)**
+        - [x] Add `email` to `Vendor` model
+    - [x] **管理画面 (Admin UI)**
+        - [x] 業者登録・編集ダイアログへのメールアドレス欄追加
+    - [x] **メール送信機能 (Graph API)**
+        - [x] `lib/mail.ts`: Graph API Implementation
+    - [x] **連携 (Integration)**
+        - [x] `createTransaction` call `sendTransactionEmail`
+    - [/] **検証 (Verification)**
+        - [x] 実際にメールが届くか確認 (Test Email)
+
+- [/] **Phase 5: 原価管理・仕入先対応 (Cost Management)**
+    - [x] **データベース (Schema)**
+        - [x] Add `cost`, `supplier`, `code`, `color` to `Product` model
+        - [x] Migration: `add_product_cost_supplier`
+    - [x] **機能設計 (Design)**
+        - [x] UI: 商品管理画面に「原価」「利益率」表示追加
+        - [x] UI: 利益分析ページ (`/admin/analysis`)
+    - [x] **実装 (Implementation)**
+        - [x] Action: `importProducts` (Cost/Supplier input)
+        - [x] Component: `ProductImportDialog`
+        - [x] Component: `ProfitChart` (Analysis Page)
+    - [/] **マニュアル (Manual)**
+        - [ ] Excelテンプレート形式の定義 (v3: Cost/Supplier入り)
+
+- [ ] **Phase 6: 本番運用準備 (Deployment)**
+    - [ ] **バックアップ (Backup)**
+        - [ ] Script: `scripts/backup_db.ps1` (PowerShell)
+    - [ ] **手順書 (Documentation)**
+        - [ ] Doc: `docs/MANUAL_DEPLOY.md` (詳細な移行・運用マニュアル)
+    - [ ] **リハーサル (Dry Run)**
+        - [ ] ローカル環境でバックアップ動作確認

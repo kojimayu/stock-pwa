@@ -14,6 +14,7 @@ model Vendor {
   id        Int           @id @default(autoincrement())
   name      String
   pinCode   String        @unique // PINコードは重複不可の方が安全
+  email     String?       // メールアドレス (Option)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   
@@ -22,10 +23,14 @@ model Vendor {
 
 model Product {
   id        Int      @id @default(autoincrement())
+  code      String   @unique // 商品ID/型番 (Excel紐付け用)
   name      String
+  color     String?  // 色
   category  String
-  priceA    Int      // 価格A
-  priceB    Int      // 価格B
+  priceA    Int      // 販売価格A
+  priceB    Int      // 販売価格B
+  cost      Int      @default(0) // 仕入れ単価 (原価)
+  supplier  String?  // 仕入先/メーカー
   stock     Int      @default(0)
   minStock  Int      @default(0)
   createdAt DateTime @default(now())
