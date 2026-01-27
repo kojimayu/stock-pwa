@@ -103,7 +103,22 @@
         - [x] List: 未登録商品を含む取引のハイライト表示
         - [x] Import: エラーハンドリングの強化 (Excel Import)
         - [x] Export: 商品マスタのエクスポート機能
-- [ ] **Phase 9: 手入力商品のマスタ登録 (Manual Item Registration)**
-    - [ ] **Admin UI**: 取引履歴の手入力商品に「マスタ登録」ボタンを追加
-    - [ ] **Admin UI**: `ProductDialog` を拡張し、初期値 (名前) を受け取れるように変更
-    - [ ] **Kiosk UI**: カート画面等で金額非表示/0円表示の確認・調整
+- [x] **Phase 9: 手入力商品のマスタ登録 (Manual Item Registration)**
+    - [x] **Admin UI**: 取引履歴の手入力商品に「マスタ登録」ボタンを追加
+    - [x] **Admin UI**: `ProductDialog` を拡張し、初期値 (名前) を受け取れるように変更
+    - [x] **Kiosk UI**: カート画面等で金額非表示/0円表示の確認・調整
+
+- [x] **Phase 10: 手入力商品の紐付け・在庫整合 (Reconciliation)**
+    - [x] **Admin UI**: 取引履歴に「既存商品に紐付け」アクション追加
+    - [x] **Action**: `reconcileTransactionItem` 実装 (JSON更新 + 在庫減算)
+    - [x] **UI**: 商品検索・選択ダイアログの実装
+
+- [ ] **Phase 12: 単位追加・棚卸機能 (Unit & Inventory Count)**
+    - [ ] **Schema**: `Product.unit`, `InventoryCount` tables
+    - [ ] **Unit Feature**:
+        - [ ] Admin: ProductDialog update
+        - [ ] Import/Export: Excel column update
+    - [ ] **Inventory Feature**:
+        - [ ] Admin: Inventory List & Create Session
+        - [ ] Admin: Inventory Input Interface
+        - [ ] Action: `finalizeInventory` (Adjust stock)

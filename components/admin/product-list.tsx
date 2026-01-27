@@ -85,6 +85,14 @@ export function ProductList({ products }: ProductListProps) {
         return ((price - cost) / price) * 100;
     };
 
+    // Derive options from props
+    // Using simple deduplication with Set
+    const attributeOptions = {
+        categories: Array.from(new Set(products.map(p => p.category))).sort(),
+        subCategories: Array.from(new Set(products.map(p => p.subCategory).filter(Boolean) as string[])).sort(),
+        suppliers: Array.from(new Set(products.map(p => p.supplier).filter(Boolean) as string[])).sort(),
+    };
+
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -102,65 +110,79 @@ export function ProductList({ products }: ProductListProps) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[100px]">ID (Code)</TableHead>
-                            <TableHead>商品名 / 色</TableHead>
+                            <TableHead className="w-[100px]">ID</TableHead>
+                            <TableHead>商品名</TableHead>
                             <TableHead>カテゴリ</TableHead>
+                            <TableHead className="text-right">販売単価</TableHead>
                             <TableHead className="text-right">在庫</TableHead>
-                            <TableHead className="text-right">原価</TableHead>
-                            <TableHead className="text-right">売価A (利益率)</TableHead>
-                            <TableHead className="text-right whitespace-nowrap">操作</TableHead>
+                            <TableHead className="text-right">原価率</TableHead>
+                            <TableHead className="w-[100px]">操作</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {products.map((product) => {
                             const margin = getMargin(product.priceA, product.cost);
-                            const isLowMargin = margin < 10;
-
                             return (
                                 <TableRow key={product.id}>
-                                    <TableCell className="font-mono text-xs">{product.code}</TableCell>
-                                    <TableCell className="font-medium">
-                                        <div>{product.name}</div>
-                                        {product.color && <div className="text-xs text-muted-foreground">{product.color}</div>}
-                                        {product.stock <= product.minStock && (
-                                            <span className="text-xs text-red-500 font-bold">(在庫少)</span>
-                                        )}
-                                    </TableCell>
+                                    <TableCell className="font-medium">{product.code}</TableCell>
                                     <TableCell>
-                                        {product.category}
-                                        {product.supplier && <div className="text-xs text-muted-foreground">{product.supplier}</div>}
-                                    </TableCell>
-                                    <TableCell className="text-right font-bold text-lg">
-                                        {product.stock}
-                                    </TableCell>
-                                    <TableCell className="text-right text-muted-foreground">
-                                        {formatCurrency(product.cost)}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div>{formatCurrency(product.priceA)}</div>
-                                        <div className={`text-xs ${isLowMargin ? 'text-red-500 font-bold' : 'text-green-600'}`}>
-                                            {margin.toFixed(1)}%
+                                        <div>{product.name}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                            {product.supplier && <span className="mr-2">仕入: {product.supplier}</span>}
+                                            {product.color && <span>色: {product.color}</span>}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-right space-x-1 whitespace-nowrap">
-                                        <Button variant="outline" size="sm" onClick={() => handleAdjustStock(product)} title="在庫調整">
-                                            <PackagePlus className="w-4 h-4 mr-1" />
-                                            在庫調整
+                                    <TableCell>
+                                        <div>{product.category}</div>
+                                        {product.subCategory && (
+                                            <div className="text-xs text-muted-foreground">{product.subCategory}</div>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="font-bold">{formatCurrency(product.priceA)}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                            B: {formatCurrency(product.priceB)} / C: {formatCurrency(product.priceC)}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className={product.stock <= product.minStock ? "text-red-500 font-bold" : ""}>
+                                            {product.stock}
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 text-xs"
+                                            onClick={() => handleAdjustStock(product)}
+                                        >
+                                            <PackagePlus className="w-3 h-3 mr-1" />
+                                            調整
                                         </Button>
-                                        <Button variant="ghost" size="icon" onClick={() => handleEdit(product)} title="編集">
-                                            <Edit className="w-4 h-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => handleDelete(product.id)} title="削除">
-                                            <Trash2 className="w-4 h-4" />
-                                        </Button>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className={margin < 20 ? "text-red-500" : "text-green-600"}>
+                                            {product.priceA > 0 ? `${margin.toFixed(1)}%` : "-"}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            原価: {formatCurrency(product.cost)}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex gap-2">
+                                            <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
+                                                <Edit className="w-4 h-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id)}>
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             );
                         })}
                         {products.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-10 text-slate-500">
-                                    商品が登録されていません
+                                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                                    登録されている商品がありません
                                 </TableCell>
                             </TableRow>
                         )}
@@ -172,6 +194,8 @@ export function ProductList({ products }: ProductListProps) {
                 open={productDialogOpen}
                 onOpenChange={setProductDialogOpen}
                 product={editingProduct}
+                initialValues={{}} // Pass empty if unnecessary or adjust logic
+                attributeOptions={attributeOptions}
                 onSuccess={handleSuccess}
             />
 

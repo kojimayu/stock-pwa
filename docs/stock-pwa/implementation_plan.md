@@ -187,3 +187,84 @@ deleteProduct:
     - 手入力商品が含まれる行、または商品の横に「マスタ登録」ボタンを配置。
     - クリックすると `ProductDialog` が開き、商品名が入力された状態で立ち上がる。
     - 登録完了後、取引データ自体はそのままだが、次回以降の取引で検索に出てくるようになる。
+
+# Phase 10: 手入力商品の紐付け・在庫整合 (Reconciliation)
+## 目標 (Goal)
+「実はマスタにあったのに手入力してしまった」ケースに対し、管理画面から後追いで既存商品へ紐付け（名寄せ）を行い、在庫と売上データを補正する。
+
+## Proposed Changes
+### 1. Admin UI: 紐付け機能
+- **[MODIFY] `components/admin/transaction-list.tsx`**
+    - 「マスタ登録」ボタンの横に「**既存商品に紐付け**」ボタンを追加。
+    - クリックすると、商品検索ダイアログが開く。
+    - 既存の商品を選択して「確定」。
+
+### [x] **Admin UI**: 取引履歴に「既存商品に紐付け」アクション追加
+    - [x] **Action**: `reconcileTransactionItem` 実装 (JSON更新 + 在庫減算)
+    - [x] **UI**: 商品検索・選択ダイアログの実装
+
+# Phase 11: 価格自動計算 (Automated Pricing)
+## Proposed Changes
+### Logic Specification (価格決定ロジック)
+Excelインポートおよび商品登録時の誤入力防止と柔軟性を両立するため、以下のロジックを採用します。
+
+1.  **基本ルール (Default)**:
+    - **仕入原価 (`Cost`) のみ**を入力してください。
+    - 販売単価 (`PriceA`, `PriceB`) は**空欄または0**にしておきます。
+    - システムが自動的に計算します: `PriceA = Cost * 1.20`, `PriceB = Cost * 1.15` (切り上げ)。
+
+2.  **イレギュラー対応 (Manual Override)**:
+    - 「端数を980円に揃えたい」「戦略的に安くしたい」などの場合のみ、販売単価を入力します。
+    - **値が入力されている場合**、自動計算を行わず、入力値を優先（正）とします。
+    - [ ] **UI表示**: 自動計算と異なる値が設定されている場合、その旨を明示する（「手動設定」アイコン等）。
+
+3.  **安全装置 (Safety Net)**:
+    - もし手入力でミス（桁間違い等）をして原価を下回ってしまった場合、既存のバリデーションエラー (`Price >= Cost`) が作動し、登録をブロックします。これにより「安売りミス」を防ぎます。
+
+- **ProductDialog (Admin)**:
+    - [x] 仕入原価 (Cost) 入力時に販売単価を自動計算
+        - Price A = Cost * 1.20 (切り上げ)
+        - Price B = Cost * 1.15 (切り上げ)
+    - [x] 入力フィールドを再表示 (金額入力は可能だが、原価入力で上書きされる仕様)
+- **Import (Admin)**:
+    - [x] Excelインポート時も同様のロジックを適用
+    - [x] 売価が空欄または0の場合、原価から自動計算して登録
+
+### 3. Backend Logic: 補正処理
+- **[NEW] Action: `reconcileTransactionItem`**
+    - 引数: `transactionId`, `manualItemName`, `targetProductId`
+    - 処理内容:
+        1.  対象の `Transaction` の `items` JSON を更新（手入力データを正規の商品データで置換）。
+        2.  **在庫減算**: 紐付けた商品の在庫を、取引時の数量分だけ減算する（`Product.update`）。
+        3.  **ログ記録**: `InventoryLog` に「手入力紐付けによる出庫」として記録。
+        4.  フラグ更新: `Transaction.hasUnregisteredItems` を再評価。
+    - これにより、原価計算や在庫数が事後的に正しくなる。
+
+# Phase 12: 単位追加・棚卸機能 (Unit & Inventory Count)
+## 目標 (Goal)
+商品ごとの単位（個、本、m、箱など）を管理し、Excel連携を強化する。
+また、実地棚卸（在庫カウント）を行い、システム在庫との差異を調整する機能を実装する。
+
+## Proposed Changes
+### 1. 単位カラムの追加 (Unit Column)
+- **Database**: `Product` モデルに `unit` (String, default: "個") を追加。
+- **UI**:
+    - `ProductDialog`: 単位入力欄を追加（"個", "本", "m", "箱", "セット" などの候補を表示）。
+    - `Import/Export`: Excelに `unit` カラムを追加。
+
+### 2. 棚卸機能 (Inventory Taking)
+- **Database**:
+    - `InventoryCount` (棚卸実施記録): id, date, status (InProgress/Completed), notes.
+    - `InventoryCountItem` (棚卸明細): id, countId, productId, expectedStock(帳簿在庫), actualStock(実在庫), adjustment(差異).
+- **UI (Page: `/admin/inventory`)**:
+    - **棚卸開始**: 新しい棚卸セッションを作成。
+    - **在庫入力**:
+        - 商品一覧が表示され、実在庫数 (`actualStock`) を入力していく。
+        - バーコードスキャン検索などで入力効率化（将来拡張）。
+    - **差異確認**: 帳簿在庫とのズレをリアルタイム表示。
+    - **確定処理**:
+        - 差異分を `InventoryLog` (Type: `INVENTORY_ADJUSTMENT`) として記録。
+        - `Product.stock` を実在庫数で上書き更新。
+- **Logic**:
+    - 棚卸中は他端末での出庫をブロックするか？ -> **ブロックしない**（簡易運用）。
+    - ただし「棚卸開始時点の在庫」を基準にするため、棚卸中の入出庫はズレの原因になることを運用でカバー（「棚卸中は出庫禁止」など）。

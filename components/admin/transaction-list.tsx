@@ -1,5 +1,13 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { ProductDialog } from "./product-dialog";
+import { ProductSearchDialog } from "./product-search-dialog";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { FilePlus, Link as LinkIcon, Loader2 } from "lucide-react";
+import { reconcileTransactionItem, getUniqueProductAttributes } from "@/lib/actions";
+import { toast } from "sonner";
 import {
     Table,
     TableBody,
@@ -25,8 +33,63 @@ interface TransactionListProps {
 }
 
 export function TransactionList({ transactions }: TransactionListProps) {
+    const [productDialogOpen, setProductDialogOpen] = useState(false);
+    const [searchDialogOpen, setSearchDialogOpen] = useState(false);
+    const [initialValues, setInitialValues] = useState<{ name?: string, priceA?: number }>({});
+    const [targetManualItem, setTargetManualItem] = useState<{ txId: number, name: string } | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    // Attributes for Autocomplete
+    const [attributeOptions, setAttributeOptions] = useState<{ categories: string[], subCategories: string[], suppliers: string[] } | undefined>(undefined);
+
+    const router = useRouter();
+
+    // Fetch attributes when dialog opens (or on mount to be ready)
+    // Optimization: Only fetch when registering manually
+    const fetchAttributes = async () => {
+        if (!attributeOptions) {
+            const attrs = await getUniqueProductAttributes();
+            setAttributeOptions(attrs);
+        }
+    };
+
+    const handleRegister = async (name: string, price: number) => {
+        await fetchAttributes();
+        setInitialValues({ name, priceA: price });
+        setProductDialogOpen(true);
+    };
+
+    const handleLinkClick = (txId: number, name: string) => {
+        setTargetManualItem({ txId, name });
+        setSearchDialogOpen(true);
+    };
+
+    const handleLinkSelect = async (productId: number) => {
+        if (!targetManualItem) return;
+        setLoading(true);
+        try {
+            const res = await reconcileTransactionItem(targetManualItem.txId, targetManualItem.name, productId);
+            if (res.success) {
+                toast.success("紐付けが完了しました");
+                router.refresh();
+            } else {
+                toast.error(res.message);
+            }
+        } catch (e) {
+            toast.error("エラーが発生しました");
+        } finally {
+            setLoading(false);
+            setTargetManualItem(null);
+        }
+    };
+
     return (
-        <div className="border rounded-lg">
+        <div className="border rounded-lg relative">
+            {loading && (
+                <div className="absolute inset-0 bg-white/50 z-50 flex items-center justify-center">
+                    <Loader2 className="animate-spin text-blue-600 w-8 h-8" />
+                </div>
+            )}
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -41,27 +104,10 @@ export function TransactionList({ transactions }: TransactionListProps) {
                         let parsedItems: any[] = [];
                         try {
                             const raw = JSON.parse(tx.items);
-                            // raw might be array or object. Normalize to array.
                             parsedItems = Array.isArray(raw) ? raw : [raw];
                         } catch (e) {
                             console.error("Failed to parse items", e);
                         }
-
-                        // In a real app, we might need to fetch Product Names if not stored in JSON.
-                        // Strategy: JSON ideally contains snapshot like { productId, name, price, quantity }.
-                        // If only productId, we can't show names easily without pre-fetching products map.
-                        // For "Phase 2" MVP, let's assume we show what we have. 
-                        // If JSON only has ID, we might display "商品ID: 1".
-                        // *Correction*: To make it usable, we shout fetch product names or rely on JSON having them.
-                        // Our seed data: { productId: 1, quantity: 2, price: 100 } -> No name.
-                        // User will ask for names.
-                        // Option A: Fetch all products and map ID to Name in Client Component?
-                        // Option B: Store Name in JSON at checkout (Best practice for history).
-                        // Since we haven't implemented Checkout yet, we can decide NOW that Checkout WILL save Name.
-                        // For Seed Data, we lack names.
-                        // For display now, let's show "商品ID: X" and maybe quantity.
-                        // Or better, pass a productMap to this component? 
-                        // Let's keep it simple: Show formatted JSON content or summary.
 
                         return (
                             <TableRow key={tx.id} className={tx.hasUnregisteredItems ? "bg-yellow-50 hover:bg-yellow-100" : ""}>
@@ -75,10 +121,36 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                 <TableCell>
                                     <div className="space-y-1">
                                         {parsedItems.map((item, idx) => (
-                                            <div key={idx} className="text-sm">
-                                                {item.isManual && <span className="text-xs bg-amber-200 text-amber-800 px-1 rounded mr-1">手入力</span>}
-                                                {item.name || `商品ID:${item.productId}`} × {item.quantity}
-                                                <span className="text-slate-400 text-xs ml-2">(@{formatCurrency(item.price)})</span>
+                                            <div key={idx} className="flex items-center justify-between text-sm">
+                                                <span>
+                                                    {item.isManual && <span className="text-xs bg-amber-200 text-amber-800 px-1 rounded mr-1">手入力</span>}
+                                                    {item.name || `商品ID:${item.productId}`} × {item.quantity}
+                                                    <span className="text-slate-400 text-xs ml-2">
+                                                        (@{item.isManual ? "-" : formatCurrency(item.price)})
+                                                    </span>
+                                                </span>
+                                                {item.isManual && (
+                                                    <div className="flex gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 text-xs text-blue-600 hover:text-blue-800"
+                                                            onClick={() => handleRegister(item.name, item.price)}
+                                                        >
+                                                            <FilePlus className="w-3 h-3 mr-1" />
+                                                            マスタ登録
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 text-xs text-green-600 hover:text-green-800"
+                                                            onClick={() => handleLinkClick(tx.id, item.name)}
+                                                        >
+                                                            <LinkIcon className="w-3 h-3 mr-1" />
+                                                            既存紐付
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -96,6 +168,23 @@ export function TransactionList({ transactions }: TransactionListProps) {
                     )}
                 </TableBody>
             </Table>
+
+            <ProductDialog
+                open={productDialogOpen}
+                onOpenChange={setProductDialogOpen}
+                initialValues={initialValues}
+                attributeOptions={attributeOptions}
+                onSuccess={() => {
+                    setProductDialogOpen(false);
+                    router.refresh();
+                }}
+            />
+
+            <ProductSearchDialog
+                open={searchDialogOpen}
+                onOpenChange={setSearchDialogOpen}
+                onSelect={handleLinkSelect}
+            />
         </div>
     );
 }

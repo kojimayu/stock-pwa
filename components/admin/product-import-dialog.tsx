@@ -134,19 +134,33 @@ export function ProductImportDialog() {
         if (previewData.length === 0) return;
         setLoading(true);
         try {
-            const result = await importProducts(previewData.map(p => ({
-                code: p.code,
-                name: p.name,
-                category: p.category,
-                subCategory: p.subCategory,
-                priceA: p.priceA,
-                priceB: p.priceB,
-                priceC: p.priceC,
-                minStock: p.minStock || 0,
-                cost: p.cost,
-                supplier: p.supplier,
-                color: p.color
-            })));
+            const result = await importProducts(previewData.map(p => {
+                // Auto-calculate prices if missing or 0, based on Cost
+                let priceA = p.priceA;
+                let priceB = p.priceB;
+                const cost = p.cost;
+
+                if ((priceA === 0 || !priceA) && cost > 0) {
+                    priceA = Math.ceil(cost * 1.20);
+                }
+                if ((priceB === 0 || !priceB) && cost > 0) {
+                    priceB = Math.ceil(cost * 1.15);
+                }
+
+                return {
+                    code: p.code,
+                    name: p.name,
+                    category: p.category,
+                    subCategory: p.subCategory,
+                    priceA: priceA,
+                    priceB: priceB,
+                    priceC: p.priceC,
+                    minStock: p.minStock || 0,
+                    cost: p.cost,
+                    supplier: p.supplier,
+                    color: p.color
+                };
+            }));
 
             if (result.success) {
                 toast.success(`${result.count}件の商品を取り込みました`);

@@ -31,6 +31,35 @@ export async function getVendors() {
     });
 }
 
+// Product Attribute Actions (For Autocomplete)
+export async function getUniqueProductAttributes() {
+    // We want unique categories, subCategories, suppliers
+    // Prisma Distinct is useful here
+    const categories = await prisma.product.findMany({
+        select: { category: true },
+        distinct: ['category'],
+        orderBy: { category: 'asc' }
+    });
+    const subCategories = await prisma.product.findMany({
+        select: { subCategory: true },
+        where: { subCategory: { not: null } },
+        distinct: ['subCategory'],
+        orderBy: { subCategory: 'asc' }
+    });
+    const suppliers = await prisma.product.findMany({
+        select: { supplier: true },
+        where: { supplier: { not: null } },
+        distinct: ['supplier'],
+        orderBy: { supplier: 'asc' }
+    });
+
+    return {
+        categories: categories.map(c => c.category),
+        subCategories: subCategories.map(c => c.subCategory).filter(Boolean) as string[],
+        suppliers: suppliers.map(c => c.supplier).filter(Boolean) as string[],
+    };
+}
+
 export async function upsertVendor(data: { id?: number; name: string; pinCode: string; email?: string | null }) {
     if (data.id) {
         // Update
@@ -130,18 +159,21 @@ export async function upsertProduct(data: {
     priceC: number;
     minStock: number;
     cost: number;
+    stock?: number;
     supplier?: string | null;
     color?: string | null;
 }) {
     // Validation
-    if (data.cost >= data.priceA) throw new Error(`売価A(${data.priceA})が仕入れ値(${data.cost})を下回っています`);
-    if (data.cost >= data.priceB) throw new Error(`売価B(${data.priceB})が仕入れ値(${data.cost})を下回っています`);
+    // Skip profit check if price is 0 (e.g. initial registration without price)
+    if (data.priceA > 0 && data.cost >= data.priceA) throw new Error(`売価A(${data.priceA})が仕入れ値(${data.cost})を下回っています`);
+    if (data.priceB > 0 && data.cost >= data.priceB) throw new Error(`売価B(${data.priceB})が仕入れ値(${data.cost})を下回っています`);
     if (data.priceC > 0 && data.cost >= data.priceC) throw new Error(`売価C(${data.priceC})が仕入れ値(${data.cost})を下回っています`);
 
     const normalizedCode = normalizeCode(data.code);
 
     if (data.id) {
-        // Update (Stock is NOT updated here)
+        // Update (Stock is NOT updated here to preserve inventory integrity, unless we explicitly decide to allow it)
+        // For now, we ignore data.stock on update.
         await prisma.product.update({
             where: { id: data.id },
             data: {
@@ -160,7 +192,7 @@ export async function upsertProduct(data: {
         });
         await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, `PriceA: ${data.priceA}, Cost: ${data.cost}`);
     } else {
-        // Create (Initial stock is 0)
+        // Create
         // Check if code exists (for manual creation safety)
         const existing = await prisma.product.findUnique({ where: { code: normalizedCode } });
         if (existing) {
@@ -177,7 +209,7 @@ export async function upsertProduct(data: {
                 priceB: data.priceB,
                 priceC: data.priceC,
                 minStock: data.minStock,
-                stock: 0,
+                stock: data.stock ?? 0,
                 cost: data.cost,
                 supplier: data.supplier,
                 color: data.color,
@@ -485,6 +517,86 @@ export async function createTransaction(vendorId: number, items: { productId: nu
     } catch (error) {
         console.error("Transaction Error:", error);
         return { success: false, message: error instanceof Error ? error.message : '取引処理中にエラーが発生しました' };
+    }
+}
+
+// Reconciliation Action
+export async function reconcileTransactionItem(transactionId: number, manualItemName: string, targetProductId: number) {
+    try {
+        await prisma.$transaction(async (tx) => {
+            // 1. Get Transaction
+            const transaction = await tx.transaction.findUnique({
+                where: { id: transactionId },
+            });
+            if (!transaction) throw new Error("取引データが見つかりません");
+
+            const items = JSON.parse(transaction.items) as any[];
+            let updated = false;
+            let quantityToDeduct = 0;
+
+            // 2. Find and Replace Item (First pass to flag and get quantity)
+            let foundIndex = -1;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].isManual && items[i].name === manualItemName) {
+                    foundIndex = i;
+                    updated = true;
+                    quantityToDeduct = items[i].quantity;
+                    break;
+                }
+            }
+
+            if (!updated) throw new Error("対象の手入力商品が見つかりません");
+
+            // 3. Fetch Target Product
+            const product = await tx.product.findUnique({ where: { id: targetProductId } });
+            if (!product) throw new Error("紐付け先の商品が見つかりません");
+
+            // 4. Update the item details
+            items[foundIndex] = {
+                ...items[foundIndex],
+                productId: targetProductId,
+                name: product.name,
+                price: product.priceA,
+                isManual: false
+            };
+
+            // 5. Recalculate Total
+            const newTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+            const hasUnregistered = items.some((item) => item.isManual);
+
+            // 6. Update Transaction
+            await tx.transaction.update({
+                where: { id: transactionId },
+                data: {
+                    items: JSON.stringify(items),
+                    totalAmount: newTotal,
+                    hasUnregisteredItems: hasUnregistered,
+                }
+            });
+
+            // 7. Deduct Stock (Retroactive)
+            await tx.product.update({
+                where: { id: targetProductId },
+                data: { stock: { decrement: quantityToDeduct } }
+            });
+
+            // 8. Log
+            await tx.inventoryLog.create({
+                data: {
+                    productId: targetProductId,
+                    type: '出庫',
+                    quantity: -quantityToDeduct,
+                    reason: `Reconciliation Tx #${transactionId}`,
+                }
+            });
+        });
+
+        revalidatePath('/admin/transactions');
+        revalidatePath('/admin/products');
+        return { success: true };
+    } catch (error) {
+        console.error("Reconciliation Error:", error);
+        return { success: false, message: error instanceof Error ? error.message : '処理に失敗しました' };
     }
 }
 
