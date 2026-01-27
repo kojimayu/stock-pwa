@@ -57,6 +57,7 @@ model Transaction {
   date        DateTime @default(now())
   vendorId    Int
   items       String   // JSON文字列として保存 (SQLiteの制限回避と柔軟性のため)
+  hasUnregisteredItems Boolean @default(false)
   totalAmount Int
   createdAt   DateTime @default(now())
 

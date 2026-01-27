@@ -167,3 +167,23 @@ deleteProduct:
 操作ログ一覧を表示するテーブル。
 -
 日時降順で最新の操作を確認可能。
+
+# Phase 9: 手入力商品のマスタ登録・運用改善 (Manual Item Registration & Workflow)
+## 目標 (Goal)
+手入力で取引された（マスタ未登録の）商品を、管理画面からワンクリックで正式な商品マスタに昇格（登録）できるようにする。
+また、Kiosk画面での手入力商品の金額表示を適正化（0円または非表示）する。
+
+## Proposed Changes
+### 1. Kiosk UI 調整
+- **[MODIFY] `components/kiosk/cart-item.tsx` (仮)** / `CartSummary`
+    - 手入力商品 (`isManual: true`) の場合、単価・金額を「-」や「※後日精算」などの表示にするか、0円であることを明確にする。
+    - ユーザー要望: **金額の表示・操作はできないように**。
+
+### 2. Admin UI 実装
+- **[MODIFY] `components/admin/product-dialog.tsx`**
+    - `initialData` プロップスを追加し、新規作成時に「名前」などをプレ入力できるようにする。
+    - `product` (編集) と `initialData` (新規テンプレート) を区別して扱う。
+- **[MODIFY] `components/admin/transaction-list.tsx`**
+    - 手入力商品が含まれる行、または商品の横に「マスタ登録」ボタンを配置。
+    - クリックすると `ProductDialog` が開き、商品名が入力された状態で立ち上がる。
+    - 登録完了後、取引データ自体はそのままだが、次回以降の取引で検索に出てくるようになる。

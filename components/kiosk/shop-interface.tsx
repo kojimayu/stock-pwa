@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { CategoryTabs } from "./category-tabs";
 import { ProductCard } from "./product-card";
+import { ManualProductDialog } from "@/components/kiosk/manual-product-dialog";
 import { CartSummary } from "./cart-summary";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -97,6 +98,9 @@ export function ShopInterface({ products }: ShopInterfaceProps) {
                     </div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="h-full">
+                            <ManualProductDialog />
+                        </div>
                         {filteredProducts.map((product) => (
                             <div key={product.id} className="h-full">
                                 <ProductCard product={product} />

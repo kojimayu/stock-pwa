@@ -17,6 +17,7 @@ type Transaction = {
     vendor: { name: string };
     totalAmount: number;
     items: string; // JSON string
+    hasUnregisteredItems?: boolean;
 };
 
 interface TransactionListProps {
@@ -63,13 +64,19 @@ export function TransactionList({ transactions }: TransactionListProps) {
                         // Let's keep it simple: Show formatted JSON content or summary.
 
                         return (
-                            <TableRow key={tx.id}>
-                                <TableCell>{formatDate(tx.date)}</TableCell>
+                            <TableRow key={tx.id} className={tx.hasUnregisteredItems ? "bg-yellow-50 hover:bg-yellow-100" : ""}>
+                                <TableCell>
+                                    {formatDate(tx.date)}
+                                    {tx.hasUnregisteredItems && (
+                                        <div className="text-xs text-amber-600 font-bold mt-1">手入力あり</div>
+                                    )}
+                                </TableCell>
                                 <TableCell>{tx.vendor.name}</TableCell>
                                 <TableCell>
                                     <div className="space-y-1">
                                         {parsedItems.map((item, idx) => (
                                             <div key={idx} className="text-sm">
+                                                {item.isManual && <span className="text-xs bg-amber-200 text-amber-800 px-1 rounded mr-1">手入力</span>}
                                                 {item.name || `商品ID:${item.productId}`} × {item.quantity}
                                                 <span className="text-slate-400 text-xs ml-2">(@{formatCurrency(item.price)})</span>
                                             </div>

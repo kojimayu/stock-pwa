@@ -1,78 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
-import { Download, Loader2 } from "lucide-react";
-import { getProducts } from "@/lib/actions";
+import { Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { format } from "date-fns";
 
-export function ProductExportButton() {
-    const [loading, setLoading] = useState(false);
+interface Product {
+    code: string;
+    name: string;
+    category: string;
+    subCategory: string | null;
+    priceA: number;
+    priceB: number;
+    priceC: number;
+    minStock: number;
+    stock: number;
+    cost: number;
+    supplier?: string | null;
+    color?: string | null;
+}
 
-    const handleExport = async () => {
-        setLoading(true);
+interface ProductExportButtonProps {
+    products: Product[];
+}
+
+export function ProductExportButton({ products }: ProductExportButtonProps) {
+    const handleExport = () => {
         try {
-            const products = await getProducts();
-
-            if (!products || products.length === 0) {
-                toast.error("エクスポートするデータがありません");
-                return;
-            }
-
-            // Format data for Excel
-            const rows = products.map(p => ({
+            const data = products.map((p) => ({
                 code: p.code,
                 name: p.name,
                 category: p.category,
-                subCategory: p.subCategory || "",
-                color: p.color || "",
+                subCategory: p.subCategory,
                 priceA: p.priceA,
                 priceB: p.priceB,
                 priceC: p.priceC,
-                cost: p.cost,
                 minStock: p.minStock,
-                supplier: p.supplier || "",
-                stock: p.stock // Export stock just for reference, though import logic ignores it
+                cost: p.cost,
+                supplier: p.supplier,
+                color: p.color,
+                stock: p.stock // Export current stock too
             }));
 
-            // Create Header (Match Import Format)
-            // Use Japanese headers for user friendliness if preferred, OR keep English keys.
-            // Our import dialog handles both English keys and Japanese keys.
-            // Let's use English keys to match the internal structure, or mapped Japanese headers.
-            // Import Dialog keys: code, name, category, subCategory, priceA...
-            // Let's stick to keys for simplicity, or provide a header row.
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(data);
 
-            // To make it easy to re-import, we will use the exact keys expected by the importer, 
-            // but mapped to readable headers if possible.
-            // However, XLSX utils `json_to_sheet` uses input keys as headers by default.
-            // Let's use English keys because `ProductImportDialog` supports them natively and it is safer.
+            // Auto width
+            const wscols = Object.keys(data[0] || {}).map(k => ({ wch: 20 }));
+            ws['!cols'] = wscols;
 
-            const worksheet = XLSX.utils.json_to_sheet(rows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Products");
+            XLSX.utils.book_append_sheet(wb, ws, "Products");
 
-            // Generate filename with date
-            const dateStr = format(new Date(), "yyyyMMdd_HHmm");
-            const fileName = `products_export_${dateStr}.xlsx`;
+            const dateStr = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, `products_export_${dateStr}.xlsx`);
 
-            // Download
-            XLSX.writeFile(workbook, fileName);
-            toast.success("エクスポートしました");
-
+            toast.success(`${products.length}件の商品をエクスポートしました`);
         } catch (error) {
-            console.error("Export Error:", error);
-            toast.error("エクスポート中にエラーが発生しました");
-        } finally {
-            setLoading(false);
+            console.error(error);
+            toast.error("エクスポートに失敗しました");
         }
     };
 
     return (
-        <Button variant="outline" onClick={handleExport} disabled={loading}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-            Excelエクスポート
+        <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            エクスポート
         </Button>
     );
 }

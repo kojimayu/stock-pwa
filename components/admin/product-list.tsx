@@ -25,8 +25,10 @@ type Product = {
     code: string;
     name: string;
     category: string;
+    subCategory: string | null;
     priceA: number;
     priceB: number;
+    priceC: number;
     stock: number;
     minStock: number;
     cost: number;
@@ -87,7 +89,7 @@ export function ProductList({ products }: ProductListProps) {
         <div className="space-y-4">
             <div className="flex justify-between items-center">
                 <div className="flex gap-2">
-                    <ProductExportButton />
+                    <ProductExportButton products={products} />
                     <ProductImportDialog />
                 </div>
                 <Button onClick={handleCreate}>

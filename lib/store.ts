@@ -6,6 +6,7 @@ export type CartItem = {
     name: string;
     price: number;
     quantity: number;
+    isManual?: boolean;
 };
 
 export type Vendor = {
@@ -32,14 +33,24 @@ export const useCartStore = create<CartState>()(
             setVendor: (vendor) => set({ vendor }),
             addItem: (newItem) =>
                 set((state) => {
-                    const existing = state.items.find((i) => i.productId === newItem.productId);
+                    const existing = state.items.find((i) => {
+                        if (newItem.isManual && i.isManual) {
+                            return i.name === newItem.name && i.price === newItem.price;
+                        }
+                        return i.productId === newItem.productId;
+                    });
+
                     if (existing) {
                         return {
-                            items: state.items.map((i) =>
-                                i.productId === newItem.productId
-                                    ? { ...i, quantity: i.quantity + 1 }
-                                    : i
-                            ),
+                            items: state.items.map((i) => {
+                                const isMatch = newItem.isManual && i.isManual
+                                    ? i.name === newItem.name && i.price === newItem.price
+                                    : i.productId === newItem.productId;
+
+                                return isMatch
+                                    ? { ...i, quantity: i.quantity + (newItem.quantity || 1) }
+                                    : i;
+                            }),
                         };
                     }
                     return { items: [...state.items, { ...newItem, quantity: newItem.quantity || 1 }] };

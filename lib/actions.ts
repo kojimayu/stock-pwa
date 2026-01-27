@@ -412,9 +412,10 @@ export async function getAnalysisData() {
 // Import email utility
 import { sendTransactionEmail } from './mail';
 
-export async function createTransaction(vendorId: number, items: { productId: number; quantity: number; price: number; name: string }[]) {
+export async function createTransaction(vendorId: number, items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[]) {
     // 1. Calculate total
     const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const hasUnregisteredItems = items.some((item) => item.isManual);
 
     // 2. Transactional update (Create Transaction + Decrease Stock + Create Log)
     try {
@@ -425,12 +426,16 @@ export async function createTransaction(vendorId: number, items: { productId: nu
                     vendorId,
                     items: JSON.stringify(items), // Store detailed items as JSON
                     totalAmount,
+                    hasUnregisteredItems, // Set flag
                     date: new Date(),
                 },
             });
 
             // Update Stock for each item
             for (const item of items) {
+                // Skip stock management for manual items
+                if (item.isManual) continue;
+
                 // Check current stock first (optional, but good for safety)
                 const product = await tx.product.findUnique({ where: { id: item.productId } });
                 if (!product || product.stock < item.quantity) {
@@ -448,8 +453,8 @@ export async function createTransaction(vendorId: number, items: { productId: nu
                     data: {
                         productId: item.productId,
                         type: '出庫',
-                        quantity: -item.quantity,
-                        reason: 'Kiosk Purchase',
+                        quantity: -item.quantity, // Negative for outflow
+                        reason: `Transaction #${transaction.id}`,
                     },
                 });
             }

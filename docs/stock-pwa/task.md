@@ -90,3 +90,20 @@
         - [x] Integrate logging into: `upsertProduct`, `importProducts`, `upsertVendor`, `delete...`
     - [x] **管理画面 (Admin UI)**
         - [x] Page: `/admin/logs` (ログ閲覧・検索)
+
+- [x] **Phase 8: 未登録商品の対応 (Unregistered Items)**
+    - [x] **データベース (Schema)**
+        - [x] Add `hasUnregisteredItems` to `Transaction` model
+    - [x] **キオスクUI (Kiosk)**
+        - [x] UI: 手入力商品追加ボタン (`ManualProductDialog`)
+        - [x] Logic: カートへの手入力商品追加 (ID: `-timestamp`)
+    - [x] **バックエンド (Actions)**
+        - [x] Action: `createTransaction` update (Skip inventory check for manual items)
+    - [x] **管理画面 (Admin)**
+        - [x] List: 未登録商品を含む取引のハイライト表示
+        - [x] Import: エラーハンドリングの強化 (Excel Import)
+        - [x] Export: 商品マスタのエクスポート機能
+- [ ] **Phase 9: 手入力商品のマスタ登録 (Manual Item Registration)**
+    - [ ] **Admin UI**: 取引履歴の手入力商品に「マスタ登録」ボタンを追加
+    - [ ] **Admin UI**: `ProductDialog` を拡張し、初期値 (名前) を受け取れるように変更
+    - [ ] **Kiosk UI**: カート画面等で金額非表示/0円表示の確認・調整
