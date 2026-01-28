@@ -162,6 +162,7 @@ export async function upsertProduct(data: {
     stock?: number;
     supplier?: string | null;
     color?: string | null;
+    unit?: string;
 }) {
     // Validation
     // Skip profit check if price is 0 (e.g. initial registration without price)
@@ -188,6 +189,7 @@ export async function upsertProduct(data: {
                 cost: data.cost,
                 supplier: data.supplier,
                 color: data.color,
+                unit: data.unit ?? "個",
             },
         });
         await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, `PriceA: ${data.priceA}, Cost: ${data.cost}`);
@@ -213,11 +215,20 @@ export async function upsertProduct(data: {
                 cost: data.cost,
                 supplier: data.supplier,
                 color: data.color,
+                unit: data.unit ?? "個",
             },
         });
         await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created ${data.name}`);
     }
     revalidatePath('/admin/products');
+}
+
+// Helper to check for active inventory session
+export async function checkActiveInventory() {
+    const activeInventory = await prisma.inventoryCount.findFirst({
+        where: { status: 'IN_PROGRESS' },
+    });
+    return !!activeInventory;
 }
 
 export async function importProducts(products: {
@@ -232,7 +243,13 @@ export async function importProducts(products: {
     cost: number;
     supplier?: string | null;
     color?: string | null;
+    unit?: string | null;
 }[]) {
+    // 0. Check for active inventory
+    if (await checkActiveInventory()) {
+        return { success: false, message: '現在棚卸中のため、商品インポートは利用できません' };
+    }
+
     try {
         // 1. Validation Phase
         const errorDetails: { line: number; message: string; type: 'REQUIRED' | 'PRICE' }[] = [];
@@ -297,6 +314,7 @@ export async function importProducts(products: {
                             cost: p.cost,
                             supplier: p.supplier,
                             color: p.color,
+                            unit: p.unit ?? "個",
                         },
                     });
                 } else {
@@ -314,6 +332,7 @@ export async function importProducts(products: {
                             cost: p.cost,
                             supplier: p.supplier,
                             color: p.color,
+                            unit: p.unit ?? "個",
                         },
                     });
                 }
@@ -445,6 +464,11 @@ export async function getAnalysisData() {
 import { sendTransactionEmail } from './mail';
 
 export async function createTransaction(vendorId: number, items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[]) {
+    // 0. Check for active inventory
+    if (await checkActiveInventory()) {
+        throw new Error('現在棚卸中のため、決済処理は利用できません');
+    }
+
     // 1. Calculate total
     const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const hasUnregisteredItems = items.some((item) => item.isManual);
@@ -615,4 +639,144 @@ export async function getOperationLogs(limit = 100) {
         take: limit,
         orderBy: { performedAt: 'desc' },
     });
+}
+
+// Inventory Counts
+export async function getInventoryCounts() {
+    return await prisma.inventoryCount.findMany({
+        orderBy: { startedAt: 'desc' },
+        include: {
+            items: true,
+        }
+    });
+}
+
+export async function createInventoryCount(note?: string) {
+    // 1. Snapshot current stock as 'expectedStock'
+    const products = await prisma.product.findMany();
+
+    // Create session
+    const inventory = await prisma.inventoryCount.create({
+        data: {
+            status: 'IN_PROGRESS',
+            note,
+            items: {
+                create: products.map(p => ({
+                    productId: p.id,
+                    expectedStock: p.stock,
+                    actualStock: p.stock, // Default to expected, user will adjust
+                    adjustment: 0,
+                }))
+            }
+        }
+    });
+
+    await logOperation("INVENTORY_START", `Inventory #${inventory.id}`, `Started inventory count`);
+    revalidatePath('/admin/inventory');
+    return inventory;
+}
+
+export async function getInventoryCount(id: number) {
+    const inventory = await prisma.inventoryCount.findUnique({
+        where: { id },
+        include: {
+            items: {
+                include: {
+                    product: true
+                },
+                orderBy: {
+                    product: {
+                        code: 'asc'
+                    }
+                }
+            }
+        }
+    });
+    return inventory;
+}
+
+export async function updateInventoryItem(itemId: number, actualStock: number) {
+    const item = await prisma.inventoryCountItem.findUnique({ where: { id: itemId } });
+    if (!item) throw new Error("Item not found");
+
+    const adjustment = actualStock - item.expectedStock;
+
+    await prisma.inventoryCountItem.update({
+        where: { id: itemId },
+        data: {
+            actualStock,
+            adjustment,
+        }
+    });
+
+    // No log here, only on finalize
+}
+
+export async function finalizeInventory(id: number) {
+    const inventory = await prisma.inventoryCount.findUnique({
+        where: { id },
+        include: { items: true }
+    });
+
+    if (!inventory || inventory.status !== 'IN_PROGRESS') {
+        throw new Error("Invalid inventory session");
+    }
+
+    await prisma.$transaction(async (tx) => {
+        // 1. Update Inventory Status
+        await tx.inventoryCount.update({
+            where: { id },
+            data: {
+                status: 'COMPLETED',
+                endedAt: new Date(),
+            }
+        });
+
+        // 2. Adjust Stock for all items with differences
+        for (const item of inventory.items) {
+            if (item.adjustment !== 0) {
+                // Update Product Stock
+                await tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: item.actualStock }
+                });
+
+                // Create Adjustment Log
+                await tx.inventoryLog.create({
+                    data: {
+                        productId: item.productId,
+                        type: 'INVENTORY_ADJUSTMENT',
+                        quantity: item.adjustment,
+                        reason: `Inventory #${id} Adjustment`,
+                    }
+                });
+            }
+        }
+    });
+
+    await logOperation("INVENTORY_FINALIZE", `Inventory #${id}`, `Finalized inventory count`);
+    revalidatePath('/admin/inventory');
+    revalidatePath(`/admin/inventory/${id}`);
+    revalidatePath('/admin/products');
+}
+
+export async function cancelInventory(id: number) {
+    const inventory = await prisma.inventoryCount.findUnique({
+        where: { id },
+    });
+
+    if (!inventory || inventory.status !== 'IN_PROGRESS') {
+        throw new Error("Invalid inventory session to cancel");
+    }
+
+    await prisma.inventoryCount.update({
+        where: { id },
+        data: {
+            status: 'CANCELLED',
+            endedAt: new Date(),
+        }
+    });
+
+    await logOperation("INVENTORY_CANCEL", `Inventory #${id}`, `Cancelled inventory count`);
+    revalidatePath('/admin/inventory');
 }

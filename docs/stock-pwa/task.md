@@ -114,11 +114,20 @@
     - [x] **UI**: 商品検索・選択ダイアログの実装
 
 - [ ] **Phase 12: 単位追加・棚卸機能 (Unit & Inventory Count)**
-    - [ ] **Schema**: `Product.unit`, `InventoryCount` tables
-    - [ ] **Unit Feature**:
-        - [ ] Admin: ProductDialog update
-        - [ ] Import/Export: Excel column update
-    - [ ] **Inventory Feature**:
-        - [ ] Admin: Inventory List & Create Session
-        - [ ] Admin: Inventory Input Interface
-        - [ ] Action: `finalizeInventory` (Adjust stock)
+    - [x] **Schema**: `Product.unit`, `InventoryCount` tables
+    - [x] **Unit Feature**:
+        - [x] Admin: ProductDialog update
+        - [x] Import/Export: Excel column update
+    - [x] **Inventory Feature**:
+        - [x] Admin: Inventory List & Create Session
+        - [x] Admin: Inventory Input Interface
+        - [x] Action: `finalizeInventory` (Adjust stock)
+        - [x] Feature: Lock checkout/import during inventory
+        - [x] UI: Inventory Warning Banner
+
+- [ ] **Phase 13: 発注管理機能 (Order Management)**
+    - [ ] **Schema**: `Order`, `OrderItem` tables
+    - [ ] **Action**: `generateDraftOrders` (Auto-create from minStock)
+    - [ ] **Action**: `confirmOrder` (Status change)
+    - [ ] **Action**: `receiveOrder` (Stock increase)
+    - [ ] **UI**: Order List & Detail Page

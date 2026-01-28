@@ -33,23 +33,51 @@ model Product {
   priceC    Int      @default(0) // 販売価格C
   cost      Int      @default(0) // 仕入れ単価 (原価)
   supplier  String?  // 仕入先/メーカー
+  unit      String   @default("個") // 単位 (個, 缶, 本, m, 箱, セット, etc.)
   stock     Int      @default(0)
   minStock  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   inventoryLogs InventoryLog[]
+  countItems    InventoryCountItem[] // Relation to inventory counts
 }
 
 model InventoryLog {
   id        Int      @id @default(autoincrement())
   productId Int
-  type      String   // "RESTOCK", "BIKO", "SALE" etc.
+  product   Product  @relation(fields: [productId], references: [id])
+  type      String   // "RESTOCK", "BIKO", "SALE", "INVENTORY_ADJUSTMENT"
   quantity  Int      // Change amount (+/-)
   reason    String?  // Optional note
   createdAt DateTime @default(now())
+}
 
-  product   Product  @relation(fields: [productId], references: [id])
+// 棚卸セッション (Inventory Count Session)
+model InventoryCount {
+  id        Int      @id @default(autoincrement())
+  status    String   @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, CANCELLED
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  note      String?
+  
+  items     InventoryCountItem[]
+}
+
+// 棚卸明細 (Inventory Count Item)
+model InventoryCountItem {
+  id            Int      @id @default(autoincrement())
+  inventoryId   Int
+  inventory     InventoryCount @relation(fields: [inventoryId], references: [id])
+  productId     Int
+  product       Product @relation(fields: [productId], references: [id])
+  expectedStock Int // 帳簿在庫 (Snapshot at start or check time)
+  actualStock   Int // 実地棚卸数
+  adjustment    Int // 差異 (actual - expected)
+  
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([inventoryId, productId])
 }
 
 model Transaction {

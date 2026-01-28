@@ -24,9 +24,10 @@ interface Product {
 
 interface ShopInterfaceProps {
     products: Product[];
+    isInventoryActive: boolean;
 }
 
-export function ShopInterface({ products }: ShopInterfaceProps) {
+export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProps) {
     const [selectedCategory, setSelectedCategory] = useState("すべて");
     const router = useRouter();
     const clearCart = useCartStore((state) => state.clearCart);
@@ -54,6 +55,13 @@ export function ShopInterface({ products }: ShopInterfaceProps) {
 
     return (
         <div className="min-h-screen bg-slate-50 pb-32">
+            {/* Inventory Warning Banner */}
+            {isInventoryActive && (
+                <div className="bg-red-600 text-white p-4 text-center font-bold sticky top-0 z-30 shadow-lg animate-pulse">
+                    ⚠️ 現在棚卸作業中のため、入出庫（カート追加・精算）は停止しています
+                </div>
+            )}
+
             {/* Header */}
             <header className="bg-slate-900 text-white p-4 sticky top-0 z-20 flex justify-between items-center shadow-md">
                 <div>
@@ -82,7 +90,7 @@ export function ShopInterface({ products }: ShopInterfaceProps) {
             </header>
 
             {/* Categories */}
-            <div className="sticky top-[72px] z-10">
+            <div className={`sticky ${isInventoryActive ? 'top-[128px]' : 'top-[72px]'} z-10 transition-all`}>
                 <CategoryTabs
                     categories={categories}
                     selectedCategory={selectedCategory}
@@ -91,7 +99,7 @@ export function ShopInterface({ products }: ShopInterfaceProps) {
             </div>
 
             {/* Product Grid */}
-            <main className="p-4">
+            <main className={`p-4 ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                 {filteredProducts.length === 0 ? (
                     <div className="text-center py-20 text-slate-500">
                         該当する商品はありません

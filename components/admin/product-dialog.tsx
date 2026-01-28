@@ -146,9 +146,30 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     id="color"
                                     name="color"
                                     defaultValue={product?.color || ""}
-                                    className="col-span-3"
                                     placeholder="例: アイボリー"
                                 />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <label htmlFor="unit" className="text-right text-sm font-medium">
+                                    単位
+                                </label>
+                                <Input
+                                    id="unit"
+                                    name="unit"
+                                    defaultValue={product?.unit || "個"}
+                                    className="col-span-3"
+                                    placeholder="例: 個"
+                                    list="unit-options"
+                                />
+                                <datalist id="unit-options">
+                                    <option value="個" />
+                                    <option value="本" />
+                                    <option value="m" />
+                                    <option value="箱" />
+                                    <option value="セット" />
+                                    <option value="台" />
+                                    <option value="枚" />
+                                </datalist>
                             </div>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <label htmlFor="category" className="text-right text-sm font-medium">

@@ -249,22 +249,48 @@ Excelインポートおよび商品登録時の誤入力防止と柔軟性を両
 ### 1. 単位カラムの追加 (Unit Column)
 - **Database**: `Product` モデルに `unit` (String, default: "個") を追加。
 - **UI**:
-    - `ProductDialog`: 単位入力欄を追加（"個", "本", "m", "箱", "セット" などの候補を表示）。
-    - `Import/Export`: Excelに `unit` カラムを追加。
+    - [x] `ProductDialog`: 単位入力欄を追加（"個", "本", "m", "箱", "セット" などの候補を表示）。
+    - [x] `Import/Export`: Excelに `unit` カラムを追加。
 
 ### 2. 棚卸機能 (Inventory Taking)
 - **Database**:
-    - `InventoryCount` (棚卸実施記録): id, date, status (InProgress/Completed), notes.
-    - `InventoryCountItem` (棚卸明細): id, countId, productId, expectedStock(帳簿在庫), actualStock(実在庫), adjustment(差異).
+    - [x] `InventoryCount` (棚卸実施記録).
+    - [x] `InventoryCountItem` (棚卸明細).
 - **UI (Page: `/admin/inventory`)**:
-    - **棚卸開始**: 新しい棚卸セッションを作成。
-    - **在庫入力**:
-        - 商品一覧が表示され、実在庫数 (`actualStock`) を入力していく。
-        - バーコードスキャン検索などで入力効率化（将来拡張）。
-    - **差異確認**: 帳簿在庫とのズレをリアルタイム表示。
-    - **確定処理**:
-        - 差異分を `InventoryLog` (Type: `INVENTORY_ADJUSTMENT`) として記録。
-        - `Product.stock` を実在庫数で上書き更新。
+    - [x] **棚卸開始**: `createInventoryCount` Action.
+    - [x] **在庫入力**: `InventoryDetail` Component.
+    - [x] **差異確認**: リアルタイム計算表示.
+    - [x] **確定処理**: `finalizeInventory` Action.
 - **Logic**:
-    - 棚卸中は他端末での出庫をブロックするか？ -> **ブロックしない**（簡易運用）。
-    - ただし「棚卸開始時点の在庫」を基準にするため、棚卸中の入出庫はズレの原因になることを運用でカバー（「棚卸中は出庫禁止」など）。
+    - [x] 運用: 棚卸中(`IN_PROGRESS`)は、**入出庫操作（レジ精算、商品インポート）をシステム的にブロック**する。
+    - [x] UI: 棚卸実施中は画面に「棚卸中につき操作制限中」の警告を表示する。
+
+# Phase 13: 発注管理機能 (Order Management)
+## 目標 (Goal)
+在庫切れを防ぐため、基準在庫 (`minStock`) を下回った商品の発注リストを自動生成し、承認フローを経て発注・入荷まで管理する。
+
+## Proposed Changes
+### 1. データベース (Database)
+- **[NEW] `Order` Model**: 発注書
+    - `id`, `vendorId` (自動仕分け用), `status` (DRAFT, ORDERED, PARTIAL, RECEIVED, CANCELLED), `createdAt`, `updatedAt`
+- **[NEW] `OrderItem` Model**: 発注明細
+    - `orderId`, `productId`, `quantity` (発注数), `cost` (発注時単価)
+    - `receivedQuantity` (入荷済数), `isReceived` (行完了フラグ)
+
+### 2. Logic: 自動発注 (Automated Draft)
+- **Action**: `generateDraftOrders`
+    - `Product.stock < minStock` の商品を抽出。
+    - `Product.supplier` (仕入先) ごとに `Order (DRAFT)` を作成。
+    - 発注数 = `minStock - stock + α` (αは運用ルール、一旦 `minStock - stock + 1` 程度または `minStock` まで回復する数)
+
+### 3. UI: 発注管理画面 (`/admin/orders`)
+- **一覧画面**: ステータスごとの発注書一覧。
+- **ドラフト作成**: 「発注候補を作成」ボタン。
+- **詳細・編集画面**:
+    - **承認フェーズ**: 数量修正、商品追加削除 → 「発注確定」でステータス `ORDERED`。
+    - **入荷フェーズ**:
+        - 各行に「入荷数」入力欄と「入荷チェック」ボタン（またはチェックボックス）を設置。
+        - **個別の入荷処理**:
+            - 実際に入荷した数を入力して確定 → 在庫加算 & `receivedQuantity` 更新。
+            - 発注数と入荷数が一致すればその行は完了 (`isReceived = true`)。
+        - 全行が完了すると、発注書全体のステータスが自動的に `RECEIVED` になる。

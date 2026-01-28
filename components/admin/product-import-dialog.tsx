@@ -38,6 +38,7 @@ interface ProductImportRow {
     cost: number;
     supplier?: string;
     color?: string;
+    unit?: string;
     // For expansion logic
     isColor?: string | boolean;
     ISCOLOR?: string | boolean;
@@ -96,6 +97,7 @@ export function ProductImportDialog() {
                     minStock: row.minStock || row.MINSTOCK || row.下限在庫 ? Number(row.minStock || row.MINSTOCK || row.下限在庫) : 0,
                     cost: Number(row.cost || row.COST || row.原価 || row.仕入単価 || row.仕入れ値 || 0),
                     supplier: row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー ? String(row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー) : undefined,
+                    unit: row.unit || row.UNIT || row.単位 ? String(row.unit || row.UNIT || row.単位) : undefined,
                 };
 
                 // Check for True/1/'〇' (loose check)
@@ -158,7 +160,8 @@ export function ProductImportDialog() {
                     minStock: p.minStock || 0,
                     cost: p.cost,
                     supplier: p.supplier,
-                    color: p.color
+                    color: p.color,
+                    unit: p.unit
                 };
             }));
 
