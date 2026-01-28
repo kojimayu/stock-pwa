@@ -125,9 +125,21 @@
         - [x] Feature: Lock checkout/import during inventory
         - [x] UI: Inventory Warning Banner
 
-- [ ] **Phase 13: 発注管理機能 (Order Management)**
-    - [ ] **Schema**: `Order`, `OrderItem` tables
-    - [ ] **Action**: `generateDraftOrders` (Auto-create from minStock)
-    - [ ] **Action**: `confirmOrder` (Status change)
-    - [ ] **Action**: `receiveOrder` (Stock increase)
-    - [ ] **UI**: Order List & Detail Page
+- [x] **Phase 13: 発注管理機能 (Order Management)**
+    - [x] **Schema**: `Order`, `OrderItem` tables
+    - [x] **Action**: `generateDraftOrders` (Auto-create from minStock)
+    - [x] **Action**: `confirmOrder` (Status change)
+    - [x] **Action**: `receiveOrderItem` (Individual stock increase)
+    - [x] **UI**: Order List & Detail Page
+
+- [x] **Phase 14: UI/UX 現場ファースト改善 (Field-First Enhancements)**
+    - [x] **UI**: Size "touch" variant for Buttons/Inputs
+    - [x] **PWA**: `app/manifest.ts` and icons
+    - [x] **Offline**: Network status banner
+    - [x] **Visibility**: High-visibility focus rings
+
+- [/] **Phase 15: デバイス別UI最適化 (Device-Specific Optimization)**
+    - [ ] **Kiosk**: タブレット向けUI調整 (グリッド拡大、ボタン配置)
+    - [ ] **棚卸/発注**: スマホ向けUI調整 (Admin内ページのモバイル対応強化)
+    - [ ] **PC管理面**: データ密度と一覧性の維持
+

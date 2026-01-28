@@ -41,6 +41,7 @@ model Product {
 
   inventoryLogs InventoryLog[]
   countItems    InventoryCountItem[] // Relation to inventory counts
+  orderItems    OrderItem[] // Relation to orders
 }
 
 model InventoryLog {
@@ -98,4 +99,26 @@ model OperationLog {
   target      String   // "Product: code", "Vendor: name"
   details     String?  // JSON or text
   performedAt DateTime @default(now())
+}
+
+model Order {
+  id        Int      @id @default(autoincrement())
+  supplier  String?  // 仕入先
+  status    String   @default("DRAFT") // DRAFT, ORDERED, PARTIAL, RECEIVED, CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  items     OrderItem[]
+}
+
+model OrderItem {
+  id               Int      @id @default(autoincrement())
+  orderId          Int
+  order            Order    @relation(fields: [orderId], references: [id])
+  productId        Int
+  product          Product  @relation(fields: [productId], references: [id])
+  quantity         Int      // 発注数
+  receivedQuantity Int      @default(0) // 入荷済数
+  isReceived       Boolean  @default(false) // 行完了フラグ
+  cost             Int      // 発注時単価
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, Package, FileText, Users, TrendingUp, History, Menu } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, TrendingUp, History, Menu, ClipboardList } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -12,6 +12,7 @@ const navigation = [
   { name: "利益分析", href: "/admin/analysis", icon: TrendingUp },
   { name: "商品管理", href: "/admin/products", icon: Package },
   { name: "在庫管理 (棚卸)", href: "/admin/inventory", icon: Package },
+  { name: "発注管理", href: "/admin/orders", icon: ClipboardList },
   { name: "業者管理", href: "/admin/vendors", icon: Users },
   { name: "操作ログ", href: "/admin/logs", icon: History },
 ];

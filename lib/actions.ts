@@ -780,3 +780,165 @@ export async function cancelInventory(id: number) {
     await logOperation("INVENTORY_CANCEL", `Inventory #${id}`, `Cancelled inventory count`);
     revalidatePath('/admin/inventory');
 }
+
+// Order Actions (Phase 13)
+export async function getOrders() {
+    return await prisma.order.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+            items: {
+                include: {
+                    product: true
+                }
+            }
+        }
+    });
+}
+
+export async function getOrderById(id: number) {
+    return await prisma.order.findUnique({
+        where: { id },
+        include: {
+            items: {
+                include: {
+                    product: true
+                }
+            }
+        }
+    });
+}
+
+export async function generateDraftOrders() {
+    // 1. Get products low on stock (stock < minStock)
+    const lowStockProducts = await prisma.product.findMany({
+        where: {
+            stock: {
+                lt: prisma.product.fields.minStock
+            },
+            minStock: {
+                gt: 0
+            }
+        }
+    });
+
+    if (lowStockProducts.length === 0) {
+        return { success: false, message: "基準在庫を下回っている商品はありません。" };
+    }
+
+    // 2. Group by supplier
+    const groupedBySupplier = lowStockProducts.reduce((acc, p) => {
+        const supplier = p.supplier || "未指定";
+        if (!acc[supplier]) acc[supplier] = [];
+        acc[supplier].push(p);
+        return acc;
+    }, {} as Record<string, typeof lowStockProducts>);
+
+    // 3. Create Draft Orders
+    let createdCount = 0;
+    for (const [supplier, products] of Object.entries(groupedBySupplier)) {
+        await prisma.order.create({
+            data: {
+                supplier,
+                status: 'DRAFT',
+                items: {
+                    create: products.map(p => ({
+                        productId: p.id,
+                        quantity: Math.max(0, p.minStock - p.stock + 1), // Default: refill to minStock + 1
+                        cost: p.cost,
+                    }))
+                }
+            }
+        });
+        createdCount++;
+    }
+
+    await logOperation("ORDER_DRAFT_GENERATE", `Generated ${createdCount} draft orders`, `Target products: ${lowStockProducts.length}`);
+    revalidatePath('/admin/orders');
+    return { success: true, message: `${createdCount}件の発注候補を作成しました。` };
+}
+
+export async function confirmOrder(id: number) {
+    await prisma.order.update({
+        where: { id },
+        data: { status: 'ORDERED' }
+    });
+    await logOperation("ORDER_CONFIRM", `Order #${id}`, `Status changed to ORDERED`);
+    revalidatePath('/admin/orders');
+    revalidatePath(`/admin/orders/${id}`);
+}
+
+export async function receiveOrderItem(orderItemId: number, quantity: number) {
+    // 1. Get the item
+    const item = await prisma.orderItem.findUnique({
+        where: { id: orderItemId },
+        include: { product: true, order: true }
+    });
+
+    if (!item) throw new Error("Order item not found");
+    if (item.isReceived) throw new Error("Already received");
+
+    // 2. Update item
+    const newReceivedQty = item.receivedQuantity + quantity;
+    await prisma.orderItem.update({
+        where: { id: orderItemId },
+        data: {
+            receivedQuantity: newReceivedQty,
+            isReceived: newReceivedQty >= item.quantity
+        }
+    });
+
+    // 3. Increase stock
+    await prisma.product.update({
+        where: { id: item.productId },
+        data: { stock: { increment: quantity } }
+    });
+
+    // 4. Record Log
+    await prisma.inventoryLog.create({
+        data: {
+            productId: item.productId,
+            type: 'RESTOCK',
+            quantity: quantity,
+            reason: `Order #${item.orderId} Received`,
+        }
+    });
+
+    // 5. Check order status
+    const allItems = await prisma.orderItem.findMany({
+        where: { orderId: item.orderId }
+    });
+    const allDone = allItems.every(i => i.isReceived);
+
+    await prisma.order.update({
+        where: { id: item.orderId },
+        data: {
+            status: allDone ? 'RECEIVED' : 'PARTIAL',
+            updatedAt: new Date()
+        }
+    });
+
+    await logOperation("ORDER_ITEM_RECEIVE", `Order #${item.orderId} Item`, `Product: ${item.product.name}, Qty: ${quantity}`);
+    revalidatePath('/admin/orders');
+    revalidatePath(`/admin/orders/${item.orderId}`);
+    revalidatePath('/admin/products');
+}
+
+export async function deleteOrder(id: number) {
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (order?.status !== 'DRAFT') throw new Error("Draft以外の発注書は削除できません");
+
+    await prisma.orderItem.deleteMany({ where: { orderId: id } });
+    await prisma.order.delete({ where: { id } });
+
+    await logOperation("ORDER_DELETE", `Order #${id}`, `Deleted draft order`);
+    revalidatePath('/admin/orders');
+}
+
+export async function updateOrderItemQty(orderItemId: number, quantity: number) {
+    await prisma.orderItem.update({
+        where: { id: orderItemId },
+        data: { quantity }
+    });
+    // Caller should revalidate
+}
+
