@@ -1,145 +1,15 @@
-# タスク一覧 (Task List)
+# タスク
 
-- [x] **Phase 1: 土台構築 (Foundation Setup)**
-    - [/] **UIライブラリ (shadcn/ui)**
-        - [x] Init shadcn/ui
-        - [x] Install components
-        - [x] Install `lucide-react`
-    - [/] **データベース (Prisma)**
-        - [x] Install Prisma
-        - [x] Init Prisma (SQLite)
-        - [x] Define Schema
-    - [x] **PWA設定 (PWA Setup)**
-        - [x] Install `@ducanh2912/next-pwa`
-        - [x] Config `next.config.ts`
-    - [x] **シードデータ (Seed Data)**
-        - [x] Create seed script
-        - [x] Run seed
-    - [x] **完了作業 (Finalize)**
-        - [x] Migration `init`
-
-- [ ] **Phase 2: 管理画面 (PC/事務所)**
-    - [/] **アーキテクチャ (Architecture)**
-        - [x] ルートグループ `(admin)` の作成（管理画面レイアウト）
-    - [/] **ダッシュボード**
-        - [x] サイドバー付きレイアウト
-        - [x] 直近の取引履歴テーブル
-    - [x] **取引履歴**
-        - [x] 取引履歴一覧ページ (Transaction History Page)
-    - [/] **マスタ管理**
-        - [x] 業者 (Vendor) 管理
-        - [x] 商品 (Product) 管理
-
-- [ ] **Phase 3: キオスクUI (タブレット/倉庫)**
-    - [ ] **アーキテクチャ (Architecture)**
-        - [ ] ルートグループ `(kiosk)` の作成（タブレット用レイアウト）
-    - [x] **業者ログイン (PIN Login)**
-        - [/] API: `/api/auth/vendor` (PIN検証) -> Server Action `loginByPin`
-        - [x] UI: 数字キーパッドコンポーネント (PIN入力)
-        - [x] UI: ログイン画面
-    - [x] **商品選択 (Shop)**
-        - [x] API: `/api/products` (商品一覧取得) -> Server Action `getProducts`
-        - [x] UI: 商品カード (画像/アイコン, 名前, 在庫, 価格)
-        - [x] UI: カテゴリタブ
-        - [x] UI: 数量選択ダイアログ (10, 20, 30...プリセット)
-        - [x] Logic: カート状態管理 (Zustand または React Context)
-    - [x] **出庫・決済 (Checkout)**
-        - [x] UI: カート確認モーダル/シート -> ページ `/shop/checkout`
-        - [x] API: `/api/transactions` (取引作成・在庫減算) -> Server Action
-        - [x] UI: 完了画面 -> `/shop/complete`
-
-- [/] **Phase 4: 通知・メール機能 (Notifications)**
-    - [x] **データベース (Schema)**
-        - [x] Add `email` to `Vendor` model
-    - [x] **管理画面 (Admin UI)**
-        - [x] 業者登録・編集ダイアログへのメールアドレス欄追加
-    - [x] **メール送信機能 (Graph API)**
-        - [x] `lib/mail.ts`: Graph API Implementation
-    - [x] **連携 (Integration)**
-        - [x] `createTransaction` call `sendTransactionEmail`
-    - [/] **検証 (Verification)**
-        - [x] 実際にメールが届くか確認 (Test Email)
-
-- [/] **Phase 5: 原価管理・仕入先対応 (Cost Management)**
-    - [x] **データベース (Schema)**
-        - [x] Add `cost`, `supplier`, `code`, `color` to `Product` model
-        - [x] Migration: `add_product_cost_supplier`
-    - [x] **機能設計 (Design)**
-        - [x] UI: 商品管理画面に「原価」「利益率」表示追加
-        - [x] UI: 利益分析ページ (`/admin/analysis`)
-    - [x] **実装 (Implementation)**
-        - [x] Action: `importProducts` (Cost/Supplier input)
-        - [x] Component: `ProductImportDialog`
-        - [x] Component: `ProfitChart` (Analysis Page)
-    - [/] **マニュアル (Manual)**
-        - [x] Excelテンプレート形式の定義 (v3: Cost/Supplier入り)
-
-- [ ] **Phase 6: 本番運用準備 (Deployment)**
-    - [ ] **バックアップ (Backup)**
-        - [ ] Script: `scripts/backup_db.ps1` (PowerShell)
-    - [ ] **手順書 (Documentation)**
-        - [ ] Doc: `docs/MANUAL_DEPLOY.md` (詳細な移行・運用マニュアル)
-    - [ ] **リハーサル (Dry Run)**
-        - [ ] ローカル環境でバックアップ動作確認
-
-- [x] **Phase 7: 管理者操作ログ (Operation Logs)**
-    - [x] **データベース (Schema)**
-        - [x] Add `OperationLog` model
-    - [x] **バックエンド (Actions)**
-        - [x] Create `logOperation` internal action
-        - [x] Integrate logging into: `upsertProduct`, `importProducts`, `upsertVendor`, `delete...`
-    - [x] **管理画面 (Admin UI)**
-        - [x] Page: `/admin/logs` (ログ閲覧・検索)
-
-- [x] **Phase 8: 未登録商品の対応 (Unregistered Items)**
-    - [x] **データベース (Schema)**
-        - [x] Add `hasUnregisteredItems` to `Transaction` model
-    - [x] **キオスクUI (Kiosk)**
-        - [x] UI: 手入力商品追加ボタン (`ManualProductDialog`)
-        - [x] Logic: カートへの手入力商品追加 (ID: `-timestamp`)
-    - [x] **バックエンド (Actions)**
-        - [x] Action: `createTransaction` update (Skip inventory check for manual items)
-    - [x] **管理画面 (Admin)**
-        - [x] List: 未登録商品を含む取引のハイライト表示
-        - [x] Import: エラーハンドリングの強化 (Excel Import)
-        - [x] Export: 商品マスタのエクスポート機能
-- [x] **Phase 9: 手入力商品のマスタ登録 (Manual Item Registration)**
-    - [x] **Admin UI**: 取引履歴の手入力商品に「マスタ登録」ボタンを追加
-    - [x] **Admin UI**: `ProductDialog` を拡張し、初期値 (名前) を受け取れるように変更
-    - [x] **Kiosk UI**: カート画面等で金額非表示/0円表示の確認・調整
-
-- [x] **Phase 10: 手入力商品の紐付け・在庫整合 (Reconciliation)**
-    - [x] **Admin UI**: 取引履歴に「既存商品に紐付け」アクション追加
-    - [x] **Action**: `reconcileTransactionItem` 実装 (JSON更新 + 在庫減算)
-    - [x] **UI**: 商品検索・選択ダイアログの実装
-
-- [ ] **Phase 12: 単位追加・棚卸機能 (Unit & Inventory Count)**
-    - [x] **Schema**: `Product.unit`, `InventoryCount` tables
-    - [x] **Unit Feature**:
-        - [x] Admin: ProductDialog update
-        - [x] Import/Export: Excel column update
-    - [x] **Inventory Feature**:
-        - [x] Admin: Inventory List & Create Session
-        - [x] Admin: Inventory Input Interface
-        - [x] Action: `finalizeInventory` (Adjust stock)
-        - [x] Feature: Lock checkout/import during inventory
-        - [x] UI: Inventory Warning Banner
-
-- [x] **Phase 13: 発注管理機能 (Order Management)**
-    - [x] **Schema**: `Order`, `OrderItem` tables
-    - [x] **Action**: `generateDraftOrders` (Auto-create from minStock)
-    - [x] **Action**: `confirmOrder` (Status change)
-    - [x] **Action**: `receiveOrderItem` (Individual stock increase)
-    - [x] **UI**: Order List & Detail Page
-
-- [x] **Phase 14: UI/UX 現場ファースト改善 (Field-First Enhancements)**
-    - [x] **UI**: Size "touch" variant for Buttons/Inputs
-    - [x] **PWA**: `app/manifest.ts` and icons
-    - [x] **Offline**: Network status banner
-    - [x] **Visibility**: High-visibility focus rings
-
-- [/] **Phase 15: デバイス別UI最適化 (Device-Specific Optimization)**
-    - [ ] **Kiosk**: タブレット向けUI調整 (グリッド拡大、ボタン配置)
-    - [ ] **棚卸/発注**: スマホ向けUI調整 (Admin内ページのモバイル対応強化)
-    - [ ] **PC管理面**: データ密度と一覧性の維持
-
+- [ ] 要件定義・設計
+    - [x] Access連携の調査（同期不要・直接接続） <!-- id: 0 -->
+    - [x] UIフローの設計（ログイン -> モード選択 -> 各画面） <!-- id: 1 -->
+    - [x] データモデル定義（Prisma） <!-- id: 2 -->
+- [ ] 実装
+    - [ ] パッケージ導入 `npm install node-adodb` <!-- id: 10 -->
+    - [ ] データベース更新 (`schema.prisma` / `AirConditionerLog`追加) <!-- id: 4 -->
+    - [ ] API作成 `app/api/access/route.ts` (Access接続) <!-- id: 5 -->
+    - [ ] フロントエンド実装
+        - [ ] モード選択画面作成 `app/(kiosk)/mode-select/page.tsx` <!-- id: 6 -->
+        - [ ] ログイン後の遷移変更 `app/(kiosk)/page.tsx` <!-- id: 14 -->
+        - [ ] エアコン持出し画面作成 `app/(kiosk)/aircon/page.tsx` <!-- id: 11 -->
+    - [ ] 動作検証 <!-- id: 8 -->
