@@ -80,7 +80,7 @@ export default function KioskLoginPage() {
       if (res.success && res.vendor) {
         setVendorStore(res.vendor);
         toast.success(`ログイン: ${res.vendor.name}`);
-        router.push("/shop");
+        router.push("/mode-select");
       } else {
         toast.error(res.message || "PINコードが正しくありません");
         setPin("");

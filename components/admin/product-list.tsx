@@ -32,6 +32,7 @@ type Product = {
     stock: number;
     minStock: number;
     cost: number;
+    unit: string;
     supplier?: string | null;
     color?: string | null;
 };

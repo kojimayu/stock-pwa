@@ -81,7 +81,7 @@ export function OrderDetail({ initialOrder }: OrderDetailProps) {
             case 'ORDERED': return <Badge variant="secondary">発注済</Badge>;
             case 'PARTIAL': return <Badge variant="destructive">一部入荷</Badge>;
             case 'RECEIVED': return <Badge className="bg-green-600">入荷完了</Badge>;
-            case 'CANCELLED': return <Badge variant="ghost">キャンセル</Badge>;
+            case 'CANCELLED': return <Badge variant="outline">キャンセル</Badge>;
             default: return <Badge variant="outline">{status}</Badge>;
         }
     };

@@ -34,8 +34,10 @@ interface ProductDialogProps {
         priceA: number;
         priceB: number;
         priceC: number;
+        stock: number;
         minStock: number;
         cost: number;
+        unit: string;
         supplier?: string | null;
         color?: string | null;
     } | null;

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { verifyPin } from '@/lib/actions';
-import PinPad from './pin-pad';
+import { PinPad } from './pin-pad';
 import { toast } from 'sonner';
 
 type Vendor = {

@@ -20,7 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea"; // Assuming Textarea exists or use Input for now
+// Textarea if available, else Input
 
 // Using standard Input for Textarea as simplicity if component missing, but standard shadcn has Textarea.
 // I'll assume standard HTML textArea if shadcn Textarea is not installed, or check later.
@@ -41,6 +41,7 @@ export function StockAdjustmentDialog({ open, onOpenChange, product, onSuccess }
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
+        if (!product) return;
         setLoading(true);
 
         const formData = new FormData(e.currentTarget);

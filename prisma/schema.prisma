@@ -19,6 +19,10 @@ model Vendor {
   updatedAt DateTime      @updatedAt
   
   transactions Transaction[]
+  airConditionerLogs AirConditionerLog[]
+  
+  // Access連携用 (下請台帳テーブルの会社名)
+  accessCompanyName String?
 }
 
 model Product {
@@ -121,4 +125,15 @@ model OrderItem {
   receivedQuantity Int      @default(0) // 入荷済数
   isReceived       Boolean  @default(false) // 行完了フラグ
   cost             Int      // 発注時単価
+}
+
+model AirConditionerLog {
+  id           Int      @id @default(autoincrement())
+  managementNo String   // 管理No (6桁)
+  customerName String?  // Access: 顧客名
+  contractor   String?  // Access: 元請/下請
+  modelNumber  String   // 品番 (MSZ-...)
+  vendorId     Int      // 持出した業者ID
+  vendor       Vendor   @relation(fields: [vendorId], references: [id])
+  createdAt    DateTime @default(now())
 }
