@@ -4,10 +4,12 @@ const { spawn } = require('child_process');
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-    const dbPath = process.env.ACCESS_DB_PATH || 'C:\\AccessData\\作業管理・２０１１年７月以降.accdb';
+    try {
+        const dbPath = process.env.ACCESS_DB_PATH || 'C:\\AccessData\\作業管理・２０１１年７月以降.accdb';
 
-    // PowerShell Script to fetch unique company names from SubContractor table (下請台帳テーブル)
-    const psScript = `
+        // PowerShell Script to fetch vendors from "下請台帳テーブル"
+        // Selecting ID and Company Name
+        const psScript = `
 $DbPath = "${dbPath}"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -17,20 +19,21 @@ try {
     $conn.Open()
 
     $cmd = $conn.CreateCommand()
-    $cmd.CommandText = "SELECT DISTINCT [会社名], [発注先ID] FROM [下請台帳テーブル] WHERE [会社名] IS NOT NULL ORDER BY [会社名]"
+    $cmd.CommandText = "SELECT 発注先ID, 会社名 FROM 下請台帳テーブル WHERE 会社名 IS NOT NULL ORDER BY 会社名"
     
     $reader = $cmd.ExecuteReader()
     $results = @()
     
     while ($reader.Read()) {
-        $row = @{
+        $results += @{
+            id = $reader["発注先ID"].ToString()
             name = $reader["会社名"]
-            id = $reader["発注先ID"]
         }
-        $results += $row
     }
 
     $conn.Close()
+    
+    # Return JSON
     $results | ConvertTo-Json -Compress
 } catch {
     Write-Output "ERROR: $($_.Exception.Message)"
@@ -38,7 +41,7 @@ try {
 }
 `;
 
-    try {
+        // Execute PowerShell using Base64 EncodedCommand
         const encodedCommand = Buffer.from(psScript, 'utf16le').toString('base64');
 
         const output = await new Promise<string>((resolve, reject) => {
@@ -49,10 +52,10 @@ try {
             let stdout = '';
             let stderr = '';
 
-            ps.stdout.on('data', (data) => { stdout += data.toString(); });
-            ps.stderr.on('data', (data) => { stderr += data.toString(); });
+            ps.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
+            ps.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
 
-            ps.on('close', (code) => {
+            ps.on('close', (code: number) => {
                 if (code !== 0 && !stdout) {
                     reject(new Error(stderr || 'Unknown PowerShell Error'));
                 } else {
@@ -61,46 +64,38 @@ try {
             });
         });
 
-        const jsonMatch = output.match(/\[[\s\S]*\]/); // Match detailed array
-        // If only one result, it might come as object, or if empty nothing.
-        // PowerShell ConvertTo-Json behavior: Single object isn't inside [], list is.
-        // If output is simple object, match that too.
+        // Clean up output and parse JSON
+        // PowerShell might emit extra newlines or warnings, relying on JSON structure
+        const jsonMatch = output.match(/\[[\s\S]*\]/); // Match array
 
-        let parsable = output.trim();
-        // Try to find JSON-like structure
-        const firstBrace = output.indexOf('{');
-        const firstBracket = output.indexOf('[');
-
-        if (firstBracket !== -1 && (firstBrace === -1 || firstBracket < firstBrace)) {
-            parsable = output.substring(firstBracket);
-        } else if (firstBrace !== -1) {
-            parsable = output.substring(firstBrace);
-            // If single object, wrap in array for consistency
-            parsable = `[${parsable}]`;
+        let data = [];
+        if (jsonMatch) {
+            data = JSON.parse(jsonMatch[0]);
         } else {
-            return NextResponse.json({ success: true, data: [] });
+            // If output is emptry or single object, try object match or handle empty result
+            const objectMatch = output.match(/\{[\s\S]*\}/);
+            if (objectMatch) {
+                data = [JSON.parse(objectMatch[0])];
+            } else if (output.trim() === "") {
+                data = [];
+            } else {
+                console.warn("Unexpected PowerShell output:", output);
+                // Fallback: try parsing the whole thing if it looks like JSON
+                try {
+                    data = JSON.parse(output);
+                    if (!Array.isArray(data)) data = [data]; // Ensure array
+                } catch (e) {
+                    throw new Error("Failed to parse PowerShell output: " + output);
+                }
+            }
         }
 
-        // Clean up trailing garbage if any
-        // Doing a simple parse try
-        try {
-            const data = JSON.parse(parsable);
-            return NextResponse.json({ success: true, data });
-        } catch (e) {
-            // Fallback: try regex extraction if clean parse fails
-            const match = output.match(/\[.*\]|\{.*\}/s);
-            if (match) {
-                const clean = match[0];
-                const data = JSON.parse(clean.startsWith('[') ? clean : `[${clean}]`);
-                return NextResponse.json({ success: true, data });
-            }
-            throw e;
-        }
+        return NextResponse.json({ success: true, count: data.length, data });
 
     } catch (error: any) {
-        console.error('Access Vendor Fetch Error:', error);
+        console.error('Access Vendors Fetch Error:', error);
         return NextResponse.json({
-            error: 'Failed to fetch vendors',
+            error: 'Failed to fetch vendors from Access DB',
             details: error.message
         }, { status: 500 });
     }

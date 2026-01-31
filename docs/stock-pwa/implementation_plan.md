@@ -7,30 +7,35 @@ Allow administrators to link Web Vendors to Access DB Vendors dynamically from t
 
 ### 1. Database Schema
 *   **Model**: `Vendor`
-*   **Change**: Add `accessCompanyName String?` (Nullable).
+*   **Change**: Add `accessCompanyName String?` (Nullable). (Already Implemented)
 *   **Purpose**: Stores the exact company name from Access DB used for filtering search results.
 
 ### 2. Backend API
-*   **New Route**: `app/api/access/vendors/route.ts`
+*   **New Route**: `app/api/access/vendors/route.ts` (Implemented)
     *   **Method**: `GET`
     *   **Logic**: Uses PowerShell to query `SELECT 会社名, 発注先ID FROM 下請台帳テーブル` from Access DB.
     *   **Response**: List of `{ id: string, name: string }`.
-*   **Update Search API**: `app/api/access/route.ts`
-    *   Remove `vendorName` parameter dependency for mapping.
-    *   Instead, verify the logged-in `vendor.accessCompanyName`.
-    *   If `accessCompanyName` is set, use it as the filter keyword. If null, deny access.
+*   **Update Search API**: `app/api/access/route.ts` (Implemented)
+    *   **Logic**: Fetch `accessCompanyName` from DB based on Logged-in Vendor. Use it for PowerShell query filter.
 
-### 3. Admin UI: Vendor Management
-*   **Component**: `components/admin/vendor-dialog.tsx` (or similar)
-*   **Feature Link**:
-    *   Add a logic to fetch Access Vendors list (cache in state or SWR).
-    *   Add a standard `<Select>` dropdown: "Access連携業者".
-    *   Allows selecting one from the fetched Access list.
+### 3. Server Actions / Admin UI
+*   **Update Action**: `lib/actions.ts`
+    *   Update `upsertVendor` to accept `accessCompanyName`.
+*   **Update UI**: `components/admin/vendor-dialog.tsx`
+    *   Fetch Access Vendors list using `GET /api/access/vendors` (use `swr` or `useEffect`).
+    *   Add a `<Select>` dropdown: "Access連携業者".
+    *   Save logic passes `accessCompanyName` to `upsertVendor`.
 
-## Workflow
-1.  Admin opens Vendor Edit dialog.
-2.  Clicks "Access業者リスト更新" (Fetches live data from Access).
-3.  Selects "(株)メルテック" from dropdown.
-4.  Saves. `Vendor.accessCompanyName` is updated to "(株)メルテック".
-5.  Vendor logs in. `session.vendor.accessCompanyName` is available.
-6.  Vendor searches. API uses "(株)メルテック" to filter results.
+## Verification Plan
+1.  **Access Vendor Fetch**:
+    *   Run `curl http://localhost:3000/api/access/vendors` to confirm JSON output. (Verified)
+2.  **Linking Vendor**:
+    *   Open Admin > Vendor Management.
+    *   Edit a vendor (e.g., "WebVendor").
+    *   Select "AccessVendor" from the new dropdown.
+    *   Save.
+    *   Check Database (Studio or Console) to see `accessCompanyName` updated.
+3.  **Search Verification**:
+    *   Login as the linked Vendor.
+    *   Perform a search.
+    *   Confirm results are returned (meaning Access query used the linked name).

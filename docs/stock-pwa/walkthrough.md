@@ -4,7 +4,23 @@
 
 ## 変更内容
 
-### 1. データベース (Prisma)
+### 2026-01-31: Dynamic Access Vendor Linking
+
+### Changes
+*   **Database Schema**: Added `accessCompanyName` to `Vendor` model to store the linked Access DB company name.
+*   **API**:
+    *   Created `GET /api/access/vendors` to fetch the live list of vendors directly from the Access database using PowerShell.
+    *   Updated `GET /api/access/route` (search API) to use the stored `accessCompanyName` for filtering, replacing the hardcoded `ACCESS_VENDOR_MAP`.
+*   **Admin UI**:
+    *   Updated `VendorDialog` to include a dynamic dropdown for "Access連携業者".
+    *   Admins can now link a Web Vendor to an Access Vendor (e.g., "WebName" -> "AccessName") directly from the UI.
+
+### Verification
+*   **Fetching**: Confirmed `GET /api/access/vendors` returns the correct list from Access.
+*   **Linking**: Verified that selecting a vendor in the Admin dialog saves the `accessCompanyName` to the database.
+*   **Searching**: Verified that the search API uses the linked name to query Access, allowing vendors with mismatched names (e.g., "Meltec" vs "(株)メルテック") to search correctly.
+
+### 2026-01-31: AC Tracking & Kiosk UI Implementation
 - **`AirConditionerLog` モデル追加**: エアコンの持出し履歴（管理No、型番、業者、日時）を保存するテーブルを作成しました。
 - **`Vendor` モデル更新**: 履歴とのリレーションを追加しました。
 

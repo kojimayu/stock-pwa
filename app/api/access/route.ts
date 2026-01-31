@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAccessSearchKeyword } from '@/lib/access-control';
+import { prisma } from '@/lib/prisma'; // Ensure prisma client is imported
 const { spawn } = require('child_process');
 
 export const dynamic = 'force-dynamic';
@@ -18,13 +18,19 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Vendor Name is required for authorization' }, { status: 401 });
         }
 
-        // Validate Vendor against Allow-list
-        const accessVendorKeyword = getAccessSearchKeyword(webVendorName);
+        // Validate Vendor and get Access Company Name
+        // Fetch the vendor from the database to find the linked Access Company Name
+        const vendor = await prisma.vendor.findFirst({
+            where: { name: webVendorName },
+            select: { accessCompanyName: true } // Only fetch the field we need
+        });
+
+        const accessVendorKeyword = vendor?.accessCompanyName;
 
         if (!accessVendorKeyword) {
             return NextResponse.json({
                 error: 'Access DB search is not authorized for this vendor.',
-                debug: `Vendor '${webVendorName}' is not in the allow list.`
+                debug: `Vendor '${webVendorName}' has no linked Access Company Name. Please contact admin.`
             }, { status: 403 });
         }
 
@@ -32,6 +38,9 @@ export async function GET(request: Request) {
 
         // PowerShell Script Template (Safe for Japanese characters via Base64)
         // Filter by Mapped Vendor Keyword
+        // Note: Access OLEDB typically uses '%' for wildcards in ANSI-92 mode, but sometimes '*' in ANSI-89.
+        // However, when passed via parameterized query from external OLEDB driver, '%' is standard.
+        // If exact match is desired, remove '%' below. Currently mimicking "LIKE %Keyword%" behavior.
         const psScript = `
 $DbPath = "${dbPath}"
 $ManagementNo = "${managementNo}"
@@ -60,12 +69,8 @@ try {
         WHERE A.管理No = ?
 "@
 
-    # Add Vendor Filter (Using mapped keyword)
+    # Add Vendor Filter (Using mapped keyword from DB)
     if (-not [string]::IsNullOrEmpty($VendorKeyword)) {
-        # Using simple string comparison in Where-Object after fetching might be safer for Access SQL limitations regarding wildcards in parameters usually
-        # But for SQL injection safety we should use params. 
-        # Access with OLEDB supports LIKE. But wildcards are %.
-        # Let's try appending condition.
         $sql += " AND (B.会社名 LIKE ? OR C.会社名 LIKE ?)"
     }
 
