@@ -256,26 +256,38 @@ export async function upsertProduct(data: {
     const normalizedCode = normalizeCode(data.code);
 
     if (data.id) {
-        // Update (Stock is NOT updated here to preserve inventory integrity, unless we explicitly decide to allow it)
-        // For now, we ignore data.stock on update.
+        // Update
+        // 在庫数の変更を許可する
+        // 原価(cost)が0の場合は更新しない（消失防止）
+
+        const updateData: any = {
+            code: normalizedCode,
+            name: data.name,
+            category: data.category,
+            subCategory: data.subCategory,
+            priceA: data.priceA,
+            priceB: data.priceB,
+            priceC: data.priceC,
+            minStock: data.minStock,
+            supplier: data.supplier,
+            color: data.color,
+            unit: data.unit ?? "個",
+            stock: data.stock !== undefined ? data.stock : undefined, // stockがundefinedなら更新しない
+        };
+
+        // costが0より大きい場合のみ更新
+        if (data.cost > 0) {
+            updateData.cost = data.cost;
+        }
+
         await prisma.product.update({
             where: { id: data.id },
-            data: {
-                code: normalizedCode,
-                name: data.name,
-                category: data.category,
-                subCategory: data.subCategory,
-                priceA: data.priceA,
-                priceB: data.priceB,
-                priceC: data.priceC,
-                minStock: data.minStock,
-                cost: data.cost,
-                supplier: data.supplier,
-                color: data.color,
-                unit: data.unit ?? "個",
-            },
+            data: updateData,
         });
-        await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, `PriceA: ${data.priceA}, Cost: ${data.cost}`);
+
+        // ログ: 原価と在庫の変更を記録
+        const logDetail = `PriceA: ${data.priceA}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Stock: ${data.stock ?? '(unchanged)'}`;
+        await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, logDetail);
     } else {
         // Create
         // Check if code exists (for manual creation safety)
