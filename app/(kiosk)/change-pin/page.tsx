@@ -84,9 +84,8 @@ export default function ChangePinPage() {
             if (res.success && res.vendor) {
                 setVendor(res.vendor);
                 toast.success("PINを変更しました");
-                router.refresh(); // サーバーコンポーネントの状態を更新
-                router.push("/mode-select");
-                // 成功時はloadingのまま遷移させる
+                // 強制的にリロードして遷移（ルーターの不具合回避）
+                window.location.href = "/mode-select";
             } else {
                 toast.error(res.message || "PIN変更に失敗しました");
                 setNewPin("");
