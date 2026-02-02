@@ -59,14 +59,14 @@
 
 ## OneDriveフォルダのパス設定
 
-スクリプト内の `$BackupFolder` を実際のOneDriveパスに変更してください。
+スクリプト内の `$BackupFolder` を実際のパスに変更してください。
 
 ```powershell
-# 例: 組織用OneDrive
-$BackupFolder = "C:\Users\Kojima\OneDrive - 会社名\Backup\stock-pwa"
+# SharePoint (pluscompany,) の場合
+$BackupFolder = "C:\Users\Kojima\pluscompany,\pluscompany, - ドキュメント\General\Dev\stock-pwa\バックアップ\db"
 
-# 例: 個人用OneDrive
-$BackupFolder = "C:\Users\Kojima\OneDrive\Backup\stock-pwa"
+# 個人用OneDriveの場合
+$BackupFolder = "C:\Users\Kojima\OneDrive\Dev\stock-pwa\バックアップ\db"
 ```
 
-パスを確認するには、OneDriveフォルダをエクスプローラーで開き、アドレスバーをクリックしてください。
+パスを確認するには、OneDrive/SharePointフォルダをエクスプローラーで開き、アドレスバーをクリックしてください。。

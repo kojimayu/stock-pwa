@@ -69,7 +69,8 @@ Get-NetTCPConnection -LocalPort 3000
 
 ```powershell
 $ProjectRoot = "C:\Apps\stock-pwa"
-$BackupFolder = "C:\Users\[ユーザー名]\OneDrive\Backup\stock-pwa"
+# SharePoint同期フォルダ (pluscompany,)
+$BackupFolder = "C:\Users\Kojima\pluscompany,\pluscompany, - ドキュメント\General\Dev\stock-pwa\バックアップ\db"
 $Date = Get-Date -Format "yyyyMMdd_HHmmss"
 $BackupFile = "$BackupFolder\dev_$Date.db"
 
