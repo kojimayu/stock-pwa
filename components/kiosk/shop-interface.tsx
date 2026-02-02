@@ -7,7 +7,7 @@ import { VerticalSubCategoryList } from "./vertical-sub-category-list";
 import { ProductListItem } from "./product-list-item";
 import { ManualProductSheet } from "@/components/kiosk/manual-product-sheet";
 import { CartSummary } from "./cart-summary";
-import { LogOut, Plus } from "lucide-react";
+import { LogOut, Plus, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -87,11 +87,21 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
 
             {/* Header */}
             <header className="bg-slate-900 text-white p-3 fixed top-0 left-0 right-0 z-40 flex justify-between items-center shadow-md h-[60px]">
-                <div>
-                    <h1 className="text-lg font-bold">商品選択</h1>
-                    <p className="text-[10px] text-slate-300">
-                        {vendor ? `${vendor.name} 様` : "未ログイン"}
-                    </p>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-slate-300 hover:text-white hover:bg-slate-800"
+                        onClick={() => router.push("/mode-select")}
+                    >
+                        <ChevronLeft className="w-6 h-6" />
+                    </Button>
+                    <div>
+                        <h1 className="text-lg font-bold">商品選択</h1>
+                        <p className="text-[10px] text-slate-300">
+                            {vendor ? `${vendor.name} 様` : "未ログイン"}
+                        </p>
+                    </div>
                 </div>
                 <div className="flex items-center space-x-1">
                     <Button

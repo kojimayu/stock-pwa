@@ -226,3 +226,28 @@ export async function receiveAirconOrderItem(itemId: number, quantity: number) {
     revalidatePath("/admin/aircon-inventory");
     return { success: true };
 }
+
+// ベンダーごとのエアコン持出し履歴取得
+export async function getVendorAirconHistory(vendorId: number) {
+    return prisma.airConditionerLog.findMany({
+        where: { vendorId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        include: {
+            airconProduct: true
+        }
+    });
+}
+
+// エアコン持出し履歴の修正（管理情報のみ）
+export async function updateAirconLogInfo(logId: number, data: { managementNo?: string; customerName?: string; contractor?: string }) {
+    await prisma.airConditionerLog.update({
+        where: { id: logId },
+        data: {
+            managementNo: data.managementNo,
+            customerName: data.customerName,
+            contractor: data.contractor
+        }
+    });
+    return { success: true };
+}

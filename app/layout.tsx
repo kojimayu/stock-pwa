@@ -38,7 +38,7 @@ export default function RootLayout({
       >
         <NetworkStatus />
         {children}
-        <Toaster />
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );
