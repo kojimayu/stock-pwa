@@ -180,8 +180,8 @@ export default function AirconInventoryPage() {
                                                                 [product.id]: e.target.value.toUpperCase(),
                                                             })
                                                         }
-                                                        className="w-16 text-center font-mono"
-                                                        maxLength={2}
+                                                        className="w-20 text-center font-mono"
+                                                        maxLength={5}
                                                     />
                                                     {suffixChanged && (
                                                         <Button
