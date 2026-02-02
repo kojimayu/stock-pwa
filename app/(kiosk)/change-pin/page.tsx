@@ -84,19 +84,21 @@ export default function ChangePinPage() {
             if (res.success && res.vendor) {
                 setVendor(res.vendor);
                 toast.success("PINを変更しました");
+                router.refresh(); // サーバーコンポーネントの状態を更新
                 router.push("/mode-select");
+                // 成功時はloadingのまま遷移させる
             } else {
                 toast.error(res.message || "PIN変更に失敗しました");
                 setNewPin("");
                 setConfirmPin("");
                 setStep("ENTER");
+                setLoading(false);
             }
         } catch (e) {
             toast.error("システムエラーが発生しました");
             setNewPin("");
             setConfirmPin("");
             setStep("ENTER");
-        } finally {
             setLoading(false);
         }
     };
@@ -146,8 +148,8 @@ export default function ChangePinPage() {
                             <div
                                 key={i}
                                 className={`w-6 h-6 rounded-full border-2 transition-colors ${currentPin.length > i
-                                        ? "bg-blue-600 border-blue-600"
-                                        : "bg-white border-slate-300"
+                                    ? "bg-blue-600 border-blue-600"
+                                    : "bg-white border-slate-300"
                                     }`}
                             />
                         );

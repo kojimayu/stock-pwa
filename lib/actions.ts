@@ -127,7 +127,7 @@ export async function verifyPin(vendorId: string | number, pin: string) {
 }
 
 export async function loginByPin(pin: string) {
-    const vendor = await prisma.vendor.findUnique({
+    const vendor = await prisma.vendor.findFirst({
         where: { pinCode: pin },
     });
 
@@ -151,7 +151,7 @@ export async function changePin(vendorId: number, newPin: string) {
     }
 
     // 重複チェック
-    const existing = await prisma.vendor.findUnique({
+    const existing = await prisma.vendor.findFirst({
         where: { pinCode: newPin },
     });
     if (existing && existing.id !== vendorId) {
