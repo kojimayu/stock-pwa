@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { PinPad } from "@/components/kiosk/pin-pad";
-import { QrScanner } from "@/components/kiosk/qr-scanner";
-import { verifyPin, getVendors, loginByQrToken } from "@/lib/actions";
+import { verifyPin, getVendors } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
-import { Loader2, ChevronLeft, QrCode, KeyRound } from "lucide-react";
+import { Loader2, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -16,11 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 
 // Client Component for Login Logic
 export default function KioskLoginPage() {
-  const [authMode, setAuthMode] = useState<"SELECT" | "QR">("SELECT");
   const [step, setStep] = useState<"SELECT" | "PIN">("SELECT");
   const [vendors, setVendors] = useState<{ id: number, name: string }[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<{ id: number, name: string } | null>(null);
@@ -49,7 +46,7 @@ export default function KioskLoginPage() {
     }
   };
 
-  const handleBackByPin = () => {
+  const handleBack = () => {
     setStep("SELECT");
     setSelectedVendor(null);
     setPin("");
@@ -96,76 +93,10 @@ export default function KioskLoginPage() {
     }
   };
 
-  // QRコード認証
-  const handleQrScan = async (qrToken: string) => {
-    setLoading(true);
-    try {
-      const res = await loginByQrToken(qrToken);
-      if (res.success && res.vendor) {
-        setVendorStore(res.vendor);
-        toast.success(`ログイン: ${res.vendor.name}`);
-        router.push("/mode-select");
-      } else {
-        toast.error(res.message || "QRコードが無効です");
-      }
-    } catch (e) {
-      toast.error("システムエラーが発生しました");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
-      {/* Auth Mode Toggle */}
-      <div className="w-full max-w-md mb-6">
-        <div className="flex rounded-lg bg-slate-200 p-1">
-          <button
-            onClick={() => { setAuthMode("SELECT"); setStep("SELECT"); }}
-            className={cn(
-              "flex-1 py-3 rounded-md text-sm font-bold transition-colors flex items-center justify-center gap-2",
-              authMode === "SELECT" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
-            )}
-          >
-            <KeyRound className="w-4 h-4" />
-            PIN入力
-          </button>
-          <button
-            onClick={() => setAuthMode("QR")}
-            className={cn(
-              "flex-1 py-3 rounded-md text-sm font-bold transition-colors flex items-center justify-center gap-2",
-              authMode === "QR" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
-            )}
-          >
-            <QrCode className="w-4 h-4" />
-            QRスキャン
-          </button>
-        </div>
-      </div>
-
-      {/* QR Mode */}
-      {authMode === "QR" && (
-        <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl font-bold text-slate-900">QRコードでログイン</h1>
-            <p className="text-slate-500">スマホに表示したQRコードをかざしてください</p>
-          </div>
-
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="w-12 h-12 animate-spin text-slate-400" />
-            </div>
-          ) : (
-            <QrScanner
-              onScan={handleQrScan}
-              isActive={authMode === "QR"}
-            />
-          )}
-        </div>
-      )}
-
-      {/* PIN Mode - Select Step */}
-      {authMode === "SELECT" && step === "SELECT" && (
+      {/* Select Step */}
+      {step === "SELECT" && (
         <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-slate-900">業者選択</h1>
@@ -197,11 +128,11 @@ export default function KioskLoginPage() {
         </div>
       )}
 
-      {/* PIN Mode - PIN Step */}
-      {authMode === "SELECT" && step === "PIN" && selectedVendor && (
+      {/* PIN Step */}
+      {step === "PIN" && selectedVendor && (
         <div className="w-full max-w-md space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
           <button
-            onClick={handleBackByPin}
+            onClick={handleBack}
             className="absolute top-8 left-8 flex items-center text-slate-500 hover:text-slate-900"
           >
             <ChevronLeft className="w-6 h-6" />

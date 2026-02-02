@@ -16,9 +16,11 @@ export function QrScanner({ onScan, onError, isActive }: QrScannerProps) {
     const [error, setError] = useState<string | null>(null);
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const processedRef = useRef(false);
 
     const startScanning = async () => {
         if (!containerRef.current) return;
+        processedRef.current = false;
 
         try {
             setError(null);
@@ -26,13 +28,17 @@ export function QrScanner({ onScan, onError, isActive }: QrScannerProps) {
             scannerRef.current = scanner;
 
             await scanner.start(
-                { facingMode: "environment" },
+                { facingMode: "user" },
                 {
                     fps: 10,
                     qrbox: { width: 250, height: 250 },
                 },
                 (decodedText) => {
+                    // 処理済みなら無視
+                    if (processedRef.current) return;
+
                     // 成功時
+                    processedRef.current = true;
                     onScan(decodedText);
                     stopScanning();
                 },

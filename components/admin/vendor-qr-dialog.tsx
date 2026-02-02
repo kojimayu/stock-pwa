@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -24,12 +24,14 @@ interface VendorQrDialogProps {
 
 export function VendorQrDialog({ open, onOpenChange, vendor, onSuccess }: VendorQrDialogProps) {
     const [loading, setLoading] = useState(false);
-    const [qrToken, setQrToken] = useState<string | null>(vendor?.qrToken || null);
+    const [qrToken, setQrToken] = useState<string | null>(null);
 
-    // Update local state when vendor prop changes
-    useState(() => {
-        setQrToken(vendor?.qrToken || null);
-    });
+    // Update local state when vendor prop changes or dialog opens
+    useEffect(() => {
+        if (open && vendor) {
+            setQrToken(vendor.qrToken || null);
+        }
+    }, [open, vendor]);
 
     const handleGenerateQr = async () => {
         if (!vendor) return;
@@ -68,11 +70,11 @@ export function VendorQrDialog({ open, onOpenChange, vendor, onSuccess }: Vendor
                 </DialogHeader>
 
                 <div className="py-6">
-                    {vendor.qrToken ? (
+                    {qrToken ? (
                         <div className="flex flex-col items-center gap-4">
                             <div className="p-4 bg-white rounded-lg border shadow-sm">
                                 <QRCode
-                                    value={vendor.qrToken}
+                                    value={qrToken}
                                     size={200}
                                     level="H"
                                 />
@@ -106,7 +108,7 @@ export function VendorQrDialog({ open, onOpenChange, vendor, onSuccess }: Vendor
                 </div>
 
                 <DialogFooter>
-                    {vendor.qrToken && (
+                    {qrToken && (
                         <Button variant="outline" onClick={handleGenerateQr} disabled={loading}>
                             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />
                             再生成
