@@ -14,6 +14,7 @@ model Vendor {
   id        Int           @id @default(autoincrement())
   name      String
   pinCode   String        @unique // PINコードは重複不可の方が安全
+  qrToken   String?       @unique // QRコード認証用トークン
   email     String?       // メールアドレス (Option)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt

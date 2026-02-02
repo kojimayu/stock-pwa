@@ -10,8 +10,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Edit, Plus, Trash2 } from "lucide-react";
+import { Edit, Plus, Trash2, QrCode } from "lucide-react";
 import { VendorDialog } from "./vendor-dialog";
+import { VendorQrDialog } from "./vendor-qr-dialog";
 import { deleteVendor } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,7 @@ type Vendor = {
     name: string;
     pinCode: string;
     email?: string | null;
+    qrToken?: string | null;
 };
 
 interface VendorListProps {
@@ -30,7 +32,9 @@ interface VendorListProps {
 
 export function VendorList({ vendors }: VendorListProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isQrDialogOpen, setIsQrDialogOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+    const [qrVendor, setQrVendor] = useState<Vendor | null>(null);
     const router = useRouter();
 
     const handleCreate = () => {
@@ -41,6 +45,11 @@ export function VendorList({ vendors }: VendorListProps) {
     const handleEdit = (vendor: Vendor) => {
         setEditingVendor(vendor);
         setIsDialogOpen(true);
+    };
+
+    const handleQrCode = (vendor: Vendor) => {
+        setQrVendor(vendor);
+        setIsQrDialogOpen(true);
     };
 
     const handleDelete = async (id: number) => {
@@ -74,6 +83,7 @@ export function VendorList({ vendors }: VendorListProps) {
                             <TableHead className="w-[100px]">ID</TableHead>
                             <TableHead>名前</TableHead>
                             <TableHead>PIN</TableHead>
+                            <TableHead>QR</TableHead>
                             <TableHead>メール</TableHead>
                             <TableHead className="text-right">操作</TableHead>
                         </TableRow>
@@ -84,12 +94,22 @@ export function VendorList({ vendors }: VendorListProps) {
                                 <TableCell>{vendor.id}</TableCell>
                                 <TableCell className="font-medium">{vendor.name}</TableCell>
                                 <TableCell>{vendor.pinCode}</TableCell>
+                                <TableCell>
+                                    {vendor.qrToken ? (
+                                        <span className="text-green-600 text-xs font-bold">有り</span>
+                                    ) : (
+                                        <span className="text-slate-400 text-xs">未設定</span>
+                                    )}
+                                </TableCell>
                                 <TableCell className="text-muted-foreground">{vendor.email || '-'}</TableCell>
-                                <TableCell className="text-right space-x-2">
-                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(vendor)}>
+                                <TableCell className="text-right space-x-1">
+                                    <Button variant="ghost" size="icon" onClick={() => handleQrCode(vendor)} title="QRコード">
+                                        <QrCode className="w-4 h-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(vendor)} title="編集">
                                         <Edit className="w-4 h-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => handleDelete(vendor.id)}>
+                                    <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => handleDelete(vendor.id)} title="削除">
                                         <Trash2 className="w-4 h-4" />
                                     </Button>
                                 </TableCell>
@@ -97,7 +117,7 @@ export function VendorList({ vendors }: VendorListProps) {
                         ))}
                         {vendors.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={6} className="text-center py-10 text-slate-500">
                                     業者が登録されていません
                                 </TableCell>
                             </TableRow>
@@ -110,6 +130,13 @@ export function VendorList({ vendors }: VendorListProps) {
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 vendor={editingVendor}
+                onSuccess={handleSuccess}
+            />
+
+            <VendorQrDialog
+                open={isQrDialogOpen}
+                onOpenChange={setIsQrDialogOpen}
+                vendor={qrVendor}
                 onSuccess={handleSuccess}
             />
         </div>

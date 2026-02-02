@@ -137,6 +137,40 @@ export async function loginByPin(pin: string) {
     return { success: true, vendor };
 }
 
+// QRトークンでログイン
+export async function loginByQrToken(qrToken: string) {
+    if (!qrToken) {
+        return { success: false, message: 'QRコードが無効です' };
+    }
+
+
+    const vendor = await prisma.vendor.findUnique({
+        where: { qrToken },
+    });
+
+    if (!vendor) {
+        return { success: false, message: 'QRコードが無効です' };
+    }
+
+    return { success: true, vendor };
+}
+
+// QRトークンを生成・更新
+export async function generateQrToken(vendorId: number) {
+    // ランダムなトークンを生成 (16文字の英数字)
+    const token = `VND${vendorId}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    const vendor = await prisma.vendor.update({
+        where: { id: vendorId },
+        data: { qrToken: token },
+    });
+
+    await logOperation("VENDOR_QR_GENERATE", `Vendor: ${vendor.name}`, `Generated QR token`);
+    revalidatePath('/admin/vendors');
+
+    return { success: true, qrToken: token };
+}
+
 // Product Actions
 export async function getProducts() {
     return await prisma.product.findMany({
