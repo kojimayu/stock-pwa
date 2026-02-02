@@ -10,6 +10,7 @@ import { ShoppingCart } from "lucide-react";
 
 interface Product {
     id: number;
+    code?: string;
     name: string;
     category: string;
     subCategory?: string | null;
@@ -73,6 +74,9 @@ export function ProductListItem({ product }: ProductListItemProps) {
                     </div>
                     <div className="font-bold text-lg text-slate-900 leading-snug line-clamp-2">
                         {product.name}
+                        {product.code && (
+                            <span className="ml-2 text-sm font-normal text-slate-500">{product.code}</span>
+                        )}
                     </div>
                     <div className="mt-1.5">
                         <span className="text-slate-400 text-xs">在庫: {product.stock}</span>

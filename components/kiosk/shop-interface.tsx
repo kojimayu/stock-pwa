@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 
 interface Product {
     id: number;
+    code?: string;
     name: string;
     category: string;
     subCategory?: string | null;
@@ -58,12 +59,9 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
     }, [products, selectedCategory]);
 
     const filteredProducts = useMemo(() => {
-        // First, apply category filter
         let res = products;
         if (selectedCategory !== "すべて") {
             res = res.filter((p) => p.category === selectedCategory);
-
-            // Then apply subcategory filter
             if (selectedSubCategory !== "すべて") {
                 res = res.filter((p) => p.subCategory === selectedSubCategory);
             }
@@ -88,7 +86,7 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
             )}
 
             {/* Header */}
-            <header className="bg-slate-900 text-white p-3 sticky top-0 z-40 flex justify-between items-center shadow-md shrink-0">
+            <header className="bg-slate-900 text-white p-3 fixed top-0 left-0 right-0 z-40 flex justify-between items-center shadow-md h-[60px]">
                 <div>
                     <h1 className="text-lg font-bold">商品選択</h1>
                     <p className="text-[10px] text-slate-300">
@@ -116,13 +114,18 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
                 </div>
             </header>
 
-            <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+            {/* Spacer for fixed header */}
+            <div className="h-[60px] shrink-0" />
+
+            {/* Main Layout */}
+            <div className="flex-1 flex flex-row relative">
                 {/* 
                    ===============================================
                    COLUMN 1: Main Category Sidebar (Desktop Only)
+                   Fixed position to prevent scrolling with content
                    ===============================================
                 */}
-                <aside className="hidden md:flex flex-col w-56 bg-white border-r h-[calc(100vh-60px)] sticky top-[60px]">
+                <aside className="hidden md:flex flex-col w-56 bg-white border-r fixed left-0 top-[60px] bottom-0 z-30">
                     <div className="p-3 border-b text-xs font-bold text-slate-400 bg-slate-50">カテゴリー</div>
                     <div className="flex-1 overflow-y-auto">
                         <VerticalCategoryList
@@ -145,9 +148,10 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
                 {/* 
                    ===============================================
                    COLUMN 2: Sub Category Sidebar (Desktop Only)
+                   Fixed position to prevent scrolling with content
                    ===============================================
                 */}
-                <aside className="hidden md:flex flex-col w-56 bg-slate-50 border-r h-[calc(100vh-60px)] sticky top-[60px]">
+                <aside className="hidden md:flex flex-col w-56 bg-slate-50 border-r fixed left-56 top-[60px] bottom-0 z-30">
                     <div className="p-3 border-b text-xs font-bold text-slate-400">サブカテゴリー</div>
                     <div className="flex-1 overflow-y-auto">
                         <VerticalSubCategoryList
@@ -161,12 +165,13 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
                 {/* 
                    ===============================================
                    COLUMN 3: Product List (Main Content)
+                   Uses margin-left to account for fixed sidebars
                    ===============================================
                 */}
-                <main className={`flex-1 flex flex-col min-w-0 ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                <main className={`flex-1 flex flex-col min-w-0 md:ml-[448px] ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
 
                     {/* Sticky Filters Area (Mobile Only: Category Tabs + SubCategory) */}
-                    <div className="md:hidden sticky top-0 z-30 bg-slate-50 border-b shadow-sm">
+                    <div className="md:hidden sticky top-[60px] z-30 bg-slate-50 border-b shadow-sm">
                         <div className="overflow-x-auto">
                             <CategoryTabs
                                 categories={categories}
