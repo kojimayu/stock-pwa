@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LayoutDashboard, Package, FileText, Users, TrendingUp, History, Menu, ClipboardList } from "lucide-react";
+import { LayoutDashboard, Package, FileText, Users, TrendingUp, History, Menu, ClipboardList, Fan } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -14,6 +14,7 @@ const navigation = [
   { name: "在庫管理 (棚卸)", href: "/admin/inventory", icon: Package },
   { name: "発注管理", href: "/admin/orders", icon: ClipboardList },
   { name: "業者管理", href: "/admin/vendors", icon: Users },
+  { name: "エアコン持出し", href: "/admin/aircon-logs", icon: Fan },
   { name: "操作ログ", href: "/admin/logs", icon: History },
 ];
 

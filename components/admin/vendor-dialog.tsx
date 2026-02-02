@@ -11,18 +11,23 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { upsertVendor } from "@/lib/actions";
 import { toast } from "sonner";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-// Simple SWR-like fetch hook or just useEffect for now to avoid adding SWR dep if not present
-// Using useEffect for simplicity as SWR might not be configured
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface VendorDialogProps {
     open: boolean;
@@ -40,6 +45,19 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
     const [loading, setLoading] = useState(false);
     const [accessVendors, setAccessVendors] = useState<AccessVendor[]>([]);
     const [loadingAccessVendors, setLoadingAccessVendors] = useState(false);
+
+    // Combobox state
+    const [openCombobox, setOpenCombobox] = useState(false);
+    const [selectedAccessVendor, setSelectedAccessVendor] = useState("");
+
+    // Initialize/Update selectedAccessVendor when vendor prop changes
+    useEffect(() => {
+        if (vendor?.accessCompanyName) {
+            setSelectedAccessVendor(vendor.accessCompanyName);
+        } else {
+            setSelectedAccessVendor("");
+        }
+    }, [vendor, open]); // open triggered to reset likely
 
     // Fetch Access Vendors when dialog opens
     useEffect(() => {
@@ -70,7 +88,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
         const formData = new FormData(e.currentTarget);
         const name = formData.get("name") as string;
         const pin = formData.get("pin") as string;
-        const accessCompanyName = formData.get("accessCompanyName") as string;
+        // accessCompanyName is retrieved from hidden input
 
         try {
             await upsertVendor({
@@ -78,7 +96,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                 name,
                 pinCode: pin,
                 email: formData.get("email") as string || null,
-                accessCompanyName: accessCompanyName === "_none" ? null : (accessCompanyName || null),
+                accessCompanyName: selectedAccessVendor === "_none" || !selectedAccessVendor ? null : selectedAccessVendor,
             });
             toast.success(vendor ? "業者情報を更新しました" : "業者を追加しました");
             onSuccess();
@@ -147,26 +165,74 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                             <label htmlFor="accessCompanyName" className="text-right text-sm font-medium">
                                 Access連携
                             </label>
-                            <div className="col-span-3">
-                                <Select name="accessCompanyName" defaultValue={vendor?.accessCompanyName || "_none"}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="連携するAccess業者を選択" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="_none">-- 連携なし --</SelectItem>
-                                        {loadingAccessVendors ? (
-                                            <SelectItem value="_loading" disabled>読み込み中...</SelectItem>
-                                        ) : (
-                                            accessVendors.map((av) => (
-                                                <SelectItem key={av.id} value={av.name}>
-                                                    {av.name}
-                                                </SelectItem>
-                                            ))
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Accessデータベース上の業者名と紐付けることで、物件検索が可能になります。
+                            <div className="col-span-3 flex flex-col gap-2">
+                                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            role="combobox"
+                                            aria-expanded={openCombobox}
+                                            className="w-full justify-between"
+                                        >
+                                            {selectedAccessVendor && selectedAccessVendor !== "_none"
+                                                ? accessVendors.find((av) => av.name === selectedAccessVendor)?.name || selectedAccessVendor
+                                                : "連携するAccess業者を選択..."}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[300px] p-0">
+                                        <Command>
+                                            <CommandInput placeholder="業者名を検索..." />
+                                            <CommandList>
+                                                <CommandEmpty>業者が見つかりません。</CommandEmpty>
+                                                <CommandGroup>
+                                                    <CommandItem
+                                                        value="_none"
+                                                        onSelect={() => {
+                                                            setSelectedAccessVendor("");
+                                                            setOpenCombobox(false);
+                                                        }}
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                "mr-2 h-4 w-4",
+                                                                !selectedAccessVendor ? "opacity-100" : "opacity-0"
+                                                            )}
+                                                        />
+                                                        -- 連携なし --
+                                                    </CommandItem>
+                                                    {accessVendors.map((av) => (
+                                                        <CommandItem
+                                                            key={av.id}
+                                                            value={av.name}
+                                                            onSelect={(currentValue) => {
+                                                                // currentValue might be lowercased by cmdk sometimes, but here we expect name
+                                                                // cmdk value usually matches text content if not specified, 
+                                                                // but we specified value={av.name}
+                                                                setSelectedAccessVendor(av.name); // Prefer explicit name from object to avoid case issues
+                                                                setOpenCombobox(false);
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    "mr-2 h-4 w-4",
+                                                                    selectedAccessVendor === av.name ? "opacity-100" : "opacity-0"
+                                                                )}
+                                                            />
+                                                            {av.name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                                {/* Hidden input to pass the selected company name */}
+                                <input type="hidden" name="accessCompanyName" value={selectedAccessVendor || ""} />
+
+                                <p className="text-xs text-muted-foreground">
+                                    Accessデータベース上の業者名と紐付けることで、物件検索が可能になります。<br />
+                                    入力して絞り込み検索ができます。
                                 </p>
                             </div>
                         </div>

@@ -31,7 +31,8 @@ export default function AirconPage() {
     const [managementNo, setManagementNo] = useState("");
     const [jobInfo, setJobInfo] = useState<AccessJobInfo | null>(null);
     const [loading, setLoading] = useState(false);
-    const [modelNumber, setModelNumber] = useState("");
+    const [selectedItems, setSelectedItems] = useState<string[]>([]); // Changed to array
+    const [manualInputModel, setManualInputModel] = useState("");
     const [isManualInput, setIsManualInput] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -67,7 +68,8 @@ export default function AirconPage() {
             toast.success("物件情報を取得しました");
 
             // Reset input state on new search
-            setModelNumber("");
+            setSelectedItems([]);
+            setManualInputModel("");
             setIsManualInput(false);
 
         } catch (e) {
@@ -77,8 +79,17 @@ export default function AirconPage() {
         }
     };
 
+    const addItem = (model: string) => {
+        setSelectedItems((prev) => [...prev, model]);
+        toast.success(`${model} を追加しました`);
+    };
+
+    const removeItem = (index: number) => {
+        setSelectedItems((prev) => prev.filter((_, i) => i !== index));
+    };
+
     const handleSubmit = async () => {
-        if (!jobInfo || !modelNumber) return;
+        if (!jobInfo || selectedItems.length === 0) return;
 
         setSaving(true);
         try {
@@ -86,20 +97,20 @@ export default function AirconPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    managementNo: jobInfo.管理No,
+                    managementNo: String(jobInfo.管理No),
                     customerName: jobInfo.顧客名,
                     contractor: jobInfo.SubContractor || jobInfo.PrimeContractor,
-                    modelNumber,
+                    items: selectedItems, // Send array
                     vendorId: vendor.id,
                 }),
             });
             const data = await res.json();
 
             if (res.ok && data.success) {
-                toast.success("持出し記録を保存しました");
+                toast.success(`${data.count}件の持出しを記録しました`);
                 router.push("/mode-select");
             } else {
-                toast.error("保存に失敗しました");
+                toast.error(`保存に失敗しました: ${data.details || data.error || "不明なエラー"}`);
             }
         } catch (e) {
             toast.error("システムエラー");
@@ -126,6 +137,7 @@ export default function AirconPage() {
             </div>
         );
     };
+
 
     const PRESETS = [
         { label: "2.2kw", model: "RAS-AJ2225S" },
@@ -173,6 +185,7 @@ export default function AirconPage() {
                 {jobInfo && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                         <Card className="bg-white border-blue-200 shadow-md">
+                            {/* ... same card header/content ... */}
                             <CardHeader className="bg-blue-50 border-b border-blue-100 pb-2">
                                 <CardTitle className="text-blue-900 text-lg flex justify-between">
                                     <span>{jobInfo.顧客名} 様邸</span>
@@ -184,9 +197,14 @@ export default function AirconPage() {
                                     <span className="text-slate-500">業者名</span>
                                     <span className="col-span-2 font-medium">{jobInfo.SubContractor || jobInfo.PrimeContractor || "-"}</span>
 
-                                    <span className="text-slate-500">必要能力</span>
-                                    <div className="col-span-2">
+                                    <span className="text-slate-500">発注能力</span>
+                                    <div className="col-span-2 space-y-2">
                                         {renderCapacities()}
+                                        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-2 rounded">
+                                            <p className="font-bold">⚠ 注意</p>
+                                            <p>実際の依頼書と合っているか確認してください。</p>
+                                            <p>もし違う場合は事務所に確認してください。</p>
+                                        </div>
                                     </div>
                                 </div>
                             </CardContent>
@@ -197,23 +215,35 @@ export default function AirconPage() {
                                 <CardTitle>持出し情報の入力</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-6">
+                                {/* Selected Items List */}
+                                <div className="bg-slate-50 p-4 rounded-lg border">
+                                    <h3 className="text-sm font-bold mb-2 text-slate-700">持出し予定リスト ({selectedItems.length}台)</h3>
+                                    {selectedItems.length === 0 ? (
+                                        <p className="text-sm text-slate-400">機種を選択してください</p>
+                                    ) : (
+                                        <ul className="space-y-2">
+                                            {selectedItems.map((item, index) => (
+                                                <li key={index} className="flex justify-between items-center bg-white p-2 rounded shadow-sm">
+                                                    <span className="font-mono font-medium">{item}</span>
+                                                    <Button variant="ghost" size="sm" onClick={() => removeItem(index)} className="text-red-500 hover:text-red-700 h-8 w-8 p-0">
+                                                        ×
+                                                    </Button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
 
                                 <div className="space-y-4">
-                                    <label className="text-sm font-medium text-slate-700">エアコン品番を選択</label>
+                                    <label className="text-sm font-medium text-slate-700">追加するエアコン品番を選択</label>
 
                                     <div className="grid grid-cols-2 gap-3">
                                         {PRESETS.map((p) => (
                                             <Button
                                                 key={p.model}
-                                                variant={modelNumber === p.model && !isManualInput ? "default" : "outline"}
-                                                className={`h-16 text-lg font-bold flex flex-col gap-1 ${modelNumber === p.model && !isManualInput
-                                                        ? "bg-blue-600 hover:bg-blue-700 ring-2 ring-blue-300 ring-offset-2"
-                                                        : "hover:bg-slate-50"
-                                                    }`}
-                                                onClick={() => {
-                                                    setModelNumber(p.model);
-                                                    setIsManualInput(false);
-                                                }}
+                                                variant="outline"
+                                                className="h-16 text-lg font-bold flex flex-col gap-1 hover:bg-slate-100"
+                                                onClick={() => addItem(p.model)}
                                             >
                                                 <span>{p.label}</span>
                                                 <span className="text-xs font-normal opacity-80">{p.model}</span>
@@ -224,23 +254,32 @@ export default function AirconPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => {
-                                            setIsManualInput(true);
-                                            setModelNumber("");
-                                        }}
+                                        onClick={() => setIsManualInput(!isManualInput)}
                                         className={`w-full text-slate-500 ${isManualInput ? "bg-slate-100" : ""}`}
                                     >
-                                        {isManualInput ? "▼ 手入力中" : "その他の品番を入力する"}
+                                        {isManualInput ? "▼ キャンセル" : "その他の品番を入力する"}
                                     </Button>
 
                                     {isManualInput && (
-                                        <div className="animate-in fade-in slide-in-from-top-2">
+                                        <div className="animate-in fade-in slide-in-from-top-2 flex gap-2">
                                             <Input
                                                 placeholder="例: RAS-AJ4025S"
-                                                value={modelNumber}
-                                                onChange={(e) => setModelNumber(e.target.value)}
-                                                className="h-14 text-lg"
+                                                value={manualInputModel}
+                                                onChange={(e) => setManualInputModel(e.target.value)}
+                                                className="h-12 text-lg"
                                             />
+                                            <Button
+                                                onClick={() => {
+                                                    if (manualInputModel) {
+                                                        addItem(manualInputModel);
+                                                        setManualInputModel("");
+                                                    }
+                                                }}
+                                                disabled={!manualInputModel}
+                                                className="h-12"
+                                            >
+                                                追加
+                                            </Button>
                                         </div>
                                     )}
                                 </div>
@@ -248,10 +287,10 @@ export default function AirconPage() {
                                 <Button
                                     className="w-full h-16 text-xl font-bold bg-blue-600 hover:bg-blue-700 mt-4"
                                     onClick={handleSubmit}
-                                    disabled={!modelNumber || saving}
+                                    disabled={selectedItems.length === 0 || saving}
                                 >
                                     {saving ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2" />}
-                                    持出しを確定する
+                                    持出しを確定する ({selectedItems.length}台)
                                 </Button>
                             </CardContent>
                         </Card>

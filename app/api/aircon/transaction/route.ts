@@ -8,28 +8,35 @@ export async function POST(request: Request) {
             managementNo,
             customerName,
             contractor,
-            modelNumber,
+            items, // Changed from modelNumber to items array
             vendorId
         } = body;
 
-        if (!managementNo || !modelNumber || !vendorId) {
+        if (!managementNo || !items || !Array.isArray(items) || items.length === 0 || !vendorId) {
             return NextResponse.json(
-                { error: 'Missing required fields' },
+                { error: 'Missing required fields or empty items' },
                 { status: 400 }
             );
         }
 
-        const log = await prisma.airConditionerLog.create({
-            data: {
-                managementNo,
-                customerName,
-                contractor,
-                modelNumber,
-                vendorId: Number(vendorId),
-            },
+        const result = await prisma.$transaction(async (tx) => {
+            const logs = [];
+            for (const modelNumber of items) {
+                const log = await tx.airConditionerLog.create({
+                    data: {
+                        managementNo: String(managementNo),
+                        customerName,
+                        contractor,
+                        modelNumber,
+                        vendorId: Number(vendorId),
+                    },
+                });
+                logs.push(log);
+            }
+            return logs;
         });
 
-        return NextResponse.json({ success: true, log });
+        return NextResponse.json({ success: true, count: result.length });
 
     } catch (error: any) {
         console.error('AC Transaction Error:', error);

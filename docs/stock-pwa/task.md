@@ -11,7 +11,12 @@
         - [x] Add "Link Access Company" dropdown in Vendor Edit/Create dialog <!-- id: 32 -->
         - [x] Add "Sync Access Vendors" button to populate options (Auto-fetch implemented) <!-- id: 33 -->
     - [x] Update `lib/access-control.ts` / API to use dynamic DB field instead of dynamic map <!-- id: 34 -->
-- [ ] Verification
-    - [ ] Verify fetching vendor list from Access <!-- id: 35 -->
-    - [ ] Verify linking a Web Vendor to an Access Vendor <!-- id: 36 -->
-    - [ ] Verify Access Search uses the linked name <!-- id: 37 -->
+- [x] Support Multi-unit Checkout
+    - [x] Update API to accept item array <!-- id: 40 -->
+    - [x] Update Kiosk UI for item list management <!-- id: 41 -->
+- [x] Verification
+    - [x] Verify fetching vendor list from Access <!-- id: 35 -->
+    - [x] Verify linking a Web Vendor to an Access Vendor <!-- id: 36 -->
+    - [x] Verify Access Search uses the linked name <!-- id: 37 -->
+- [x] Improve Admin Vendor UI (Combobox)
+- [x] Implement Aircon Logs Page (/admin/aircon-logs)
