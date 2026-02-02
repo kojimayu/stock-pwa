@@ -13,7 +13,7 @@ datasource db {
 model Vendor {
   id        Int           @id @default(autoincrement())
   name      String
-  pinCode   String        @unique // PINコードは重複不可の方が安全
+  pinCode   String                  // PINコード（重複可、初期値1234）
   pinChanged Boolean      @default(false) // 初期PINから変更済みか
   qrToken   String?       @unique // QRコード認証用トークン
   email     String?       // メールアドレス (Option)

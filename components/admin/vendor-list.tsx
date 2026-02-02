@@ -56,7 +56,7 @@ export function VendorList({ vendors }: VendorListProps) {
     };
 
     const handleResetPin = async (vendor: Vendor) => {
-        if (!confirm(`${vendor.name}のPINを初期化（1234）しますか？`)) return;
+        if (!confirm(`${vendor.name}のPINを初期化（1234）しますか？\n※次回ログイン時にPIN変更が必要になります`)) return;
         try {
             await resetPin(vendor.id);
             toast.success(`${vendor.name}のPINをリセットしました`);
@@ -85,8 +85,7 @@ export function VendorList({ vendors }: VendorListProps) {
                         <TableRow>
                             <TableHead className="w-[80px]">ID</TableHead>
                             <TableHead>名前</TableHead>
-                            <TableHead>PIN</TableHead>
-                            <TableHead>状態</TableHead>
+                            <TableHead>PIN状態</TableHead>
                             <TableHead>メール</TableHead>
                             <TableHead className="text-right">操作</TableHead>
                         </TableRow>
@@ -96,25 +95,30 @@ export function VendorList({ vendors }: VendorListProps) {
                             <TableRow key={vendor.id}>
                                 <TableCell>{vendor.id}</TableCell>
                                 <TableCell className="font-medium">{vendor.name}</TableCell>
-                                <TableCell className="font-mono">{vendor.pinCode}</TableCell>
                                 <TableCell>
                                     {vendor.pinChanged ? (
-                                        <span className="text-green-600 text-xs font-bold">変更済</span>
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                                            変更済
+                                        </span>
                                     ) : (
-                                        <span className="text-amber-600 text-xs font-bold">初期PIN</span>
+                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
+                                            初期PIN
+                                        </span>
                                     )}
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">{vendor.email || '-'}</TableCell>
                                 <TableCell className="text-right space-x-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleResetPin(vendor)}
-                                        title="PINリセット"
-                                        disabled={!vendor.pinChanged}
-                                    >
-                                        <RotateCcw className="w-4 h-4" />
-                                    </Button>
+                                    {vendor.pinChanged && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleResetPin(vendor)}
+                                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                                        >
+                                            <RotateCcw className="w-3 h-3 mr-1" />
+                                            PINリセット
+                                        </Button>
+                                    )}
                                     <Button variant="ghost" size="icon" onClick={() => handleEdit(vendor)} title="編集">
                                         <Edit className="w-4 h-4" />
                                     </Button>
@@ -126,7 +130,7 @@ export function VendorList({ vendors }: VendorListProps) {
                         ))}
                         {vendors.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={5} className="text-center py-10 text-slate-500">
                                     業者が登録されていません
                                 </TableCell>
                             </TableRow>
