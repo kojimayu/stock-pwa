@@ -122,7 +122,8 @@ export async function verifyPin(vendorId: string | number, pin: string) {
         return { success: false, message: 'PINコードが正しくありません' };
     }
 
-    return { success: true, vendor };
+    // pinChangedフラグも返す
+    return { success: true, vendor, pinChanged: vendor.pinChanged };
 }
 
 export async function loginByPin(pin: string) {
@@ -134,7 +135,48 @@ export async function loginByPin(pin: string) {
         return { success: false, message: 'PINコードが無効です' };
     }
 
+    return { success: true, vendor, pinChanged: vendor.pinChanged };
+}
+
+// PINコードを変更
+export async function changePin(vendorId: number, newPin: string) {
+    // 4桁の数字のみ許可
+    if (!/^\d{4}$/.test(newPin)) {
+        return { success: false, message: 'PINは4桁の数字で入力してください' };
+    }
+
+    // 初期PIN（1234）は設定不可
+    if (newPin === '1234') {
+        return { success: false, message: '初期PIN(1234)は使用できません' };
+    }
+
+    // 重複チェック
+    const existing = await prisma.vendor.findUnique({
+        where: { pinCode: newPin },
+    });
+    if (existing && existing.id !== vendorId) {
+        return { success: false, message: 'このPINは既に使用されています' };
+    }
+
+    const vendor = await prisma.vendor.update({
+        where: { id: vendorId },
+        data: { pinCode: newPin, pinChanged: true },
+    });
+
+    await logOperation("VENDOR_PIN_CHANGE", `Vendor: ${vendor.name}`, `PIN changed`);
     return { success: true, vendor };
+}
+
+// PINコードをリセット（管理者用）
+export async function resetPin(vendorId: number) {
+    const vendor = await prisma.vendor.update({
+        where: { id: vendorId },
+        data: { pinCode: '1234', pinChanged: false },
+    });
+
+    await logOperation("VENDOR_PIN_RESET", `Vendor: ${vendor.name}`, `PIN reset to 1234`);
+    revalidatePath('/admin/vendors');
+    return { success: true };
 }
 
 // QRトークンでログイン

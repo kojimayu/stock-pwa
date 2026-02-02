@@ -79,8 +79,15 @@ export default function KioskLoginPage() {
       const res = await verifyPin(vendorId, inputPin);
       if (res.success && res.vendor) {
         setVendorStore(res.vendor);
-        toast.success(`ログイン: ${res.vendor.name}`);
-        router.push("/mode-select");
+
+        // 初期PINの場合はPIN変更画面へ
+        if (!res.pinChanged) {
+          toast.info("初回ログインのためPINを変更してください");
+          router.push("/change-pin");
+        } else {
+          toast.success(`ログイン: ${res.vendor.name}`);
+          router.push("/mode-select");
+        }
       } else {
         toast.error(res.message || "PINコードが正しくありません");
         setPin("");
