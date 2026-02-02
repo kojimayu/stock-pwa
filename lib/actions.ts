@@ -60,7 +60,7 @@ export async function getUniqueProductAttributes() {
     };
 }
 
-export async function upsertVendor(data: { id?: number; name: string; pinCode: string; email?: string | null; accessCompanyName?: string | null }) {
+export async function upsertVendor(data: { id?: number; name: string; pinCode: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean }) {
     if (data.id) {
         // Update
         await prisma.vendor.update({
@@ -69,7 +69,8 @@ export async function upsertVendor(data: { id?: number; name: string; pinCode: s
                 name: data.name,
                 pinCode: data.pinCode,
                 email: data.email,
-                accessCompanyName: data.accessCompanyName, // Added
+                accessCompanyName: data.accessCompanyName,
+                showPriceInEmail: data.showPriceInEmail ?? true,
             },
         });
         await logOperation("VENDOR_UPDATE", `Vendor: ${data.name} (ID: ${data.id})`, `Updated profile. AccessLink: ${data.accessCompanyName || 'None'}`);
@@ -80,7 +81,8 @@ export async function upsertVendor(data: { id?: number; name: string; pinCode: s
                 name: data.name,
                 pinCode: data.pinCode,
                 email: data.email,
-                accessCompanyName: data.accessCompanyName, // Added
+                accessCompanyName: data.accessCompanyName,
+                showPriceInEmail: data.showPriceInEmail ?? true,
             },
         });
         await logOperation("VENDOR_CREATE", `Vendor: ${data.name}`, `Created new vendor. AccessLink: ${data.accessCompanyName || 'None'}`);

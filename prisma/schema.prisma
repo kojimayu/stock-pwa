@@ -23,6 +23,9 @@ model Vendor {
   
   // Access連携用 (下請台帳テーブルの会社名)
   accessCompanyName String?
+  
+  // メールに金額を表示するか (材料買取業者=true, 手間請け業者=false)
+  showPriceInEmail Boolean @default(true)
 }
 
 model Product {

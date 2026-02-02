@@ -32,7 +32,7 @@ import {
 interface VendorDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    vendor?: { id: number; name: string; pinCode: string; email?: string | null; accessCompanyName?: string | null } | null;
+    vendor?: { id: number; name: string; pinCode: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean } | null;
     onSuccess: () => void;
 }
 
@@ -50,14 +50,19 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
     const [openCombobox, setOpenCombobox] = useState(false);
     const [selectedAccessVendor, setSelectedAccessVendor] = useState("");
 
-    // Initialize/Update selectedAccessVendor when vendor prop changes
+    // Price in email setting
+    const [showPriceInEmail, setShowPriceInEmail] = useState(true);
+
+    // Initialize/Update state when vendor prop changes
     useEffect(() => {
         if (vendor?.accessCompanyName) {
             setSelectedAccessVendor(vendor.accessCompanyName);
         } else {
             setSelectedAccessVendor("");
         }
-    }, [vendor, open]); // open triggered to reset likely
+        // Initialize showPriceInEmail (default true for new vendors)
+        setShowPriceInEmail(vendor?.showPriceInEmail ?? true);
+    }, [vendor, open]);
 
     // Fetch Access Vendors when dialog opens
     useEffect(() => {
@@ -97,6 +102,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                 pinCode: pin,
                 email: formData.get("email") as string || null,
                 accessCompanyName: selectedAccessVendor === "_none" || !selectedAccessVendor ? null : selectedAccessVendor,
+                showPriceInEmail,
             });
             toast.success(vendor ? "業者情報を更新しました" : "業者を追加しました");
             onSuccess();
@@ -233,6 +239,27 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                                 <p className="text-xs text-muted-foreground">
                                     Accessデータベース上の業者名と紐付けることで、物件検索が可能になります。<br />
                                     入力して絞り込み検索ができます。
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* メール金額表示設定 */}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label className="text-right text-sm font-medium">
+                                レシートメール
+                            </label>
+                            <div className="col-span-3">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={showPriceInEmail}
+                                        onChange={(e) => setShowPriceInEmail(e.target.checked)}
+                                        className="w-4 h-4 rounded border-gray-300"
+                                    />
+                                    <span className="text-sm">金額を表示する</span>
+                                </label>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    材料買取の業者はON、手間請けの業者はOFFにしてください。
                                 </p>
                             </div>
                         </div>
