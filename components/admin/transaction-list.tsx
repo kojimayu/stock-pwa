@@ -3,12 +3,13 @@
 import { useState, useMemo } from "react";
 import { ProductDialog } from "./product-dialog";
 import { ProductSearchDialog } from "./product-search-dialog";
+import { TransactionReturnDialog } from "./transaction-return-dialog";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FilePlus, Link as LinkIcon, Loader2, Search, X, Download } from "lucide-react";
-import { reconcileTransactionItem, getUniqueProductAttributes } from "@/lib/actions";
+import { FilePlus, Link as LinkIcon, Loader2, Search, X, Download, Undo2 } from "lucide-react";
+import { reconcileTransactionItem, getUniqueProductAttributes, returnTransaction } from "@/lib/actions";
 import { toast } from "sonner";
 import {
     Table,
@@ -28,6 +29,7 @@ type Transaction = {
     totalAmount: number;
     items: string; // JSON string
     hasUnregisteredItems?: boolean;
+    isReturned?: boolean;
 };
 
 interface TransactionListProps {
@@ -40,6 +42,10 @@ export function TransactionList({ transactions }: TransactionListProps) {
     const [initialValues, setInitialValues] = useState<{ name?: string, priceA?: number }>({});
     const [targetManualItem, setTargetManualItem] = useState<{ txId: number, name: string } | null>(null);
     const [loading, setLoading] = useState(false);
+
+    // Return Dialog
+    const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+    const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
 
     // 検索フィルター
     const [vendorFilter, setVendorFilter] = useState("");
@@ -172,6 +178,11 @@ export function TransactionList({ transactions }: TransactionListProps) {
         }
     };
 
+    const handleReturnClick = (tx: Transaction) => {
+        setSelectedTransaction(tx);
+        setReturnDialogOpen(true);
+    };
+
     return (
         <div className="space-y-4">
             {/* 検索フィルター */}
@@ -251,6 +262,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                             <TableHead className="w-[150px]">業者名</TableHead>
                             <TableHead>購入内容 (商品名 × 数量 / 単価)</TableHead>
                             <TableHead className="text-right w-[120px]">合計金額</TableHead>
+                            <TableHead className="w-[80px] text-center">操作</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -309,7 +321,26 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                             ))}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-right font-medium">{formatCurrency(tx.totalAmount)}</TableCell>
+                                    <TableCell className="text-right font-medium">
+                                        {formatCurrency(tx.totalAmount)}
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        {tx.isReturned ? (
+                                            <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold whitespace-nowrap">
+                                                戻し済
+                                            </span>
+                                        ) : (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0"
+                                                onClick={() => handleReturnClick(tx)}
+                                                title="在庫に戻す"
+                                            >
+                                                <Undo2 className="w-4 h-4 text-slate-500 hover:text-red-600" />
+                                            </Button>
+                                        )}
+                                    </TableCell>
                                 </TableRow>
                             );
                         })}
@@ -339,6 +370,12 @@ export function TransactionList({ transactions }: TransactionListProps) {
                 open={searchDialogOpen}
                 onOpenChange={setSearchDialogOpen}
                 onSelect={handleLinkSelect}
+            />
+
+            <TransactionReturnDialog
+                open={returnDialogOpen}
+                onOpenChange={setReturnDialogOpen}
+                transaction={selectedTransaction}
             />
         </div>
     );

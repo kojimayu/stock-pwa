@@ -140,7 +140,10 @@ export async function loginByPin(pin: string) {
 // Product Actions
 export async function getProducts() {
     return await prisma.product.findMany({
-        orderBy: { name: 'asc' },
+        orderBy: [
+            { usageCount: 'desc' },
+            { code: 'asc' }
+        ],
     });
 }
 
@@ -505,7 +508,10 @@ export async function createTransaction(vendorId: number, items: { productId: nu
                 // Decrease Stock
                 await tx.product.update({
                     where: { id: item.productId },
-                    data: { stock: { decrement: item.quantity } },
+                    data: {
+                        stock: { decrement: item.quantity },
+                        usageCount: { increment: item.quantity }
+                    },
                 });
 
                 // Create Inventory Log
@@ -625,6 +631,170 @@ export async function reconcileTransactionItem(transactionId: number, manualItem
     } catch (error) {
         console.error("Reconciliation Error:", error);
         return { success: false, message: error instanceof Error ? error.message : '処理に失敗しました' };
+    }
+}
+
+// Return transaction (Restore stock)
+export async function returnTransaction(transactionId: number) {
+    // 0. Active Inventory Check
+    if (await checkActiveInventory()) {
+        return { success: false, message: '現在棚卸中のため、戻し処理は利用できません' };
+    }
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            // 1. Fetch Transaction
+            const transaction = await tx.transaction.findUnique({
+                where: { id: transactionId }
+            });
+
+            if (!transaction) throw new Error("取引が見つかりません");
+            if (transaction.isReturned) throw new Error("既に戻し処理済みです");
+
+            // 2. Parse Items
+            const items = JSON.parse(transaction.items) as { productId: number; quantity: number; isManual?: boolean }[];
+
+            // 3. Loop items and restore stock
+            for (const item of items) {
+                if (item.isManual) continue; // Skip manual items
+
+                // Restore stock
+                await tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { increment: item.quantity } }
+                });
+
+                // Create Inventory Log
+                await tx.inventoryLog.create({
+                    data: {
+                        productId: item.productId,
+                        type: '返品',
+                        quantity: item.quantity, // Positive for inflow
+                        reason: `Transaction #${transaction.id} Return`,
+                    }
+                });
+            }
+
+            // 4. Mark Transaction as Returned
+            await tx.transaction.update({
+                where: { id: transactionId },
+                data: {
+                    isReturned: true,
+                    returnedAt: new Date()
+                }
+            });
+        });
+
+        revalidatePath('/admin/transactions');
+        revalidatePath('/admin/products');
+        return { success: true };
+
+    } catch (e) {
+        console.error(e);
+        return { success: false, message: e instanceof Error ? e.message : 'エラーが発生しました' };
+    }
+}
+
+// Partial Return
+export async function returnPartialTransaction(transactionId: number, returnItems: { productId: number; returnQuantity: number }[]) {
+    if (await checkActiveInventory()) {
+        return { success: false, message: '現在棚卸中のため、戻し処理は利用できません' };
+    }
+
+    try {
+        await prisma.$transaction(async (tx) => {
+            const transaction = await tx.transaction.findUnique({
+                where: { id: transactionId }
+            });
+
+            if (!transaction) throw new Error("取引が見つかりません");
+            if (transaction.isReturned) throw new Error("既に戻し処理済みです");
+
+            let items = JSON.parse(transaction.items) as { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[];
+            let totalAmount = transaction.totalAmount;
+            let returnedAny = false;
+
+            // Process Returns
+            for (const returnItem of returnItems) {
+                if (returnItem.returnQuantity <= 0) continue;
+
+                const itemIndex = items.findIndex(i => i.productId === returnItem.productId && !i.isManual);
+                if (itemIndex === -1) continue;
+
+                const item = items[itemIndex];
+
+                if (returnItem.returnQuantity > item.quantity) {
+                    throw new Error(`戻し数量が多すぎます: ${item.name}`);
+                }
+
+                // 1. Restore Stock
+                await tx.product.update({
+                    where: { id: item.productId },
+                    data: { stock: { increment: returnItem.returnQuantity } }
+                });
+
+                // 2. Log
+                await tx.inventoryLog.create({
+                    data: {
+                        productId: item.productId,
+                        type: '返品',
+                        quantity: returnItem.returnQuantity,
+                        reason: `Tx #${transactionId} Partial Return`,
+                    }
+                });
+
+                // 3. Update Transaction Item (Decrease quantity locally)
+                const deduction = item.price * returnItem.returnQuantity;
+                totalAmount -= deduction;
+
+                items[itemIndex].quantity -= returnItem.returnQuantity;
+                returnedAny = true;
+            }
+
+            if (!returnedAny) {
+                return;
+            }
+
+            // Remove items with quantity 0 to clean up? Or keep as 0?
+            // Keeping as 0 shows "it was there but returned". Removing it hides evidence.
+            // Let's filtered out 0 quantity items to keep receipt clean?
+            // User request: "10個持ち出して2個戻す" -> "8個持ち出したことになる"
+            // So if 2 returned, 8 remains. If all 10 returned, 0 remains.
+            // If 0 remains, it should probably disappear from "purchased items" list or stay as 0.
+            // Let's Remove them if 0.
+            const newItems = items.filter(i => i.quantity > 0);
+
+            // Check if all items are gone -> Mark as fully returned
+            const allReturned = newItems.length === 0;
+
+            if (allReturned) {
+                await tx.transaction.update({
+                    where: { id: transactionId },
+                    data: {
+                        items: JSON.stringify(items), // Save with 0 quantities or empty list? existing logic implies keeping record.
+                        // Ideally: isReturned = true.
+                        isReturned: true,
+                        returnedAt: new Date(),
+                        totalAmount: 0
+                    }
+                });
+            } else {
+                await tx.transaction.update({
+                    where: { id: transactionId },
+                    data: {
+                        items: JSON.stringify(newItems),
+                        totalAmount: totalAmount,
+                    }
+                });
+            }
+        });
+
+        revalidatePath('/admin/transactions');
+        revalidatePath('/admin/products');
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { success: false, message: e instanceof Error ? e.message : 'エラーが発生しました' };
     }
 }
 

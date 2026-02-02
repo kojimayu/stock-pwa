@@ -13,7 +13,6 @@ export function CartSummary() {
     if (items.length === 0) return null;
 
     const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
-    const totalPrice = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
     return (
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">

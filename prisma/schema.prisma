@@ -45,6 +45,7 @@ model Product {
   minStock  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  usageCount Int      @default(0) // 使用回数（人気順ソート用）
 
   inventoryLogs InventoryLog[]
   countItems    InventoryCountItem[] // Relation to inventory counts
@@ -96,6 +97,10 @@ model Transaction {
   hasUnregisteredItems Boolean @default(false)
   totalAmount Int
   createdAt   DateTime @default(now())
+
+  // 戻し機能用
+  isReturned  Boolean  @default(false)
+  returnedAt  DateTime?
 
   vendor      Vendor   @relation(fields: [vendorId], references: [id])
 }

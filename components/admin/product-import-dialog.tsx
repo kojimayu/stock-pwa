@@ -103,7 +103,12 @@ export function ProductImportDialog() {
                 // Check for True/1/'〇' (loose check)
                 const isColorFlag = isColor && (String(isColor).toUpperCase() === "TRUE" || String(isColor) === "1" || String(isColor) === "〇");
 
-                if (isColorFlag) {
+                // 化粧カバー × 屋外用 は自動的に5色展開
+                const isOutdoorCover = commonProps.category === "化粧カバー" && commonProps.subCategory === "屋外用";
+
+                const shouldExpandColors = isColorFlag || isOutdoorCover;
+
+                if (shouldExpandColors) {
                     // Expand to 5 colors
                     COLORS.forEach((color) => {
                         expandedData.push({
