@@ -131,12 +131,62 @@ model OrderItem {
 }
 
 model AirConditionerLog {
-  id           Int      @id @default(autoincrement())
-  managementNo String   // 管理No (6桁)
-  customerName String?  // Access: 顧客名
-  contractor   String?  // Access: 元請/下請
-  modelNumber  String   // 品番 (MSZ-...)
-  vendorId     Int      // 持出した業者ID
-  vendor       Vendor   @relation(fields: [vendorId], references: [id])
-  createdAt    DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  managementNo   String   // 管理No (6桁)
+  customerName   String?  // Access: 顧客名
+  contractor     String?  // Access: 元請/下請
+  modelNumber    String   // 品番 (RAS-AJ...)
+  vendorId       Int      // 持出した業者ID
+  vendor         Vendor   @relation(fields: [vendorId], references: [id])
+  airconProductId Int?    // エアコン商品ID（在庫管理用）
+  airconProduct  AirconProduct? @relation(fields: [airconProductId], references: [id])
+  isReturned     Boolean  @default(false) // 戻し済みフラグ
+  returnedAt     DateTime? // 戻し日時
+  createdAt      DateTime @default(now())
 }
+
+// エアコン商品マスタ
+model AirconProduct {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique // 例: "RAS-AJ22" (ベースコード、在庫管理用)
+  name      String   // 例: "日立エアコン AJ 2.2kW"
+  capacity  String   // 例: "2.2kW", "2.5kW", "2.8kW", "3.6kW"
+  suffix    String   @default("N") // 発注時サフィックス（年度コード等、機種別に設定可）
+  stock     Int      @default(0) // 現在庫数
+  minStock  Int      @default(0) // 最低在庫数（発注アラート用）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs       AirConditionerLog[]
+  orderItems AirconOrderItem[]
+}
+
+// エアコン発注
+model AirconOrder {
+  id        Int      @id @default(autoincrement())
+  status    String   @default("DRAFT") // DRAFT, ORDERED, PARTIAL, RECEIVED, CANCELLED
+  note      String?  // メモ
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  items     AirconOrderItem[]
+}
+
+// エアコン発注明細
+model AirconOrderItem {
+  id               Int      @id @default(autoincrement())
+  orderId          Int
+  order            AirconOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        Int
+  product          AirconProduct @relation(fields: [productId], references: [id])
+  quantity         Int           // 発注数
+  receivedQuantity Int      @default(0) // 入荷済数
+}
+
+// システム設定
+model SystemSetting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+}
+

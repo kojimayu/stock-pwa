@@ -1,63 +1,50 @@
-# エアコン持出し管理（シリアル連携）機能の実装完了
+# エアコン管理機能実装とKiosk UI改善 (2026-02-02)
 
-以下の機能を実装しました。
+## 概要
+エアコンの発注・在庫・持出し管理を行うための包括的な機能を実装しました。また、現場で使用するKioskアプリのエアコン持出し画面をタブレット操作に最適化しました。
 
-## 変更内容
+## 実装機能
 
-### 2026-01-31: Dynamic Access Vendor Linking
+### 1. 管理画面 (Admin)
 
-### Changes
-*   **Database Schema**: Added `accessCompanyName` to `Vendor` model to store the linked Access DB company name.
-*   **API**:
-    *   Created `GET /api/access/vendors` to fetch the live list of vendors directly from the Access database using PowerShell.
-    *   Updated `GET /api/access/route` (search API) to use the stored `accessCompanyName` for filtering, replacing the hardcoded `ACCESS_VENDOR_MAP`.
-*   **Admin UI**:
-    *   Updated `VendorDialog` to include a dynamic dropdown for "Access連携業者".
-    *   Admins can now link a Web Vendor to an Access Vendor (e.g., "WebName" -> "AccessName") directly from the UI.
+#### 在庫管理 (`/admin/aircon-inventory`)
+- **4品目管理**: RAS-AJ22, RAS-AJ25, RAS-AJ28, RAS-AJ36
+- **サフィックス個別設定**: 発注時の年度コード（N, M等）を機種ごとに設定可能。
+- **在庫調整**: 手動での在庫数増減に対応。
+- **アラート**: 最低在庫数を下回るとアラート表示。
 
-### Verification
-*   **Fetching**: Confirmed `GET /api/access/vendors` returns the correct list from Access.
-*   **Linking**: Verified that selecting a vendor in the Admin dialog saves the `accessCompanyName` to the database.
-*   **Searching**: Verified that the search API uses the linked name to query Access, allowing vendors with mismatched names (e.g., "Meltec" vs "(株)メルテック") to search correctly.
+#### 発注管理 (`/admin/aircon-orders`)
+- **発注作成**: 機種ごとのサフィックスを付与して発注書（データ）を作成。
+- **ステータス遷移**: 下書き → 発注済 → 一部入荷 → 入荷完了。
+- **入荷処理**: 入荷数を入力し、自動で在庫に加算。
 
-### 2026-01-31: AC Tracking & Kiosk UI Implementation
-- **`AirConditionerLog` モデル追加**: エアコンの持出し履歴（管理No、型番、業者、日時）を保存するテーブルを作成しました。
-- **`Vendor` モデル更新**: 履歴とのリレーションを追加しました。
+#### ログ・戻し機能 (`/admin/aircon-logs`)
+- **持出し履歴**: 管理No、業者、日付でのフィルタリング。
+- **戻し機能**: 間違って持出した履歴を「戻す」ことで、記録を更新し**在庫を自動復元**。
 
-### 2. バックエンド (API)
-- **Access連携 API (`/api/access`)**:
-    - **PowerShell (Base64 EncodedCommand)** を使用する方式に変更しました。
-    - `node-adodb` は日本語パスや文字コードの問題（文字化け）が発生したため廃止しました。
-    - アプリからPowerShellを呼び出し、`System.Data.OleDb` を経由して `.accdb` ファイルを直接クエリします。
-    - クエリパラメータ `managementNo` (6桁) で検索します。
-- **持出し記録 API (`/api/aircon/transaction`)**:
-    - フロントエンドから送信されたデータを `AirConditionerLog` に保存します。
+### 2. 現場用アプリ (Kiosk)
 
-### 3. フロントエンド (UI)
-- **ログイン後の遷移変更**:
-    - ログイン (`/`) -> **モード選択画面 (`/mode-select`)** へ遷移するように変更しました。
-- **モード選択画面 (`/mode-select`)**:
-    - 「材料持出し」と「エアコン持出し」を選択できます。
-- **エアコン持出し画面 (`/shop/aircon` -> 実際は `/aircon`)**:
-    - 管理No入力 -> 物件情報確認 -> 品番入力 -> 完了 のフローを実装しました。
-    - 物件情報（顧客名、必要能力）を表示し、間違いを防ぎます。
-    - **色展開ルール**: 品番の末尾 (`-W`, `-BR` 等) を考慮した運用を想定しています。
+#### エアコン持出し画面 (`/aircon`)
+- **タブレット最適化レイアウト**:
+    - 画面を左右2カラムに分割し、スクロールなしで操作完結。
+    - **左側**: 管理No検索入力、物件詳細情報表示。
+    - **右側**: 持出しリスト（カート）、ワンプッシュ機種選択ボタン、持出し確定ボタン。
+- **視認性向上**:
+    - 削除ボタンをゴミ箱アイコンに変更。
+    - 確定ボタンを大きく緑色にし、押しやすさを改善。
+    - 物件情報がない状態では右側をグレーアウトして誤操作防止。
 
-## 検証方法
+## 技術的変更点
 
-### 動作確認手順
-1. **Access DBの準備**:
-    - 指定のパスに `.accdb` ファイルが存在することを確認してください（なければダミーで配置）。
-    - 実際の `MDB/ACCDB` ドライバがインストールされている必要があります。
-2. **アプリ操作**:
-    - ログインする。
-    - 「エアコン持出し」を選択。
-    - 管理No（例: 存在する番号）を入力して検索。
-    - 顧客名などが表示されることを確認。
-    - 品番を入力して「持出しを確定する」。
-    - モード選択画面に戻り、成功メッセージが表示される。
-3. **データ確認**:
-    - `dev.db` (SQLite) 内の `AirConditionerLog` テーブルにデータが保存されていることを確認（Prisma Studio等で確認可能）。
+### データベース (Prisma)
+- `AirconProduct`: `suffix` カラムを追加し、機種ごとのデフォルトサフィックスを保持。
+- `AirconOrder`, `AirconOrderItem`: 発注管理用のモデルを追加。
+- `SystemSetting`: システム全体の設定値（初期サフィックス等）用に追加。
+- `AirConditionerLog`: `isReturned`, `returnedAt`, `airconProductId` を追加し、在庫連動を実現。
 
-## 注意点
-- **Accessドライバ**: Windows環境によっては `Microsoft Access Database Engine` のインストールが必要な場合があります。エラーが出る場合はご確認ください。
+### API / Server Actions
+- `lib/aircon-actions.ts`: 在庫操作、発注処理、サフィックス更新等のロジックを集約。
+- 取引API (`/api/aircon/transaction`): トランザクション内でログ作成と在庫減算を原子的に実行。
+
+## 今後の課題
+- 材料（部材）についても同様の「戻し機能」の実装（要望済み）。

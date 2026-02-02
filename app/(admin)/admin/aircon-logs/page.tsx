@@ -13,7 +13,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, X, Download } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Search, X, Download, RotateCcw, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
+import { returnAircon } from "@/lib/aircon-actions";
 
 type LogEntry = {
     id: number;
@@ -22,6 +25,8 @@ type LogEntry = {
     customerName: string | null;
     contractor: string | null;
     modelNumber: string;
+    isReturned: boolean;
+    returnedAt: string | null;
     vendor: {
         name: string;
     };
@@ -33,6 +38,7 @@ export default function AirconLogsPage() {
     const [vendorFilter, setVendorFilter] = useState("");
     const [dateFilter, setDateFilter] = useState("");
     const [managementNoFilter, setManagementNoFilter] = useState("");
+    const [showReturnedOnly, setShowReturnedOnly] = useState(false);
 
     useEffect(() => {
         fetchLogs();
@@ -62,20 +68,23 @@ export default function AirconLogsPage() {
         const matchManagementNo = managementNoFilter === "" ||
             log.managementNo.includes(managementNoFilter);
 
-        return matchVendor && matchDate && matchManagementNo;
+        const matchReturned = !showReturnedOnly || log.isReturned;
+
+        return matchVendor && matchDate && matchManagementNo && matchReturned;
     });
 
     const clearFilters = () => {
         setVendorFilter("");
         setDateFilter("");
         setManagementNoFilter("");
+        setShowReturnedOnly(false);
     };
 
-    const hasActiveFilters = vendorFilter || dateFilter || managementNoFilter;
+    const hasActiveFilters = vendorFilter || dateFilter || managementNoFilter || showReturnedOnly;
 
     // CSVエクスポート
     const exportCsv = () => {
-        const headers = ["日時", "業者名", "管理No", "顧客名", "元請/下請", "品番"];
+        const headers = ["日時", "業者名", "管理No", "顧客名", "元請/下請", "品番", "戻し済", "戻し日時"];
         const rows = filteredLogs.map((log) => [
             formatDate(new Date(log.createdAt)),
             log.vendor.name,
@@ -83,6 +92,8 @@ export default function AirconLogsPage() {
             log.customerName || "",
             log.contractor || "",
             log.modelNumber,
+            log.isReturned ? "○" : "",
+            log.returnedAt ? formatDate(new Date(log.returnedAt)) : "",
         ]);
 
         const csvContent = [headers, ...rows]
@@ -96,11 +107,33 @@ export default function AirconLogsPage() {
         link.click();
     };
 
+    // 戻し処理
+    const handleReturn = async (logId: number) => {
+        if (!confirm("このエアコンを戻し済みにしますか？在庫が1台増加します。")) {
+            return;
+        }
+
+        const result = await returnAircon(logId);
+        if (result.success) {
+            toast.success("戻し処理が完了しました");
+            fetchLogs();
+        } else {
+            toast.error(result.message);
+        }
+    };
+
+    const notReturnedCount = logs.filter(l => !l.isReturned).length;
+
     return (
         <div className="space-y-6">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">エアコン持出し履歴</h2>
-                <p className="text-muted-foreground">持出し記録の検索・確認</p>
+                <p className="text-muted-foreground">
+                    持出し記録の検索・確認・戻し処理
+                    <span className="ml-2 text-sm">
+                        （未戻し: <strong>{notReturnedCount}</strong>件）
+                    </span>
+                </p>
             </div>
 
             {/* 検索フィルター */}
@@ -149,12 +182,12 @@ export default function AirconLogsPage() {
                                 CSV
                             </Button>
                         </div>
-                        {hasActiveFilters && (
-                            <p className="text-sm text-muted-foreground mt-2">
-                                {filteredLogs.length}件 / 全{logs.length}件
-                            </p>
-                        )}
                     </div>
+                    {hasActiveFilters && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                            {filteredLogs.length}件 / 全{logs.length}件
+                        </p>
+                    )}
                 </CardContent>
             </Card>
 
@@ -166,30 +199,52 @@ export default function AirconLogsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[180px]">日時</TableHead>
-                                <TableHead className="w-[150px]">業者名</TableHead>
+                                <TableHead className="w-[150px]">日時</TableHead>
+                                <TableHead className="w-[120px]">業者名</TableHead>
                                 <TableHead>管理No</TableHead>
                                 <TableHead>顧客名</TableHead>
-                                <TableHead>元請/下請</TableHead>
                                 <TableHead>品番</TableHead>
+                                <TableHead className="w-[80px] text-center">状態</TableHead>
+                                <TableHead className="w-[100px] text-right">操作</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredLogs.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                                    <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
                                         {logs.length === 0 ? "ログがありません" : "該当するログがありません"}
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 filteredLogs.map((log) => (
-                                    <TableRow key={log.id}>
-                                        <TableCell>{formatDate(new Date(log.createdAt))}</TableCell>
+                                    <TableRow key={log.id} className={log.isReturned ? "bg-green-50" : ""}>
+                                        <TableCell className="text-sm">{formatDate(new Date(log.createdAt))}</TableCell>
                                         <TableCell className="font-medium">{log.vendor.name}</TableCell>
                                         <TableCell>{log.managementNo}</TableCell>
                                         <TableCell>{log.customerName || "-"}</TableCell>
-                                        <TableCell>{log.contractor || "-"}</TableCell>
                                         <TableCell className="font-mono bg-slate-100 rounded px-1">{log.modelNumber}</TableCell>
+                                        <TableCell className="text-center">
+                                            {log.isReturned ? (
+                                                <Badge className="bg-green-100 text-green-700">
+                                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                                    戻し済
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline">持出中</Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {!log.isReturned && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleReturn(log.id)}
+                                                >
+                                                    <RotateCcw className="w-4 h-4 mr-1" />
+                                                    戻す
+                                                </Button>
+                                            )}
+                                        </TableCell>
                                     </TableRow>
                                 ))
                             )}

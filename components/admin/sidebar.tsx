@@ -33,6 +33,8 @@ const navigationGroups = [
     name: "エアコン管理",
     icon: Fan,
     items: [
+      { name: "在庫管理", href: "/admin/aircon-inventory", icon: Package },
+      { name: "発注管理", href: "/admin/aircon-orders", icon: ClipboardList },
       { name: "持出し履歴", href: "/admin/aircon-logs", icon: FileText },
     ],
   },

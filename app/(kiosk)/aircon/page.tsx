@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useCartStore } from "@/lib/store"; // Assuming vendor is here
+import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, ChevronLeft, Search, Check } from "lucide-react";
+import { Loader2, ChevronLeft, Search, Check, Trash2 } from "lucide-react";
 import { LogoutButton } from "@/components/kiosk/logout-button";
 
 interface AccessJobInfo {
@@ -27,23 +27,21 @@ export default function AirconPage() {
     const router = useRouter();
     const vendor = useCartStore((state) => state.vendor);
 
-    // States
     const [managementNo, setManagementNo] = useState("");
     const [jobInfo, setJobInfo] = useState<AccessJobInfo | null>(null);
     const [loading, setLoading] = useState(false);
-    const [selectedItems, setSelectedItems] = useState<string[]>([]); // Changed to array
+    const [selectedItems, setSelectedItems] = useState<string[]>([]);
     const [manualInputModel, setManualInputModel] = useState("");
     const [isManualInput, setIsManualInput] = useState(false);
     const [saving, setSaving] = useState(false);
 
-    // If not logged in, redirect (simple check)
     useEffect(() => {
         if (!vendor) {
             router.push("/");
         }
     }, [vendor, router]);
 
-    if (!vendor) return null; // or loading
+    if (!vendor) return null;
 
     const handleSearch = async () => {
         if (!managementNo || managementNo.length < 6) {
@@ -54,20 +52,16 @@ export default function AirconPage() {
         setLoading(true);
         setJobInfo(null);
         try {
-            // Pass vendor name for filtering
             const res = await fetch(`/api/access?managementNo=${managementNo}&vendorName=${encodeURIComponent(vendor.name)}`);
             const data = await res.json();
 
             if (!res.ok || !data.success || !data.data) {
-                // If filtered out, it defaults to Not Found or error
                 toast.error("データが見つかりません。担当外の可能性があります。");
                 return;
             }
 
             setJobInfo(data.data);
             toast.success("物件情報を取得しました");
-
-            // Reset input state on new search
             setSelectedItems([]);
             setManualInputModel("");
             setIsManualInput(false);
@@ -81,7 +75,6 @@ export default function AirconPage() {
 
     const addItem = (model: string) => {
         setSelectedItems((prev) => [...prev, model]);
-        toast.success(`${model} を追加しました`);
     };
 
     const removeItem = (index: number) => {
@@ -100,7 +93,7 @@ export default function AirconPage() {
                     managementNo: String(jobInfo.管理No),
                     customerName: jobInfo.顧客名,
                     contractor: jobInfo.SubContractor || jobInfo.PrimeContractor,
-                    items: selectedItems, // Send array
+                    items: selectedItems,
                     vendorId: vendor.id,
                 }),
             });
@@ -119,7 +112,6 @@ export default function AirconPage() {
         }
     };
 
-    // Capacity Display Helper
     const renderCapacities = () => {
         if (!jobInfo) return null;
         const capacities = ["22kw", "25kw", "28kw", "36kw", "40kw"];
@@ -128,16 +120,15 @@ export default function AirconPage() {
         if (needed.length === 0) return <span className="text-slate-400">指定なし</span>;
 
         return (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-1 flex-wrap">
                 {needed.map(c => (
-                    <span key={c} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-bold">
+                    <span key={c} className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-bold">
                         {c}: {jobInfo[c]}台
                     </span>
                 ))}
             </div>
         );
     };
-
 
     const PRESETS = [
         { label: "2.2kw", model: "RAS-AJ2225S" },
@@ -147,155 +138,198 @@ export default function AirconPage() {
     ];
 
     return (
-        <div className="min-h-screen bg-slate-50 flex flex-col">
-            <header className="bg-slate-900 text-white p-4 flex items-center justify-between sticky top-0 z-10">
+        <div className="h-screen bg-slate-100 flex flex-col overflow-hidden">
+            {/* Header */}
+            <header className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between flex-shrink-0">
                 <div className="flex items-center gap-2">
-                    <Button variant="ghost" className="text-white p-0 mr-2" onClick={() => router.push("/mode-select")}>
-                        <ChevronLeft />
+                    <Button variant="ghost" size="sm" className="text-white p-1" onClick={() => router.push("/mode-select")}>
+                        <ChevronLeft className="w-5 h-5" />
                     </Button>
-                    <h1 className="text-lg font-bold">エアコン持出し</h1>
+                    <h1 className="text-base font-bold">エアコン持出し</h1>
                 </div>
                 <LogoutButton />
             </header>
 
-            <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-6">
+            {/* Main - 2カラムレイアウト */}
+            <main className="flex-1 p-2 overflow-hidden">
+                <div className="h-full grid grid-cols-2 gap-2">
 
-                {/* Search Section */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>物件検索</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex gap-2">
-                            <Input
-                                placeholder="管理No (例: 123456)"
-                                value={managementNo}
-                                onChange={(e) => setManagementNo(e.target.value)}
-                                className="text-lg h-12"
-                                type="tel" // Number pad
-                            />
-                            <Button onClick={handleSearch} disabled={loading} className="h-12 px-6">
-                                {loading ? <Loader2 className="animate-spin" /> : <Search />}
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Info & Action Section */}
-                {jobInfo && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-                        <Card className="bg-white border-blue-200 shadow-md">
-                            {/* ... same card header/content ... */}
-                            <CardHeader className="bg-blue-50 border-b border-blue-100 pb-2">
-                                <CardTitle className="text-blue-900 text-lg flex justify-between">
-                                    <span>{jobInfo.顧客名} 様邸</span>
-                                    <span className="text-sm font-normal text-blue-600">No. {jobInfo.管理No}</span>
-                                </CardTitle>
+                    {/* ===== 左カラム: 検索 + 物件情報 ===== */}
+                    <div className="flex flex-col gap-2 min-h-0">
+                        {/* 検索セクション */}
+                        <Card className="flex-shrink-0">
+                            <CardHeader className="py-2 px-3">
+                                <CardTitle className="text-sm">管理No検索</CardTitle>
                             </CardHeader>
-                            <CardContent className="pt-4 space-y-2">
-                                <div className="grid grid-cols-3 gap-2 text-sm">
-                                    <span className="text-slate-500">業者名</span>
-                                    <span className="col-span-2 font-medium">{jobInfo.SubContractor || jobInfo.PrimeContractor || "-"}</span>
-
-                                    <span className="text-slate-500">発注能力</span>
-                                    <div className="col-span-2 space-y-2">
-                                        {renderCapacities()}
-                                        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs p-2 rounded">
-                                            <p className="font-bold">⚠ 注意</p>
-                                            <p>実際の依頼書と合っているか確認してください。</p>
-                                            <p>もし違う場合は事務所に確認してください。</p>
-                                        </div>
-                                    </div>
+                            <CardContent className="px-3 pb-3 pt-0">
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="6桁の管理No"
+                                        value={managementNo}
+                                        onChange={(e) => setManagementNo(e.target.value)}
+                                        className="text-xl h-12 font-mono"
+                                        type="tel"
+                                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                                    />
+                                    <Button onClick={handleSearch} disabled={loading} className="h-12 px-4">
+                                        {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>持出し情報の入力</CardTitle>
+                        {/* 物件情報 */}
+                        <Card className={`flex-1 min-h-0 overflow-auto ${jobInfo ? 'border-blue-300 bg-blue-50' : ''}`}>
+                            <CardHeader className="py-2 px-3">
+                                <CardTitle className="text-sm">物件情報</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-6">
-                                {/* Selected Items List */}
-                                <div className="bg-slate-50 p-4 rounded-lg border">
-                                    <h3 className="text-sm font-bold mb-2 text-slate-700">持出し予定リスト ({selectedItems.length}台)</h3>
-                                    {selectedItems.length === 0 ? (
-                                        <p className="text-sm text-slate-400">機種を選択してください</p>
-                                    ) : (
-                                        <ul className="space-y-2">
-                                            {selectedItems.map((item, index) => (
-                                                <li key={index} className="flex justify-between items-center bg-white p-2 rounded shadow-sm">
-                                                    <span className="font-mono font-medium">{item}</span>
-                                                    <Button variant="ghost" size="sm" onClick={() => removeItem(index)} className="text-red-500 hover:text-red-700 h-8 w-8 p-0">
-                                                        ×
-                                                    </Button>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-
-                                <div className="space-y-4">
-                                    <label className="text-sm font-medium text-slate-700">追加するエアコン品番を選択</label>
-
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {PRESETS.map((p) => (
-                                            <Button
-                                                key={p.model}
-                                                variant="outline"
-                                                className="h-16 text-lg font-bold flex flex-col gap-1 hover:bg-slate-100"
-                                                onClick={() => addItem(p.model)}
-                                            >
-                                                <span>{p.label}</span>
-                                                <span className="text-xs font-normal opacity-80">{p.model}</span>
-                                            </Button>
-                                        ))}
-                                    </div>
-
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setIsManualInput(!isManualInput)}
-                                        className={`w-full text-slate-500 ${isManualInput ? "bg-slate-100" : ""}`}
-                                    >
-                                        {isManualInput ? "▼ キャンセル" : "その他の品番を入力する"}
-                                    </Button>
-
-                                    {isManualInput && (
-                                        <div className="animate-in fade-in slide-in-from-top-2 flex gap-2">
-                                            <Input
-                                                placeholder="例: RAS-AJ4025S"
-                                                value={manualInputModel}
-                                                onChange={(e) => setManualInputModel(e.target.value)}
-                                                className="h-12 text-lg"
-                                            />
-                                            <Button
-                                                onClick={() => {
-                                                    if (manualInputModel) {
-                                                        addItem(manualInputModel);
-                                                        setManualInputModel("");
-                                                    }
-                                                }}
-                                                disabled={!manualInputModel}
-                                                className="h-12"
-                                            >
-                                                追加
-                                            </Button>
+                            <CardContent className="px-3 pb-3 pt-0">
+                                {jobInfo ? (
+                                    <div className="space-y-2">
+                                        <div className="bg-white rounded p-3 border">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="font-bold text-lg text-blue-900">{jobInfo.顧客名} 様邸</span>
+                                                <span className="text-sm bg-blue-100 text-blue-700 px-2 py-0.5 rounded">No. {jobInfo.管理No}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[60px_1fr] gap-1 text-sm">
+                                                <span className="text-slate-500">業者</span>
+                                                <span className="font-medium">{jobInfo.SubContractor || jobInfo.PrimeContractor || "-"}</span>
+                                                <span className="text-slate-500">発注</span>
+                                                <div>{renderCapacities()}</div>
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
-
-                                <Button
-                                    className="w-full h-16 text-xl font-bold bg-blue-600 hover:bg-blue-700 mt-4"
-                                    onClick={handleSubmit}
-                                    disabled={selectedItems.length === 0 || saving}
-                                >
-                                    {saving ? <Loader2 className="animate-spin mr-2" /> : <Check className="mr-2" />}
-                                    持出しを確定する ({selectedItems.length}台)
-                                </Button>
+                                        <div className="bg-amber-100 border border-amber-300 text-amber-800 text-xs p-2 rounded">
+                                            ⚠ 依頼書と照合してください
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-slate-400 py-8">
+                                        <div className="text-center">
+                                            <Search className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                            <p className="text-sm">管理Noで検索してください</p>
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
-                )}
+
+                    {/* ===== 右カラム: 持出しリスト + 機種選択 + 確定ボタン ===== */}
+                    <div className={`flex flex-col gap-2 min-h-0 ${!jobInfo ? 'opacity-40 pointer-events-none' : ''}`}>
+
+                        {/* 持出しリスト */}
+                        <Card className="flex-1 min-h-0 flex flex-col">
+                            <CardHeader className="py-2 px-3 flex-shrink-0 border-b flex flex-row items-center justify-between">
+                                <CardTitle className="text-sm">持出しリスト</CardTitle>
+                                <span className="bg-blue-600 text-white text-sm px-2 py-0.5 rounded font-bold">
+                                    {selectedItems.length} 台
+                                </span>
+                            </CardHeader>
+                            <CardContent className="flex-1 overflow-auto p-2">
+                                {selectedItems.length === 0 ? (
+                                    <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+                                        ↓ 下の機種ボタンで追加
+                                    </div>
+                                ) : (
+                                    <ul className="space-y-1">
+                                        {selectedItems.map((item, index) => (
+                                            <li key={index} className="flex justify-between items-center bg-slate-50 border p-2 rounded">
+                                                <span className="font-mono font-medium">{item}</span>
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() => removeItem(index)}
+                                                    className="h-7 px-2"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* 機種選択ボタン */}
+                        <Card className="flex-shrink-0">
+                            <CardHeader className="py-2 px-3">
+                                <CardTitle className="text-sm">機種選択</CardTitle>
+                            </CardHeader>
+                            <CardContent className="px-3 pb-3 pt-0 space-y-2">
+                                <div className="grid grid-cols-4 gap-2">
+                                    {PRESETS.map((p) => (
+                                        <Button
+                                            key={p.model}
+                                            variant="outline"
+                                            className="h-12 text-sm font-bold flex flex-col gap-0 hover:bg-blue-50 hover:border-blue-400"
+                                            onClick={() => addItem(p.model)}
+                                            disabled={!jobInfo}
+                                        >
+                                            <span className="text-base">{p.label}</span>
+                                        </Button>
+                                    ))}
+                                </div>
+
+                                {/* 手動入力 */}
+                                {isManualInput ? (
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder="品番を入力"
+                                            value={manualInputModel}
+                                            onChange={(e) => setManualInputModel(e.target.value)}
+                                            className="h-9 text-sm"
+                                        />
+                                        <Button
+                                            onClick={() => {
+                                                if (manualInputModel) {
+                                                    addItem(manualInputModel);
+                                                    setManualInputModel("");
+                                                }
+                                            }}
+                                            disabled={!manualInputModel}
+                                            size="sm"
+                                            className="h-9"
+                                        >
+                                            追加
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setIsManualInput(false)}
+                                            className="h-9"
+                                        >
+                                            ×
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setIsManualInput(true)}
+                                        className="w-full text-slate-500 text-xs h-7"
+                                        disabled={!jobInfo}
+                                    >
+                                        その他の品番を入力
+                                    </Button>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* 確定ボタン */}
+                        <Button
+                            className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 flex-shrink-0 shadow-lg"
+                            onClick={handleSubmit}
+                            disabled={selectedItems.length === 0 || saving || !jobInfo}
+                        >
+                            {saving ? (
+                                <Loader2 className="animate-spin mr-2 w-6 h-6" />
+                            ) : (
+                                <Check className="mr-2 w-6 h-6" />
+                            )}
+                            持出し確定 ({selectedItems.length}台)
+                        </Button>
+                    </div>
+                </div>
             </main>
         </div>
     );

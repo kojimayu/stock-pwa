@@ -1,0 +1,228 @@
+"use server";
+
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
+
+// エアコン商品一覧取得
+export async function getAirconProducts() {
+    return prisma.airconProduct.findMany({
+        orderBy: { code: "asc" },
+        include: {
+            _count: {
+                select: { orderItems: true }
+            }
+        }
+    });
+}
+
+// エアコン商品在庫更新
+export async function updateAirconStock(productId: number, adjustment: number) {
+    const product = await prisma.airconProduct.findUnique({
+        where: { id: productId }
+    });
+
+    if (!product) {
+        return { success: false, message: "商品が見つかりません" };
+    }
+
+    const newStock = product.stock + adjustment;
+
+    if (newStock < 0) {
+        return { success: false, message: "在庫がマイナスになります" };
+    }
+
+    await prisma.airconProduct.update({
+        where: { id: productId },
+        data: { stock: newStock }
+    });
+
+    revalidatePath("/admin/aircon-inventory");
+    return { success: true, newStock };
+}
+
+// エアコン商品サフィックス更新
+export async function updateAirconProductSuffix(productId: number, suffix: string) {
+    await prisma.airconProduct.update({
+        where: { id: productId },
+        data: { suffix: suffix.toUpperCase() }
+    });
+    revalidatePath("/admin/aircon-inventory");
+    revalidatePath("/admin/aircon-orders");
+    return { success: true };
+}
+
+// エアコン持出し時の在庫減算
+export async function decrementAirconStock(productCode: string) {
+    // 年度サフィックスを除いたコードで検索
+    const baseCode = productCode.replace(/[A-Z]$/, ""); // 末尾アルファベット除去
+
+    const product = await prisma.airconProduct.findFirst({
+        where: { code: { startsWith: baseCode.substring(0, 8) } } // RAS-AJ22 等
+    });
+
+    if (product && product.stock > 0) {
+        await prisma.airconProduct.update({
+            where: { id: product.id },
+            data: { stock: product.stock - 1 }
+        });
+        return { success: true, productId: product.id };
+    }
+
+    return { success: false, productId: null };
+}
+
+// エアコン戻し処理
+export async function returnAircon(logId: number) {
+    const log = await prisma.airConditionerLog.findUnique({
+        where: { id: logId },
+        include: { airconProduct: true }
+    });
+
+    if (!log) {
+        return { success: false, message: "ログが見つかりません" };
+    }
+
+    if (log.isReturned) {
+        return { success: false, message: "既に戻し済みです" };
+    }
+
+    // トランザクションで戻し処理
+    await prisma.$transaction(async (tx) => {
+        // ログを戻し済みに更新
+        await tx.airConditionerLog.update({
+            where: { id: logId },
+            data: {
+                isReturned: true,
+                returnedAt: new Date()
+            }
+        });
+
+        // 在庫を戻す（紐付けがあれば）
+        if (log.airconProductId) {
+            await tx.airconProduct.update({
+                where: { id: log.airconProductId },
+                data: { stock: { increment: 1 } }
+            });
+        }
+    });
+
+    revalidatePath("/admin/aircon-logs");
+    revalidatePath("/admin/aircon-inventory");
+    return { success: true };
+}
+
+// 年度サフィックス取得
+export async function getAirconYearSuffix() {
+    const setting = await prisma.systemSetting.findUnique({
+        where: { key: "aircon_year_suffix" }
+    });
+    return setting?.value || "N";
+}
+
+// 年度サフィックス更新
+export async function updateAirconYearSuffix(suffix: string) {
+    await prisma.systemSetting.upsert({
+        where: { key: "aircon_year_suffix" },
+        update: { value: suffix },
+        create: { key: "aircon_year_suffix", value: suffix }
+    });
+    revalidatePath("/admin/aircon-inventory");
+    return { success: true };
+}
+
+// エアコン発注一覧取得
+export async function getAirconOrders() {
+    return prisma.airconOrder.findMany({
+        orderBy: { createdAt: "desc" },
+        include: {
+            items: {
+                include: { product: true }
+            }
+        }
+    });
+}
+
+// エアコン発注作成
+export async function createAirconOrder(items: { productId: number, quantity: number }[]) {
+    const order = await prisma.airconOrder.create({
+        data: {
+            status: "DRAFT",
+            items: {
+                create: items.map(item => ({
+                    productId: item.productId,
+                    quantity: item.quantity
+                }))
+            }
+        },
+        include: {
+            items: { include: { product: true } }
+        }
+    });
+
+    revalidatePath("/admin/aircon-orders");
+    return { success: true, order };
+}
+
+// 発注ステータス更新
+export async function updateAirconOrderStatus(orderId: number, status: string) {
+    await prisma.airconOrder.update({
+        where: { id: orderId },
+        data: { status }
+    });
+    revalidatePath("/admin/aircon-orders");
+    return { success: true };
+}
+
+// 発注入荷処理
+export async function receiveAirconOrderItem(itemId: number, quantity: number) {
+    const item = await prisma.airconOrderItem.findUnique({
+        where: { id: itemId },
+        include: { product: true, order: true }
+    });
+
+    if (!item) {
+        return { success: false, message: "発注明細が見つかりません" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+        // 入荷数更新
+        await tx.airconOrderItem.update({
+            where: { id: itemId },
+            data: { receivedQuantity: { increment: quantity } }
+        });
+
+        // 在庫追加
+        await tx.airconProduct.update({
+            where: { id: item.productId },
+            data: { stock: { increment: quantity } }
+        });
+
+        // 発注全体のステータスを確認・更新
+        const updatedItems = await tx.airconOrderItem.findMany({
+            where: { orderId: item.orderId }
+        });
+
+        const allReceived = updatedItems.every(i =>
+            (i.id === itemId ? i.receivedQuantity + quantity : i.receivedQuantity) >= i.quantity
+        );
+        const anyReceived = updatedItems.some(i =>
+            (i.id === itemId ? i.receivedQuantity + quantity : i.receivedQuantity) > 0
+        );
+
+        if (allReceived) {
+            await tx.airconOrder.update({
+                where: { id: item.orderId },
+                data: { status: "RECEIVED" }
+            });
+        } else if (anyReceived) {
+            await tx.airconOrder.update({
+                where: { id: item.orderId },
+                data: { status: "PARTIAL" }
+            });
+        }
+    });
+
+    revalidatePath("/admin/aircon-orders");
+    revalidatePath("/admin/aircon-inventory");
+    return { success: true };
+}
