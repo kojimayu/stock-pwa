@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
     Table,
     TableBody,
@@ -10,7 +11,14 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Edit, Plus, Trash2, PackagePlus } from "lucide-react";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Edit, Plus, Trash2, PackagePlus, Search, X } from "lucide-react";
 import { ProductDialog } from "./product-dialog";
 import { StockAdjustmentDialog } from "./stock-adjustment-dialog";
 import { deleteProduct } from "@/lib/actions";
@@ -47,6 +55,9 @@ export function ProductList({ products }: ProductListProps) {
 
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState<string>("all");
+    const [selectedSubCategory, setSelectedSubCategory] = useState<string>("all");
 
     const router = useRouter();
 
@@ -87,15 +98,43 @@ export function ProductList({ products }: ProductListProps) {
     };
 
     // Derive options from props
-    // Using simple deduplication with Set
     const attributeOptions = {
         categories: Array.from(new Set(products.map(p => p.category))).sort(),
-        subCategories: Array.from(new Set(products.map(p => p.subCategory).filter(Boolean) as string[])).sort(),
+        subCategories: Array.from(new Set(products
+            .filter(p => selectedCategory === "all" || p.category === selectedCategory)
+            .map(p => p.subCategory)
+            .filter(Boolean) as string[]
+        )).sort(),
         suppliers: Array.from(new Set(products.map(p => p.supplier).filter(Boolean) as string[])).sort(),
     };
 
+    // Filter products
+    const filteredProducts = products.filter(product => {
+        // Category Filter
+        if (selectedCategory !== "all" && product.category !== selectedCategory) {
+            return false;
+        }
+
+        // SubCategory Filter
+        if (selectedSubCategory !== "all" && product.subCategory !== selectedSubCategory) {
+            return false;
+        }
+
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return (
+            product.name.toLowerCase().includes(query) ||
+            product.code.toLowerCase().includes(query) ||
+            // Category text search logic can remain or be removed. Keeping it is fine for "flexible" search.
+            (product.category && product.category.toLowerCase().includes(query)) ||
+            (product.subCategory && product.subCategory.toLowerCase().includes(query)) ||
+            (product.supplier && product.supplier.toLowerCase().includes(query)) ||
+            (product.color && product.color.toLowerCase().includes(query))
+        );
+    });
+
     return (
-        <div className="space-y-4">
+        <div className="space-y-4" >
             <div className="flex justify-between items-center">
                 <div className="flex gap-2">
                     <ProductExportButton products={products} />
@@ -105,6 +144,75 @@ export function ProductList({ products }: ProductListProps) {
                     <Plus className="w-4 h-4 mr-2" />
                     商品登録
                 </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+                {/* Category Select */}
+                <div className="w-[180px]">
+                    <Select
+                        value={selectedCategory}
+                        onValueChange={(val) => {
+                            setSelectedCategory(val);
+                            setSelectedSubCategory("all"); // Reset sub on main change
+                        }}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder="カテゴリ(大)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">カテゴリ(大): 全て</SelectItem>
+                            {attributeOptions.categories.map((cat) => (
+                                <SelectItem key={cat} value={cat}>
+                                    {cat}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* SubCategory Select */}
+                <div className="w-[180px]">
+                    <Select value={selectedSubCategory} onValueChange={setSelectedSubCategory}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="カテゴリ(中)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">カテゴリ(中): 全て</SelectItem>
+                            {attributeOptions.subCategories.map((sub) => (
+                                <SelectItem key={sub} value={sub}>
+                                    {sub}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Search Input */}
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+                    <Input
+                        type="search"
+                        placeholder="商品名、品番、仕入先、色..."
+                        className="pl-9"
+                        value={searchQuery}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+
+                {/* Reset Filters */}
+                {(selectedCategory !== "all" || searchQuery !== "") && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setSelectedCategory("all");
+                            setSearchQuery("");
+                        }}
+                    >
+                        <X className="w-4 h-4 mr-2" />
+                        クリア
+                    </Button>
+                )}
             </div>
 
             <div className="border rounded-lg">
@@ -121,7 +229,7 @@ export function ProductList({ products }: ProductListProps) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {products.map((product) => {
+                        {filteredProducts.map((product) => {
                             const margin = getMargin(product.priceA, product.cost);
                             return (
                                 <TableRow key={product.id}>
@@ -180,7 +288,7 @@ export function ProductList({ products }: ProductListProps) {
                                 </TableRow>
                             );
                         })}
-                        {products.length === 0 && (
+                        {filteredProducts.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
                                     登録されている商品がありません
@@ -207,7 +315,8 @@ export function ProductList({ products }: ProductListProps) {
                     product={adjustingProduct}
                     onSuccess={handleSuccess}
                 />
-            )}
-        </div>
+            )
+            }
+        </div >
     );
 }

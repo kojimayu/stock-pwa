@@ -1,33 +1,35 @@
-# Inventory Concurrency Fix Plan
+# 棚卸機能 UI/UX 改善計画
 
-## Problem
-When multiple users click "Confirm" (Finalize) on the inventory screen simultaneously, a race condition occurs.
-The `finalizeInventory` function checks if the status is `IN_PROGRESS` *before* starting the transaction.
-1. Request A & B both pass the check.
-2. Request A completes, updates status to `COMPLETED`, and adjusts stock.
-3. Request B proceeds (checks already passed), updates status again (redundant), and **applies stock adjustments again**.
-This results in double-counting of inventory adjustments and inaccurate stock levels.
+## 目的
+棚卸入力画面に関するユーザーフィードバック（入力のしにくさ、スクロールの煩雑さ）を解消し、現場での作業効率を向上させる。
 
-## Proposed Changes
+## フィードバック内容
+1.  **「0」が入力できない**: 間違って数量を入れた後に「0」に戻そうとしても戻せない（または削除できない）。
+2.  **フォーカス位置のズレ**: キーボードの「次へ」等で移動した際、画面がスクロールせず、入力欄が隠れてしまうことがある。
+3.  **スクロールが大変**: カバー類など項目が多い商品は、探すのにおおきなスクロールが必要。
+4.  **検索機能**: 商品名などで絞り込みたい。
 
-### [Server Action]
-#### [MODIFY] [actions.ts](file:///f:/Antigravity/stock-pwa/lib/actions.ts)
-*   **`updateInventoryItem`**:
-    *   Add check: Ensure the associated `InventoryCount` has `status: 'IN_PROGRESS'`. If not, throw "棚卸は既に完了または中止されています".
-*   **`finalizeInventory`**:
-    *   Change return type to `Promise<{ success: boolean; message?: string; code?: string }>` to handle duplicate calls gracefully.
-    *   **Atomic Lock**: Use `prisma.inventoryCount.updateMany` with `where: { id, status: 'IN_PROGRESS' }`.
-    *   **Logic**:
-        *   If update count is 0:
-            *   Check current status. If `COMPLETED`, return `{ success: true, message: "既に完了しています", code: "ALREADY_COMPLETED" }`. (Treat as success/info).
-            *   Else, throw error.
-        *   If update count is 1 (We won the lock):
-            *   Fetch latest items (`tx.inventoryCount.findUnique(...).items`).
-            *   Loop and update product stocks and create logs.
-            *   Return `{ success: true }`.
+## 変更案
 
 ### [Frontend]
 #### [MODIFY] [inventory-detail.tsx](file:///f:/Antigravity/stock-pwa/components/admin/inventory-detail.tsx)
-*   **`handleFinalize`**:
-    *   Capture the result of `finalizeInventory`.
-    *   If `result.code === 'ALREADY_COMPLETED'`, show a toast "他のユーザーにより既に完了されています" and refresh page (`router.refresh()` or just redirect).
+
+1.  **検索機能の実装**:
+    *   画面上部（固定ヘッダー付近）に検索ボックスを追加。
+    *   入力されたキーワード（商品名、品番）でリストをリアルタイムにフィルタリングする。
+    *   *効果*: 目的の商品に即座にアクセス可能にする。
+
+2.  **入力ハンドリングの修正（「0」問題）**:
+    *   現在の `handleStockChange` を見直し。
+    *   `parseInt` の挙動や `NaN` チェックが厳しすぎて、一時的な空欄や「0」入力を弾いている可能性があるため修正。
+    *   空文字（全削除）を許容し、保存時は「0」または「元の値」として扱うロジックを整理する。
+
+3.  **フォーカス時の自動スクロール**:
+    *   入力欄（Input）の `onFocus` イベントにて、`scrollIntoView` を呼び出す。
+    *   `block: 'center'` オプションを使用し、入力中の項目が常に画面中央に来るようにする。
+    *   モバイルキーボードの展開時間を考慮し、わずかな遅延（setTimeout）を入れる調整を行う。
+
+## 検証プラン
+1.  **検索**: 「カバー」と入力し、カバー関連商品のみが表示されることを確認。
+2.  **0入力**: 在庫「5」を「0」に書き換え、保存されるか確認。また、BackSpaceで空にした時の挙動を確認。
+3.  **スクロール**: ソフトウェアキーボードの「次へ」で移動した際、次の入力欄が隠れずに表示されるか確認。

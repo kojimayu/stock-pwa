@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,189 +8,168 @@ datasource db {
 }
 
 model Vendor {
-  id        Int           @id @default(autoincrement())
-  name      String
-  pinCode   String                  // PINコード（重複可、初期値1234）
-  pinChanged Boolean      @default(false) // 初期PINから変更済みか
-  qrToken   String?       @unique // QRコード認証用トークン
-  email     String?       // メールアドレス (Option)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  
-  transactions Transaction[]
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  pinCode            String
+  pinChanged         Boolean             @default(false)
+  qrToken            String?             @unique
+  email              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  accessCompanyName  String?
+  showPriceInEmail   Boolean             @default(true)
   airConditionerLogs AirConditionerLog[]
-  
-  // Access連携用 (下請台帳テーブルの会社名)
-  accessCompanyName String?
-  
-  // メールに金額を表示するか (材料買取業者=true, 手間請け業者=false)
-  showPriceInEmail Boolean @default(true)
+  transactions       Transaction[]
 }
 
 model Product {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique // 商品ID/型番 (Excel紐付け用)
-  name      String
-  color     String?  // 色
-  category  String
-  subCategory String? // カテゴリー中
-  priceA    Int      // 販売価格A
-  priceB    Int      // 販売価格B
-  priceC    Int      @default(0) // 販売価格C
-  cost      Int      @default(0) // 仕入れ単価 (原価)
-  supplier  String?  // 仕入先/メーカー
-  unit      String   @default("個") // 単位 (個, 缶, 本, m, 箱, セット, etc.)
-  stock     Int      @default(0)
-  minStock  Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  usageCount Int      @default(0) // 使用回数（人気順ソート用）
-
+  id            Int                  @id @default(autoincrement())
+  code          String               @unique
+  name          String
+  color         String?
+  category      String
+  subCategory   String?
+  priceA        Int
+  priceB        Int
+  priceC        Int                  @default(0)
+  cost          Int                  @default(0)
+  supplier      String?
+  unit          String               @default("個")
+  stock         Int                  @default(0)
+  minStock      Int                  @default(0)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  usageCount    Int                  @default(0)
+  countItems    InventoryCountItem[]
   inventoryLogs InventoryLog[]
-  countItems    InventoryCountItem[] // Relation to inventory counts
-  orderItems    OrderItem[] // Relation to orders
+  orderItems    OrderItem[]
 }
 
 model InventoryLog {
   id        Int      @id @default(autoincrement())
   productId Int
-  product   Product  @relation(fields: [productId], references: [id])
-  type      String   // "RESTOCK", "BIKO", "SALE", "INVENTORY_ADJUSTMENT"
-  quantity  Int      // Change amount (+/-)
-  reason    String?  // Optional note
+  type      String
+  quantity  Int
+  reason    String?
   createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id])
 }
 
-// 棚卸セッション (Inventory Count Session)
 model InventoryCount {
-  id        Int      @id @default(autoincrement())
-  status    String   @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, CANCELLED
-  startedAt DateTime @default(now())
+  id        Int                  @id @default(autoincrement())
+  status    String               @default("IN_PROGRESS")
+  startedAt DateTime             @default(now())
   endedAt   DateTime?
   note      String?
-  
   items     InventoryCountItem[]
 }
 
-// 棚卸明細 (Inventory Count Item)
 model InventoryCountItem {
-  id            Int      @id @default(autoincrement())
+  id            Int            @id @default(autoincrement())
   inventoryId   Int
-  inventory     InventoryCount @relation(fields: [inventoryId], references: [id])
   productId     Int
-  product       Product @relation(fields: [productId], references: [id])
-  expectedStock Int // 帳簿在庫 (Snapshot at start or check time)
-  actualStock   Int // 実地棚卸数
-  adjustment    Int // 差異 (actual - expected)
-  
-  updatedAt     DateTime @updatedAt
-  
+  expectedStock Int
+  actualStock   Int
+  adjustment    Int
+  updatedAt     DateTime       @updatedAt
+  product       Product        @relation(fields: [productId], references: [id])
+  inventory     InventoryCount @relation(fields: [inventoryId], references: [id])
+
   @@unique([inventoryId, productId])
 }
 
 model Transaction {
-  id          Int      @id @default(autoincrement())
-  date        DateTime @default(now())
-  vendorId    Int
-  items       String   // JSON文字列として保存 (SQLiteの制限回避と柔軟性のため)
-  hasUnregisteredItems Boolean @default(false)
-  totalAmount Int
-  createdAt   DateTime @default(now())
-
-  // 戻し機能用
-  isReturned  Boolean  @default(false)
-  returnedAt  DateTime?
-
-  vendor      Vendor   @relation(fields: [vendorId], references: [id])
+  id                   Int       @id @default(autoincrement())
+  date                 DateTime  @default(now())
+  vendorId             Int
+  items                String
+  hasUnregisteredItems Boolean   @default(false)
+  totalAmount          Int
+  createdAt            DateTime  @default(now())
+  isReturned           Boolean   @default(false)
+  returnedAt           DateTime?
+  vendor               Vendor    @relation(fields: [vendorId], references: [id])
 }
 
 model OperationLog {
   id          Int      @id @default(autoincrement())
-  action      String   // "PRODUCT_CREATE", "PRODUCT_UPDATE", "IMPORT", "VENDOR_UPDATE" etc.
-  target      String   // "Product: code", "Vendor: name"
-  details     String?  // JSON or text
+  action      String
+  target      String
+  details     String?
   performedAt DateTime @default(now())
 }
 
 model Order {
-  id        Int      @id @default(autoincrement())
-  supplier  String?  // 仕入先
-  status    String   @default("DRAFT") // DRAFT, ORDERED, PARTIAL, RECEIVED, CANCELLED
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
+  id        Int         @id @default(autoincrement())
+  supplier  String?
+  status    String      @default("DRAFT")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
   items     OrderItem[]
 }
 
 model OrderItem {
-  id               Int      @id @default(autoincrement())
+  id               Int     @id @default(autoincrement())
   orderId          Int
-  order            Order    @relation(fields: [orderId], references: [id])
   productId        Int
-  product          Product  @relation(fields: [productId], references: [id])
-  quantity         Int      // 発注数
-  receivedQuantity Int      @default(0) // 入荷済数
-  isReceived       Boolean  @default(false) // 行完了フラグ
-  cost             Int      // 発注時単価
+  quantity         Int
+  receivedQuantity Int     @default(0)
+  isReceived       Boolean @default(false)
+  cost             Int
+  product          Product @relation(fields: [productId], references: [id])
+  order            Order   @relation(fields: [orderId], references: [id])
 }
 
 model AirConditionerLog {
-  id             Int      @id @default(autoincrement())
-  managementNo   String   // 管理No (6桁)
-  customerName   String?  // Access: 顧客名
-  contractor     String?  // Access: 元請/下請
-  modelNumber    String   // 品番 (RAS-AJ...)
-  vendorId       Int      // 持出した業者ID
-  vendor         Vendor   @relation(fields: [vendorId], references: [id])
-  airconProductId Int?    // エアコン商品ID（在庫管理用）
-  airconProduct  AirconProduct? @relation(fields: [airconProductId], references: [id])
-  isReturned     Boolean  @default(false) // 戻し済みフラグ
-  returnedAt     DateTime? // 戻し日時
-  createdAt      DateTime @default(now())
+  id              Int            @id @default(autoincrement())
+  managementNo    String
+  customerName    String?
+  contractor      String?
+  modelNumber     String
+  vendorId        Int
+  airconProductId Int?
+  isReturned      Boolean        @default(false)
+  returnedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  airconProduct   AirconProduct? @relation(fields: [airconProductId], references: [id])
+  vendor          Vendor         @relation(fields: [vendorId], references: [id])
 }
 
-// エアコン商品マスタ
 model AirconProduct {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique // 例: "RAS-AJ22" (ベースコード、在庫管理用)
-  name      String   // 例: "日立エアコン AJ 2.2kW"
-  capacity  String   // 例: "2.2kW", "2.5kW", "2.8kW", "3.6kW"
-  suffix    String   @default("N") // 発注時サフィックス（年度コード等、機種別に設定可）
-  stock     Int      @default(0) // 現在庫数
-  minStock  Int      @default(0) // 最低在庫数（発注アラート用）
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id         Int                 @id @default(autoincrement())
+  code       String              @unique
+  name       String
+  capacity   String
+  suffix     String              @default("N")
+  stock      Int                 @default(0)
+  minStock   Int                 @default(0)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
   logs       AirConditionerLog[]
   orderItems AirconOrderItem[]
 }
 
-// エアコン発注
 model AirconOrder {
-  id        Int      @id @default(autoincrement())
-  status    String   @default("DRAFT") // DRAFT, ORDERED, PARTIAL, RECEIVED, CANCELLED
-  note      String?  // メモ
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
+  id        Int               @id @default(autoincrement())
+  status    String            @default("DRAFT")
+  note      String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   items     AirconOrderItem[]
 }
 
-// エアコン発注明細
 model AirconOrderItem {
-  id               Int      @id @default(autoincrement())
+  id               Int           @id @default(autoincrement())
   orderId          Int
-  order            AirconOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId        Int
+  quantity         Int
+  receivedQuantity Int           @default(0)
   product          AirconProduct @relation(fields: [productId], references: [id])
-  quantity         Int           // 発注数
-  receivedQuantity Int      @default(0) // 入荷済数
+  order            AirconOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-// システム設定
 model SystemSetting {
   id    Int    @id @default(autoincrement())
   key   String @unique
   value String
 }
-

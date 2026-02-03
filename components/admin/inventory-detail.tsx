@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { ArrowLeft, CheckCircle, XCircle, Filter } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, Filter, Search } from "lucide-react";
 import { getInventoryCount, updateInventoryItem, finalizeInventory, cancelInventory } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("すべて");
+    const [searchQuery, setSearchQuery] = useState("");
     const router = useRouter();
 
     useEffect(() => {
@@ -50,9 +51,25 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
     // フィルタリングされた商品
     const filteredItems = useMemo(() => {
         if (!inventory?.items) return [];
-        if (selectedCategory === "すべて") return inventory.items;
-        return inventory.items.filter((item: any) => item.product.category === selectedCategory);
-    }, [inventory, selectedCategory]);
+
+        let items = inventory.items;
+
+        // 1. Category Filter
+        if (selectedCategory !== "すべて") {
+            items = items.filter((item: any) => item.product.category === selectedCategory);
+        }
+
+        // 2. Search Query
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            items = items.filter((item: any) =>
+                item.product.name.toLowerCase().includes(query) ||
+                (item.product.code && item.product.code.toLowerCase().includes(query))
+            );
+        }
+
+        return items;
+    }, [inventory, selectedCategory, searchQuery]);
 
     // 進捗計算
     const progress = useMemo(() => {
@@ -65,6 +82,17 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
     }, [inventory]);
 
     const handleStockChange = async (itemId: number, newValue: string) => {
+        // 空文字（クリア）を許容
+        if (newValue === "") {
+            setInventory((prev: any) => ({
+                ...prev,
+                items: prev.items.map((item: any) =>
+                    item.id === itemId ? { ...item, actualStock: "" } : item
+                )
+            }));
+            return;
+        }
+
         const val = parseInt(newValue);
         if (isNaN(val) || val < 0) return;
 
@@ -210,6 +238,20 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                 </div>
             </div>
 
+            {/* Search Bar - Sticky (below category) */}
+            <div className="sticky top-[125px] z-20 bg-white border-b px-4 py-2">
+                <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+                    <Input
+                        type="search"
+                        placeholder="商品名・品番で検索..."
+                        className="pl-9 bg-slate-50"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            </div>
+
             {/* Item List - Card Based */}
             <div className="flex-1 pb-24">
                 {filteredItems.map((item: any) => (
@@ -261,7 +303,18 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                                         className="w-24 text-center text-lg font-bold h-12"
                                         value={item.actualStock}
                                         onChange={(e) => handleStockChange(item.id, e.target.value)}
-                                        onFocus={(e) => e.target.select()}
+                                        onFocus={(e) => {
+                                            e.target.select();
+                                            // 少し遅延させてスクロール（キーボード表示待ち）
+                                            setTimeout(() => {
+                                                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            }, 300);
+                                        }}
+                                        onBlur={() => {
+                                            if (item.actualStock === "") {
+                                                handleStockChange(item.id, "0");
+                                            }
+                                        }}
                                     />
                                 )}
                             </div>
