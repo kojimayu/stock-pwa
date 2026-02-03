@@ -42,4 +42,36 @@ if ($OldFiles.Count -gt 0) {
     Write-Host "[$(Get-Date)] 古いバックアップを削除: $($OldFiles.Count) 件" -ForegroundColor Yellow
 }
 
+# ========================================
+# 設定ファイル(.env)の差分バックアップ
+# ========================================
+$ConfigFolder = Join-Path (Split-Path $BackupFolder -Parent) "config"
+$SourceEnv = Join-Path $ProjectRoot ".env"
+$LatestEnvBackup = Get-ChildItem $ConfigFolder -Filter "env_*.txt" -ErrorAction SilentlyContinue | 
+Sort-Object LastWriteTime -Descending | 
+Select-Object -First 1
+
+if (Test-Path $SourceEnv) {
+    $NeedBackup = $true
+    
+    # 差分チェック: 最新バックアップとハッシュ比較
+    if ($LatestEnvBackup) {
+        $SourceHash = (Get-FileHash $SourceEnv -Algorithm MD5).Hash
+        $BackupHash = (Get-FileHash $LatestEnvBackup.FullName -Algorithm MD5).Hash
+        if ($SourceHash -eq $BackupHash) {
+            $NeedBackup = $false
+            Write-Host "[$(Get-Date)] .env: 変更なし (スキップ)" -ForegroundColor Gray
+        }
+    }
+    
+    if ($NeedBackup) {
+        if (!(Test-Path $ConfigFolder)) {
+            New-Item -ItemType Directory -Path $ConfigFolder -Force | Out-Null
+        }
+        $EnvBackupFile = Join-Path $ConfigFolder "env_$Date.txt"
+        Copy-Item $SourceEnv $EnvBackupFile -Force
+        Write-Host "[$(Get-Date)] .env バックアップ: $EnvBackupFile" -ForegroundColor Green
+    }
+}
+
 Write-Host "[$(Get-Date)] 処理完了" -ForegroundColor Cyan
