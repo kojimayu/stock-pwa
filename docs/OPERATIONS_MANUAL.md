@@ -162,6 +162,13 @@ net use
    ipconfig | Select-String "IPv4"
    ```
 
+### 4.5 タブレット画面の更新（Fully Kiosk Browser）
+
+変更が反映されない場合:
+1. **3本指タップ**でFully Kioskメニューを開く
+2. **「Go to Start URL」** を選択
+3. アプリが最初から再読み込みされる
+
 ---
 
 ## 5. メンテナンス
