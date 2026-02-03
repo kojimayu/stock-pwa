@@ -141,14 +141,16 @@ export default function AirconPage() {
         <div className="h-screen bg-slate-100 flex flex-col overflow-hidden">
             {/* Header */}
             <header className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between flex-shrink-0">
-                <Button variant="ghost" size="sm" className="text-white p-1" onClick={() => router.push("/mode-select")}>
-                    <ChevronLeft className="w-5 h-5" />
+                <Button variant="ghost" size="sm" className="text-white h-10 px-3" onClick={() => router.push("/mode-select")}>
+                    <ChevronLeft className="w-5 h-5 mr-1" />
+                    戻る
                 </Button>
-                <div className="text-center">
+                <div className="flex items-center gap-2">
                     <h1 className="text-base font-bold">エアコン持出し</h1>
-                    <p className="text-xs text-slate-300">
+                    <span className="text-slate-400">|</span>
+                    <span className="text-sm text-slate-300">
                         {vendor ? `${vendor.name} 様` : ""}
-                    </p>
+                    </span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button
