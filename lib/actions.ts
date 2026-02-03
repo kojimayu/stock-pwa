@@ -958,8 +958,15 @@ export async function getInventoryCount(id: number) {
 }
 
 export async function updateInventoryItem(itemId: number, actualStock: number) {
-    const item = await prisma.inventoryCountItem.findUnique({ where: { id: itemId } });
+    const item = await prisma.inventoryCountItem.findUnique({
+        where: { id: itemId },
+        include: { inventory: true }
+    });
     if (!item) throw new Error("Item not found");
+
+    if (item.inventory.status !== 'IN_PROGRESS') {
+        throw new Error("棚卸は既に完了または中止されているため、編集できません");
+    }
 
     const adjustment = actualStock - item.expectedStock;
 
@@ -975,51 +982,75 @@ export async function updateInventoryItem(itemId: number, actualStock: number) {
 }
 
 export async function finalizeInventory(id: number) {
-    const inventory = await prisma.inventoryCount.findUnique({
-        where: { id },
-        include: { items: true }
-    });
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            // 1. Atomic Status Update (Lock)
+            // statusがIN_PROGRESSのものだけを更新する。更新件数が0なら、既に他で更新されたか無効。
+            const updateResult = await tx.inventoryCount.updateMany({
+                where: {
+                    id,
+                    status: 'IN_PROGRESS'
+                },
+                data: {
+                    status: 'COMPLETED',
+                    endedAt: new Date(),
+                }
+            });
 
-    if (!inventory || inventory.status !== 'IN_PROGRESS') {
-        throw new Error("Invalid inventory session");
-    }
-
-    await prisma.$transaction(async (tx) => {
-        // 1. Update Inventory Status
-        await tx.inventoryCount.update({
-            where: { id },
-            data: {
-                status: 'COMPLETED',
-                endedAt: new Date(),
+            if (updateResult.count === 0) {
+                // 既に完了しているか確認
+                const current = await tx.inventoryCount.findUnique({ where: { id } });
+                if (current && current.status === 'COMPLETED') {
+                    return { status: 'ALREADY_COMPLETED' };
+                }
+                throw new Error("棚卸セッションが無効か、既に中止されています");
             }
+
+            // 2. Adjust Stock for all items (Fetch latest data INSIDE transaction)
+            const inventory = await tx.inventoryCount.findUnique({
+                where: { id },
+                include: { items: true }
+            });
+
+            if (!inventory) throw new Error("Unexpected error: Inventory not found");
+
+            for (const item of inventory.items) {
+                if (item.adjustment !== 0) {
+                    // Update Product Stock
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: item.actualStock }
+                    });
+
+                    // Create Adjustment Log
+                    await tx.inventoryLog.create({
+                        data: {
+                            productId: item.productId,
+                            type: 'INVENTORY_ADJUSTMENT',
+                            quantity: item.adjustment,
+                            reason: `Inventory #${id} Adjustment`,
+                        }
+                    });
+                }
+            }
+            return { status: 'SUCCESS' };
         });
 
-        // 2. Adjust Stock for all items with differences
-        for (const item of inventory.items) {
-            if (item.adjustment !== 0) {
-                // Update Product Stock
-                await tx.product.update({
-                    where: { id: item.productId },
-                    data: { stock: item.actualStock }
-                });
-
-                // Create Adjustment Log
-                await tx.inventoryLog.create({
-                    data: {
-                        productId: item.productId,
-                        type: 'INVENTORY_ADJUSTMENT',
-                        quantity: item.adjustment,
-                        reason: `Inventory #${id} Adjustment`,
-                    }
-                });
-            }
+        if (result.status === 'ALREADY_COMPLETED') {
+            return { success: true, message: "他のユーザーにより既に完了されています", code: "ALREADY_COMPLETED" };
         }
-    });
 
-    await logOperation("INVENTORY_FINALIZE", `Inventory #${id}`, `Finalized inventory count`);
-    revalidatePath('/admin/inventory');
-    revalidatePath(`/admin/inventory/${id}`);
-    revalidatePath('/admin/products');
+        await logOperation("INVENTORY_FINALIZE", `Inventory #${id}`, `Finalized inventory count`);
+        revalidatePath('/admin/inventory');
+        revalidatePath(`/admin/inventory/${id}`);
+        revalidatePath('/admin/products');
+
+        return { success: true };
+
+    } catch (error) {
+        console.error("Finalize Error:", error);
+        return { success: false, message: error instanceof Error ? error.message : '確定処理中にエラーが発生しました' };
+    }
 }
 
 export async function cancelInventory(id: number) {

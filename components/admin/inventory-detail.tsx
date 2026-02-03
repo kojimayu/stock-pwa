@@ -89,9 +89,19 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
 
         setSaving(true);
         try {
-            await finalizeInventory(id);
-            toast.success("棚卸を確定しました");
-            router.push('/admin/inventory');
+            const result = await finalizeInventory(id);
+            if (result.success) {
+                if (result.code === 'ALREADY_COMPLETED') {
+                    toast.info(result.message);
+                } else {
+                    toast.success("棚卸を確定しました");
+                }
+                router.refresh();
+                router.push('/admin/inventory');
+            } else {
+                toast.error(result.message || "確定処理に失敗しました");
+                setSaving(false);
+            }
         } catch (error) {
             console.error(error);
             toast.error("確定処理に失敗しました");

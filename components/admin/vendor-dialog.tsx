@@ -60,8 +60,9 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
         } else {
             setSelectedAccessVendor("");
         }
-        // Initialize showPriceInEmail (default true for new vendors)
-        setShowPriceInEmail(vendor?.showPriceInEmail ?? true);
+        // Initialize showPriceInEmail 
+        // Default to false (OFF) for new vendors, use existing value for edits
+        setShowPriceInEmail(vendor?.showPriceInEmail ?? false);
     }, [vendor, open]);
 
     // Fetch Access Vendors when dialog opens
@@ -145,7 +146,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                             <Input
                                 id="pin"
                                 name="pin"
-                                defaultValue={vendor?.pinCode || ""}
+                                defaultValue={vendor?.pinCode || "1234"}
                                 className="col-span-3"
                                 placeholder="4桁の数字 (例: 1234)"
                                 pattern="\d{4}"

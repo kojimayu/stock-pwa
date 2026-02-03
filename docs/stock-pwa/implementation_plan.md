@@ -1,41 +1,33 @@
-# Dynamic Access Vendor Sync Plan
+# Inventory Concurrency Fix Plan
 
-## Goal
-Allow administrators to link Web Vendors to Access DB Vendors dynamically from the Admin panel, removing the need for hardcoded allow-lists.
+## Problem
+When multiple users click "Confirm" (Finalize) on the inventory screen simultaneously, a race condition occurs.
+The `finalizeInventory` function checks if the status is `IN_PROGRESS` *before* starting the transaction.
+1. Request A & B both pass the check.
+2. Request A completes, updates status to `COMPLETED`, and adjusts stock.
+3. Request B proceeds (checks already passed), updates status again (redundant), and **applies stock adjustments again**.
+This results in double-counting of inventory adjustments and inaccurate stock levels.
 
 ## Proposed Changes
 
-### 1. Database Schema
-*   **Model**: `Vendor`
-*   **Change**: Add `accessCompanyName String?` (Nullable). (Already Implemented)
-*   **Purpose**: Stores the exact company name from Access DB used for filtering search results.
+### [Server Action]
+#### [MODIFY] [actions.ts](file:///f:/Antigravity/stock-pwa/lib/actions.ts)
+*   **`updateInventoryItem`**:
+    *   Add check: Ensure the associated `InventoryCount` has `status: 'IN_PROGRESS'`. If not, throw "棚卸は既に完了または中止されています".
+*   **`finalizeInventory`**:
+    *   Change return type to `Promise<{ success: boolean; message?: string; code?: string }>` to handle duplicate calls gracefully.
+    *   **Atomic Lock**: Use `prisma.inventoryCount.updateMany` with `where: { id, status: 'IN_PROGRESS' }`.
+    *   **Logic**:
+        *   If update count is 0:
+            *   Check current status. If `COMPLETED`, return `{ success: true, message: "既に完了しています", code: "ALREADY_COMPLETED" }`. (Treat as success/info).
+            *   Else, throw error.
+        *   If update count is 1 (We won the lock):
+            *   Fetch latest items (`tx.inventoryCount.findUnique(...).items`).
+            *   Loop and update product stocks and create logs.
+            *   Return `{ success: true }`.
 
-### 2. Backend API
-*   **New Route**: `app/api/access/vendors/route.ts` (Implemented)
-    *   **Method**: `GET`
-    *   **Logic**: Uses PowerShell to query `SELECT 会社名, 発注先ID FROM 下請台帳テーブル` from Access DB.
-    *   **Response**: List of `{ id: string, name: string }`.
-*   **Update Search API**: `app/api/access/route.ts` (Implemented)
-    *   **Logic**: Fetch `accessCompanyName` from DB based on Logged-in Vendor. Use it for PowerShell query filter.
-
-### 3. Server Actions / Admin UI
-*   **Update Action**: `lib/actions.ts`
-    *   Update `upsertVendor` to accept `accessCompanyName`.
-*   **Update UI**: `components/admin/vendor-dialog.tsx`
-    *   Fetch Access Vendors list using `GET /api/access/vendors` (use `swr` or `useEffect`).
-    *   Add a `<Select>` dropdown: "Access連携業者".
-    *   Save logic passes `accessCompanyName` to `upsertVendor`.
-
-## Verification Plan
-1.  **Access Vendor Fetch**:
-    *   Run `curl http://localhost:3000/api/access/vendors` to confirm JSON output. (Verified)
-2.  **Linking Vendor**:
-    *   Open Admin > Vendor Management.
-    *   Edit a vendor (e.g., "WebVendor").
-    *   Select "AccessVendor" from the new dropdown.
-    *   Save.
-    *   Check Database (Studio or Console) to see `accessCompanyName` updated.
-3.  **Search Verification**:
-    *   Login as the linked Vendor.
-    *   Perform a search.
-    *   Confirm results are returned (meaning Access query used the linked name).
+### [Frontend]
+#### [MODIFY] [inventory-detail.tsx](file:///f:/Antigravity/stock-pwa/components/admin/inventory-detail.tsx)
+*   **`handleFinalize`**:
+    *   Capture the result of `finalizeInventory`.
+    *   If `result.code === 'ALREADY_COMPLETED'`, show a toast "他のユーザーにより既に完了されています" and refresh page (`router.refresh()` or just redirect).
