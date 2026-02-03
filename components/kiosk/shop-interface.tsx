@@ -87,21 +87,19 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
 
             {/* Header */}
             <header className="bg-slate-900 text-white p-3 fixed top-0 left-0 right-0 z-40 flex justify-between items-center shadow-md h-[60px]">
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-slate-300 hover:text-white hover:bg-slate-800"
-                        onClick={() => router.push("/mode-select")}
-                    >
-                        <ChevronLeft className="w-6 h-6" />
-                    </Button>
-                    <div>
-                        <h1 className="text-lg font-bold">商品選択</h1>
-                        <p className="text-[10px] text-slate-300">
-                            {vendor ? `${vendor.name} 様` : "未ログイン"}
-                        </p>
-                    </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-slate-300 hover:text-white hover:bg-slate-800"
+                    onClick={() => router.push("/mode-select")}
+                >
+                    <ChevronLeft className="w-6 h-6" />
+                </Button>
+                <div className="text-center">
+                    <h1 className="text-lg font-bold">商品選択</h1>
+                    <p className="text-xs text-slate-300">
+                        {vendor ? `${vendor.name} 様` : "未ログイン"}
+                    </p>
                 </div>
                 <div className="flex items-center space-x-1">
                     <Button
