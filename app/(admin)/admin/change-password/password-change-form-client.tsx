@@ -35,12 +35,11 @@ export function PasswordChangeFormClient({ isRequired }: PasswordChangeFormClien
         setLoading(true);
         try {
             await changePassword(currentPassword, newPassword);
-            toast.success("パスワードを変更しました");
-            router.push("/admin");
-            router.refresh();
+            toast.success("パスワードを変更しました。ダッシュボードに移動します...");
+            // router.pushだとキャッシュの問題があるためwindow.locationを使用
+            window.location.href = "/admin";
         } catch (error: any) {
             toast.error(error.message || "パスワードの変更に失敗しました");
-        } finally {
             setLoading(false);
         }
     };

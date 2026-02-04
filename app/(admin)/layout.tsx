@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { headers } from "next/headers";
 
 export default async function AdminLayout({
     children,
@@ -11,15 +12,19 @@ export default async function AdminLayout({
 }) {
     const session = await getServerSession(authOptions);
 
+    // 現在のパスを取得（リダイレクトループ防止）
+    const headersList = await headers();
+    const pathname = headersList.get("x-pathname") || "";
+    const isChangePasswordPage = pathname.includes("/change-password");
+
     // パスワード変更が必要かチェック（メール/パスワードログインの場合）
-    if (session?.user?.email) {
+    // ただし、パスワード変更ページでは再度リダイレクトしない
+    if (session?.user?.email && !isChangePasswordPage) {
         const adminUser = await prisma.adminUser.findUnique({
             where: { email: session.user.email },
         });
 
-        // パスワード変更が必要で、かつパスワード変更ページ以外にアクセスしている場合
         if (adminUser?.mustChangePassword) {
-            // パスワード変更ページへリダイレクト（無限ループ防止のチェックは呼び出し元で行う）
             redirect("/admin/change-password");
         }
     }
