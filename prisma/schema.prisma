@@ -174,3 +174,14 @@ model SystemSetting {
   key   String @unique
   value String
 }
+
+// 管理者ユーザー
+model AdminUser {
+  id              Int      @id @default(autoincrement())
+  email           String   @unique
+  name            String
+  password        String   // ハッシュ化されたパスワード
+  mustChangePassword Boolean @default(true) // 初回ログイン時にパスワード変更必須
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
