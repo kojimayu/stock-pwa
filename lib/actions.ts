@@ -605,15 +605,25 @@ export async function getAnalysisData() {
 // Import email utility
 import { sendTransactionEmail } from './mail';
 
-export async function createTransaction(vendorId: number, items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[]) {
+export async function createTransaction(
+    vendorId: number,
+    items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[],
+    totalAmountParam?: number,
+    isProxyInput: boolean = false
+) {
     // 0. Check for active inventory
     if (await checkActiveInventory()) {
         throw new Error('現在棚卸中のため、決済処理は利用できません');
     }
 
     // 1. Calculate total
-    const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const totalAmount = totalAmountParam ?? items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const hasUnregisteredItems = items.some((item) => item.isManual);
+
+    // Log proxy input operation
+    if (isProxyInput) {
+        await logOperation('PROXY_INPUT', `代理入力: 業者ID=${vendorId}, 商品数=${items.length}, 合計=¥${totalAmount}`);
+    }
 
     // 2. Transactional update (Create Transaction + Decrease Stock + Create Log)
     try {
