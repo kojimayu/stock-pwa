@@ -23,13 +23,25 @@ import Link from "next/link";
 import { generateDraftOrders, deleteOrder } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Edit } from "lucide-react";
+import { createManualOrder } from "@/lib/actions";
 
 interface OrderListProps {
     initialOrders: any[];
 }
 
-export function OrderList({ initialOrders }: OrderListProps) {
-    const [orders, setOrders] = useState(initialOrders);
+export function OrderList({ initialOrders: orders }: OrderListProps) {
+    // const [orders, setOrders] = useState(initialOrders); // Removed to use props directly
     const [isGenerating, setIsGenerating] = useState(false);
     const router = useRouter();
 
@@ -47,6 +59,28 @@ export function OrderList({ initialOrders }: OrderListProps) {
             toast.error("エラーが発生しました。");
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    const [manualDialogOpen, setManualDialogOpen] = useState(false);
+    const [newSupplier, setNewSupplier] = useState("");
+
+    const handleManualCreate = async () => {
+        try {
+            console.log("Creating manual order for:", newSupplier);
+            const result = await createManualOrder(newSupplier);
+            console.log("Creation result:", result);
+            if (result.success) {
+                toast.success("発注書を作成しました");
+                setManualDialogOpen(false);
+                setNewSupplier("");
+                // Force router refresh to update list
+                router.refresh();
+                router.push(`/admin/orders/${result.id}`);
+            }
+        } catch (e: any) {
+            console.error("Manual create error:", e);
+            toast.error(`作成に失敗しました: ${e.message}`);
         }
     };
 
@@ -88,6 +122,33 @@ export function OrderList({ initialOrders }: OrderListProps) {
                         </>
                     )}
                 </Button>
+                <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" className="ml-2">
+                            <Edit className="mr-2 h-4 w-4" />
+                            手動作成
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>発注書の手動作成</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="supplier">仕入先名</Label>
+                                <Input
+                                    id="supplier"
+                                    value={newSupplier}
+                                    onChange={(e) => setNewSupplier(e.target.value)}
+                                    placeholder="例: 株式会社◯◯"
+                                />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button onClick={handleManualCreate} disabled={!newSupplier}>作成</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
 
             <div className="border rounded-lg bg-white overflow-hidden shadow-sm">

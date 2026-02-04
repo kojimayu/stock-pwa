@@ -88,6 +88,8 @@ export default function KioskLoginPage() {
           toast.success(`ログイン: ${res.vendor.name}`);
           router.push("/mode-select");
         }
+        // Success: Don't disable loading to prevent UI flicker before navigation
+        return;
       } else {
         toast.error(res.message || "PINコードが正しくありません");
         setPin("");
@@ -95,9 +97,8 @@ export default function KioskLoginPage() {
     } catch (e) {
       toast.error("システムエラーが発生しました");
       setPin("");
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (

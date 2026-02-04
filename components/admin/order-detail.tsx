@@ -16,10 +16,11 @@ import {
     ArrowLeft,
     Check,
     Send,
-    Loader2
+    Loader2,
+    Copy
 } from "lucide-react";
 import Link from "next/link";
-import { confirmOrder, receiveOrderItem, updateOrderItemQty } from "@/lib/actions";
+import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -27,8 +28,8 @@ interface OrderDetailProps {
     initialOrder: any;
 }
 
-export function OrderDetail({ initialOrder }: OrderDetailProps) {
-    const [order] = useState(initialOrder);
+export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
+    // const [order] = useState(initialOrder); // Removed to separate state from props
     const [isUpdating, setIsUpdating] = useState(false);
     const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>({});
     const router = useRouter();
@@ -75,6 +76,39 @@ export function OrderDetail({ initialOrder }: OrderDetailProps) {
         }
     };
 
+    // Product Search State
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showSearch, setShowSearch] = useState(false);
+
+    const handleSearch = async (query: string) => {
+        setSearchQuery(query);
+        if (query.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setIsSearching(true);
+        // We need to import searchProducts from actions (add to imports later)
+        // For now assuming it is dynamic import or added to props? No, server action.
+        // Assuming searchProducts is exported from actions
+    };
+
+    // We will implement debounced search in useEffect or simple onchange in the render part
+
+
+
+    const handleCopy = () => {
+        const text = order.items.map((item: any) =>
+            `${item.product.name} × ${item.quantity}${item.product.unit}`
+        ).join("\n");
+
+        const content = `【発注依頼】\n${order.supplier} 御中\n\n${text}\n\n宜しくお願い致します。`;
+
+        navigator.clipboard.writeText(content);
+        toast.success("注文内容をコピーしました");
+    };
+
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'DRAFT': return <Badge variant="outline">下書き</Badge>;
@@ -102,6 +136,9 @@ export function OrderDetail({ initialOrder }: OrderDetailProps) {
                     </div>
                 </div>
                 <div className="ml-auto flex gap-2">
+                    <Button variant="outline" size="icon" onClick={handleCopy} title="注文内容をコピー">
+                        <Copy className="h-4 w-4" />
+                    </Button>
                     {order.status === 'DRAFT' && (
                         <Button onClick={handleConfirm} disabled={isUpdating}>
                             {isUpdating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}
@@ -110,6 +147,55 @@ export function OrderDetail({ initialOrder }: OrderDetailProps) {
                     )}
                 </div>
             </div>
+
+            {order.status === 'DRAFT' && (
+                <div className="bg-slate-50 p-4 rounded-lg border">
+                    <h3 className="text-sm font-semibold mb-2">商品を追加</h3>
+                    <div className="relative">
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder="商品の品番または名前で検索..."
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    if (e.target.value.length >= 2) {
+                                        searchProducts(e.target.value).then(setSearchResults);
+                                    } else {
+                                        setSearchResults([]);
+                                    }
+                                }}
+                            />
+                        </div>
+                        {searchResults.length > 0 && (
+                            <div className="absolute top-full left-0 z-10 w-full bg-white border rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
+                                {searchResults.map((product) => (
+                                    <div
+                                        key={product.id}
+                                        className="p-2 hover:bg-slate-100 cursor-pointer flex justify-between items-center"
+                                        onClick={async () => {
+                                            try {
+                                                await addOrderItem(order.id, product.id, 1);
+                                                toast.success("追加しました");
+                                                setSearchQuery("");
+                                                setSearchResults([]);
+                                                router.refresh();
+                                            } catch (e) {
+                                                toast.error("追加に失敗しました");
+                                            }
+                                        }}
+                                    >
+                                        <div>
+                                            <div className="font-medium">{product.name}</div>
+                                            <div className="text-xs text-muted-foreground">{product.code}</div>
+                                        </div>
+                                        <div className="text-sm">在庫: {product.stock}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             <div className="border rounded-lg bg-white overflow-hidden shadow-sm">
                 <Table>

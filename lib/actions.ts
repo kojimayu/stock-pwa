@@ -1250,3 +1250,46 @@ export async function updateOrderItemQty(orderItemId: number, quantity: number) 
     // Caller should revalidate
 }
 
+
+export async function createManualOrder(supplier: string) {
+    const order = await prisma.order.create({
+        data: {
+            supplier,
+            status: 'DRAFT',
+        }
+    });
+    await logOperation("ORDER_CREATE", `Order #${order.id}`, `Created manual order for ${supplier}`);
+    revalidatePath('/admin/orders');
+    return { success: true, id: order.id };
+}
+
+export async function addOrderItem(orderId: number, productId: number, quantity: number) {
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new Error("Product not found");
+
+    await prisma.orderItem.create({
+        data: {
+            orderId,
+            productId,
+            quantity,
+            cost: product.cost,
+            receivedQuantity: 0,
+            isReceived: false,
+        }
+    });
+
+    revalidatePath(`/admin/orders/${orderId}`);
+    return { success: true };
+}
+
+export async function searchProducts(query: string) {
+    return await prisma.product.findMany({
+        where: {
+            OR: [
+                { name: { contains: query } },
+                { code: { contains: query } }
+            ]
+        },
+        take: 10
+    });
+}
