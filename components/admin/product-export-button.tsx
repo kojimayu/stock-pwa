@@ -10,6 +10,7 @@ interface Product {
     name: string;
     category: string;
     subCategory: string | null;
+    productType: string | null;
     priceA: number;
     priceB: number;
     priceC: number;
@@ -32,6 +33,7 @@ export function ProductExportButton({ products }: ProductExportButtonProps) {
                 name: p.name,
                 category: p.category,
                 subCategory: p.subCategory,
+                productType: p.productType, // Added
                 priceA: p.priceA,
                 priceB: p.priceB,
                 priceC: p.priceC,

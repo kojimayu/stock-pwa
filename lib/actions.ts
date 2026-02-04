@@ -237,6 +237,7 @@ export async function upsertProduct(data: {
     name: string;
     category: string;
     subCategory?: string | null;
+    productType?: string | null;
     priceA: number;
     priceB: number;
     priceC: number;
@@ -265,6 +266,7 @@ export async function upsertProduct(data: {
             name: data.name,
             category: data.category,
             subCategory: data.subCategory,
+            productType: data.productType,
             priceA: data.priceA,
             priceB: data.priceB,
             priceC: data.priceC,
@@ -302,21 +304,25 @@ export async function upsertProduct(data: {
                 name: data.name,
                 category: data.category,
                 subCategory: data.subCategory,
+                productType: data.productType,
                 priceA: data.priceA,
                 priceB: data.priceB,
                 priceC: data.priceC,
                 minStock: data.minStock,
-                stock: data.stock ?? 0,
                 cost: data.cost,
+                stock: data.stock ?? 0,
                 supplier: data.supplier,
                 color: data.color,
                 unit: data.unit ?? "個",
             },
         });
-        await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created ${data.name}`);
+        await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created new product`);
     }
+
     revalidatePath('/admin/products');
 }
+
+
 
 // Helper to check for active inventory session
 export async function checkActiveInventory() {
@@ -330,7 +336,8 @@ export async function importProducts(products: {
     code: string;
     name: string;
     category: string;
-    subCategory: string;
+    subCategory: string | null;
+    productType?: string | null; // Added
     priceA: number;
     priceB: number;
     priceC: number;
@@ -355,31 +362,37 @@ export async function importProducts(products: {
             if (!p.code) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: 品番(code)がありません` });
             if (!p.name) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: 商品名(name)がありません` });
             if (!p.category) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: カテゴリー大(category)がありません` });
-            if (!p.subCategory) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: カテゴリー中(subCategory)がありません` });
+            // subCategory is optional for import, but we will default to "その他" if empty
+            // if (!p.subCategory) errorDetails.push({ line, type: 'REQUIRED', message: `${line}行目: カテゴリー中(subCategory)がありません` });
 
-            // Cost validation
-            if (p.cost >= p.priceA) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価A(${p.priceA})が仕入れ値(${p.cost})以下です` });
-            if (p.cost >= p.priceB) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価B(${p.priceB})が仕入れ値(${p.cost})以下です` });
-            if (p.priceC > 0 && p.cost >= p.priceC) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価C(${p.priceC})が仕入れ値(${p.cost})以下です` });
+            // Cost validation (Skip if cost is 0, as it might be TBD)
+            if (p.cost > 0) {
+                if (p.priceA <= p.cost) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価A(${p.priceA})が原価(${p.cost})以下です。売価は原価より高く設定してください。` });
+                if (p.priceB <= p.cost) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価B(${p.priceB})が原価(${p.cost})以下です。売価は原価より高く設定してください。` });
+                if (p.priceC > 0 && p.priceC <= p.cost) errorDetails.push({ line, type: 'PRICE', message: `${line}行目: 売価C(${p.priceC})が原価(${p.cost})以下です。売価は原価より高く設定してください。` });
+            }
         });
 
         if (errorDetails.length > 0) {
             // Error Message Construction
             let finalMessage = "";
-            const THRESHOLD = 5;
+            const THRESHOLD = 10; // Increased threshold
 
             if (errorDetails.length <= THRESHOLD) {
                 // Few errors: Show detailed list
                 finalMessage = "バリデーションエラー:\n" + errorDetails.map(e => e.message).join('\n');
             } else {
-                // Many errors: Show summary
+                // Many errors: Show summary + first 5 errors
                 const requiredCount = errorDetails.filter(e => e.type === 'REQUIRED').length;
                 const priceCount = errorDetails.filter(e => e.type === 'PRICE').length;
+                const sampleErrors = errorDetails.slice(0, 5).map(e => `・${e.message}`).join('\n');
 
                 finalMessage = `インポートエラー (合計 ${errorDetails.length}件)\n` +
                     `・必須項目未入力: ${requiredCount}件\n` +
                     `・価格設定エラー(原価割れ等): ${priceCount}件\n\n` +
-                    `データの確認をお願いします。`;
+                    `【エラー詳細（最初の5件）】\n` +
+                    sampleErrors + `\n\n` +
+                    `その他 ${errorDetails.length - 5} 件のエラーがあります。データの確認をお願いします。`;
             }
 
             return { success: false, message: finalMessage };
@@ -401,7 +414,8 @@ export async function importProducts(products: {
                         data: {
                             name: p.name,
                             category: p.category,
-                            subCategory: p.subCategory,
+                            subCategory: p.subCategory || "その他", // Default value
+                            productType: p.productType || null,
                             priceA: p.priceA,
                             priceB: p.priceB,
                             priceC: p.priceC,
@@ -418,7 +432,8 @@ export async function importProducts(products: {
                             code: normalizedCode,
                             name: p.name,
                             category: p.category,
-                            subCategory: p.subCategory,
+                            subCategory: p.subCategory || "その他", // Default value
+                            productType: p.productType || null,
                             priceA: p.priceA,
                             priceB: p.priceB,
                             priceC: p.priceC,

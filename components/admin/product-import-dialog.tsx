@@ -30,7 +30,8 @@ interface ProductImportRow {
     code: string;
     name: string;
     category: string;
-    subCategory: string;
+    subCategory: string | null; // Changed to match strict type if needed, but parsing usually handles strings
+    productType?: string; // Added
     priceA: number;
     priceB: number;
     priceC: number;
@@ -91,6 +92,7 @@ export function ProductImportDialog() {
                 const commonProps = {
                     category: String(row.category || row.CATEGORY || row.カテゴリ || row.カテゴリー大 || ""),
                     subCategory: String(row.subCategory || row.SUBCATEGORY || row.サブカテゴリ || row.カテゴリー中 || ""),
+                    productType: row.productType || row.PRODUCTTYPE || row.カテゴリー小 || row.カテゴリ小 ? String(row.productType || row.PRODUCTTYPE || row.カテゴリー小 || row.カテゴリ小) : undefined,
                     priceA: Number(row.priceA || row.PRICEA || row.売価A || row.売値A || row.定価 || 0),
                     priceB: Number(row.priceB || row.PRICEB || row.売価B || row.売値B || row.特価 || 0),
                     priceC: Number(row.priceC || row.PRICEC || row.売価C || row.売値C || 0),
@@ -103,12 +105,7 @@ export function ProductImportDialog() {
                 // Check for True/1/'〇' (loose check)
                 const isColorFlag = isColor && (String(isColor).toUpperCase() === "TRUE" || String(isColor) === "1" || String(isColor) === "〇");
 
-                // 化粧カバー × 屋外用 は自動的に5色展開
-                const isOutdoorCover = commonProps.category === "化粧カバー" && commonProps.subCategory === "屋外用";
-
-                const shouldExpandColors = isColorFlag || isOutdoorCover;
-
-                if (shouldExpandColors) {
+                if (isColorFlag) {
                     // Expand to 5 colors
                     COLORS.forEach((color) => {
                         expandedData.push({
@@ -142,7 +139,7 @@ export function ProductImportDialog() {
         setLoading(true);
         try {
             const result = await importProducts(previewData.map(p => {
-                // Auto-calculate prices if missing or 0, based on Cost
+                // Auto-calculate prices if missing or 0, based on Cost (unchanged)
                 let priceA = p.priceA;
                 let priceB = p.priceB;
                 const cost = p.cost;
@@ -159,6 +156,7 @@ export function ProductImportDialog() {
                     name: p.name,
                     category: p.category,
                     subCategory: p.subCategory,
+                    productType: p.productType,
                     priceA: priceA,
                     priceB: priceB,
                     priceC: p.priceC,
@@ -188,8 +186,16 @@ export function ProductImportDialog() {
         }
     };
 
+    const handleOpenChange = (newOpen: boolean) => {
+        setOpen(newOpen);
+        if (!newOpen) {
+            // Clear data when closed
+            setPreviewData([]);
+        }
+    };
+
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 <Button variant="outline">
                     <Upload className="mr-2 h-4 w-4" />
@@ -200,11 +206,11 @@ export function ProductImportDialog() {
                 <DialogHeader>
                     <DialogTitle>Excel一括登録 (Bulk Import)</DialogTitle>
                     <DialogDescription>
-                        Excelファイル (.xlsx) を選択してください。
+                        Excelファイル (.xlsx) を選択してください。エクスポートしたファイルをそのまま利用できます。
                         <br />
-                        必須: 品番, 商品名, カテゴリー大, カテゴリー中, 売値A, 売値B, 仕入れ値
+                        Columns: code, name, category, subCategory, productType, priceA, priceB, cost...
                         <br />
-                        ※`色展開` 列に 1 または 〇 を入力すると、5色に自動展開されます。
+                        ※`isColor` 列に TRUE を入力した場合のみ、5色展開が生成されます。
                     </DialogDescription>
                 </DialogHeader>
 
@@ -227,6 +233,7 @@ export function ProductImportDialog() {
                                         <TableHead>商品名</TableHead>
                                         <TableHead>大カテ</TableHead>
                                         <TableHead>中カテ</TableHead>
+                                        <TableHead>小カテ</TableHead>
                                         <TableHead>色</TableHead>
                                         <TableHead className="text-right">売価A</TableHead>
                                         <TableHead className="text-right">売価B</TableHead>
@@ -242,6 +249,7 @@ export function ProductImportDialog() {
                                             <TableCell>{row.name}</TableCell>
                                             <TableCell>{row.category}</TableCell>
                                             <TableCell>{row.subCategory}</TableCell>
+                                            <TableCell>{row.productType || "-"}</TableCell>
                                             <TableCell>{row.color || "-"}</TableCell>
                                             <TableCell className="text-right">{row.priceA}</TableCell>
                                             <TableCell className="text-right">{row.priceB}</TableCell>
@@ -262,7 +270,7 @@ export function ProductImportDialog() {
                 )}
 
                 <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => setOpen(false)}>
+                    <Button variant="outline" onClick={() => handleOpenChange(false)}>
                         キャンセル
                     </Button>
                     <Button onClick={handleImport} disabled={loading || previewData.length === 0}>

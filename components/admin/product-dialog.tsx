@@ -31,6 +31,7 @@ interface ProductDialogProps {
         name: string;
         category: string;
         subCategory?: string | null;
+        productType?: string | null;
         priceA: number;
         priceB: number;
         priceC: number;
@@ -48,6 +49,7 @@ interface ProductDialogProps {
     attributeOptions?: {
         categories: string[];
         subCategories: string[];
+        productTypes?: string[]; // Add this
         suppliers: string[];
     };
     onSuccess: () => void;
@@ -70,6 +72,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                 color: formData.get("color") as string || null,
                 category: formData.get("category") as string,
                 subCategory: formData.get("subCategory") as string || null,
+                productType: formData.get("productType") as string || null,
                 priceA: Number(formData.get("priceA")),
                 priceB: Number(formData.get("priceB")),
                 priceC: Number(formData.get("priceC")),
@@ -77,6 +80,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                 minStock: Number(formData.get("minStock")),
                 cost: Number(formData.get("cost")),
                 supplier: formData.get("supplier") as string || null,
+                unit: formData.get("unit") as string || "個",
             });
 
             toast.success(product ? "商品を更新しました" : "商品を登録しました");
@@ -105,10 +109,6 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
             // Reflect in state and UI
             setCurrentPriceA(priceA);
             setCurrentPriceB(priceB);
-
-            // Update DOM directly for uncontrolled inputs (if we keep them uncontrolled for other reasons, but sticking to controlled/state sync is cleaner for main logic)
-            // Ideally, we should switch inputs to be controlled by state, but to minimize changes, we'll sync state -> input value
-            // Actually, simplest is to make these specific inputs controlled by the state we just added.
         }
     };
 
@@ -206,6 +206,24 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                 />
                                 <datalist id="subCategory-options">
                                     {attributeOptions?.subCategories.map((c) => (
+                                        <option key={c} value={c} />
+                                    ))}
+                                </datalist>
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <label htmlFor="productType" className="text-right text-sm font-medium">
+                                    カテゴリ(小)
+                                </label>
+                                <Input
+                                    id="productType"
+                                    name="productType"
+                                    defaultValue={product?.productType || ""}
+                                    className="col-span-3"
+                                    placeholder="例: 直管"
+                                    list="productType-options"
+                                />
+                                <datalist id="productType-options">
+                                    {attributeOptions?.productTypes?.map((c) => (
                                         <option key={c} value={c} />
                                     ))}
                                 </datalist>

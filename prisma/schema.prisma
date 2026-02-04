@@ -29,6 +29,7 @@ model Product {
   color         String?
   category      String
   subCategory   String?
+  productType   String?
   priceA        Int
   priceB        Int
   priceC        Int                  @default(0)

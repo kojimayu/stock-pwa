@@ -34,6 +34,7 @@ type Product = {
     name: string;
     category: string;
     subCategory: string | null;
+    productType: string | null;
     priceA: number;
     priceB: number;
     priceC: number;
@@ -43,6 +44,7 @@ type Product = {
     unit: string;
     supplier?: string | null;
     color?: string | null;
+    createdAt?: Date | string; // Added
 };
 
 interface ProductListProps {
@@ -58,8 +60,15 @@ export function ProductList({ products }: ProductListProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string>("all");
     const [selectedSubCategory, setSelectedSubCategory] = useState<string>("all");
-
+    const [selectedProductType, setSelectedProductType] = useState<string>("all");
+    const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
     const router = useRouter();
+
+    // Stats
+    const totalCount = products.length;
+    const lastUpdated = products.length > 0
+        ? new Date(Math.max(...products.map(p => new Date(p.createdAt || 0).getTime()))).toLocaleString('ja-JP')
+        : "-";
 
     const handleCreate = () => {
         setEditingProduct(null);
@@ -105,6 +114,14 @@ export function ProductList({ products }: ProductListProps) {
             .map(p => p.subCategory)
             .filter(Boolean) as string[]
         )).sort(),
+        productTypes: Array.from(new Set(products
+            .filter(p =>
+                (selectedCategory === "all" || p.category === selectedCategory) &&
+                (selectedSubCategory === "all" || p.subCategory === selectedSubCategory)
+            )
+            .map(p => p.productType)
+            .filter(Boolean) as string[]
+        )).sort(),
         suppliers: Array.from(new Set(products.map(p => p.supplier).filter(Boolean) as string[])).sort(),
     };
 
@@ -120,6 +137,11 @@ export function ProductList({ products }: ProductListProps) {
             return false;
         }
 
+        // ProductType Filter
+        if (selectedProductType !== "all" && product.productType !== selectedProductType) {
+            return false;
+        }
+
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
         return (
@@ -128,22 +150,35 @@ export function ProductList({ products }: ProductListProps) {
             // Category text search logic can remain or be removed. Keeping it is fine for "flexible" search.
             (product.category && product.category.toLowerCase().includes(query)) ||
             (product.subCategory && product.subCategory.toLowerCase().includes(query)) ||
+            (product.productType && product.productType.toLowerCase().includes(query)) ||
             (product.supplier && product.supplier.toLowerCase().includes(query)) ||
             (product.color && product.color.toLowerCase().includes(query))
         );
     });
 
     return (
-        <div className="space-y-4" >
-            <div className="flex justify-between items-center">
-                <div className="flex gap-2">
-                    <ProductExportButton products={products} />
-                    <ProductImportDialog />
+        <div className="space-y-4">
+            <div className="flex justify-between items-center bg-muted/40 p-3 rounded-lg border">
+                <div className="flex gap-4 items-center">
+                    <div className="text-sm">
+                        <span className="font-semibold text-muted-foreground mr-2">登録総数:</span>
+                        <span className="font-bold text-lg">{totalCount}</span>
+                        <span className="text-xs text-muted-foreground ml-1">件</span>
+                    </div>
+                    <div className="h-4 w-px bg-border" />
+                    <div className="text-sm">
+                        <span className="font-semibold text-muted-foreground mr-2">最終登録日時:</span>
+                        <span className="font-medium">{lastUpdated}</span>
+                    </div>
                 </div>
-                <Button onClick={handleCreate}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    商品登録
-                </Button>
+                <div className="flex gap-2">
+                    <ProductImportDialog />
+                    <ProductExportButton products={products} />
+                    <Button onClick={handleCreate}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        商品登録
+                    </Button>
+                </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -154,6 +189,7 @@ export function ProductList({ products }: ProductListProps) {
                         onValueChange={(val) => {
                             setSelectedCategory(val);
                             setSelectedSubCategory("all"); // Reset sub on main change
+                            setSelectedProductType("all"); // Reset type on main change
                         }}
                     >
                         <SelectTrigger>
@@ -172,7 +208,13 @@ export function ProductList({ products }: ProductListProps) {
 
                 {/* SubCategory Select */}
                 <div className="w-[180px]">
-                    <Select value={selectedSubCategory} onValueChange={setSelectedSubCategory}>
+                    <Select
+                        value={selectedSubCategory}
+                        onValueChange={(val) => {
+                            setSelectedSubCategory(val);
+                            setSelectedProductType("all"); // Reset type on sub change
+                        }}
+                    >
                         <SelectTrigger>
                             <SelectValue placeholder="カテゴリ(中)" />
                         </SelectTrigger>
@@ -181,6 +223,23 @@ export function ProductList({ products }: ProductListProps) {
                             {attributeOptions.subCategories.map((sub) => (
                                 <SelectItem key={sub} value={sub}>
                                     {sub}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* ProductType Select */}
+                <div className="w-[180px]">
+                    <Select value={selectedProductType} onValueChange={setSelectedProductType}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="カテゴリ(小)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">カテゴリ(小): 全て</SelectItem>
+                            {attributeOptions.productTypes.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                    {type}
                                 </SelectItem>
                             ))}
                         </SelectContent>
