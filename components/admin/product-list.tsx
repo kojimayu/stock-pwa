@@ -18,7 +18,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Edit, Plus, Trash2, PackagePlus, Search, X } from "lucide-react";
+import { Edit, Plus, Trash2, PackagePlus, Search, X, Package, ChevronDown, ChevronUp } from "lucide-react";
 import { ProductDialog } from "./product-dialog";
 import { StockAdjustmentDialog } from "./stock-adjustment-dialog";
 import { deleteProduct } from "@/lib/actions";
@@ -44,7 +44,7 @@ type Product = {
     unit: string;
     supplier?: string | null;
     color?: string | null;
-    createdAt?: Date | string; // Added
+    createdAt?: Date | string;
 };
 
 interface ProductListProps {
@@ -54,7 +54,6 @@ interface ProductListProps {
 export function ProductList({ products }: ProductListProps) {
     const [productDialogOpen, setProductDialogOpen] = useState(false);
     const [stockDialogOpen, setStockDialogOpen] = useState(false);
-
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
@@ -62,9 +61,9 @@ export function ProductList({ products }: ProductListProps) {
     const [selectedSubCategory, setSelectedSubCategory] = useState<string>("all");
     const [selectedProductType, setSelectedProductType] = useState<string>("all");
     const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
+    const [showFilters, setShowFilters] = useState(false);
     const router = useRouter();
 
-    // Stats
     const totalCount = products.length;
     const lastUpdated = products.length > 0
         ? new Date(Math.max(...products.map(p => new Date(p.createdAt || 0).getTime()))).toLocaleString('ja-JP')
@@ -100,13 +99,11 @@ export function ProductList({ products }: ProductListProps) {
         router.refresh();
     };
 
-    // Helper to calculate profit margin
     const getMargin = (price: number, cost: number) => {
         if (price === 0) return 0;
         return ((price - cost) / price) * 100;
     };
 
-    // Derive options from props
     const attributeOptions = {
         categories: Array.from(new Set(products.map(p => p.category))).sort(),
         subCategories: Array.from(new Set(products
@@ -125,29 +122,15 @@ export function ProductList({ products }: ProductListProps) {
         suppliers: Array.from(new Set(products.map(p => p.supplier).filter(Boolean) as string[])).sort(),
     };
 
-    // Filter products
     const filteredProducts = products.filter(product => {
-        // Category Filter
-        if (selectedCategory !== "all" && product.category !== selectedCategory) {
-            return false;
-        }
-
-        // SubCategory Filter
-        if (selectedSubCategory !== "all" && product.subCategory !== selectedSubCategory) {
-            return false;
-        }
-
-        // ProductType Filter
-        if (selectedProductType !== "all" && product.productType !== selectedProductType) {
-            return false;
-        }
-
+        if (selectedCategory !== "all" && product.category !== selectedCategory) return false;
+        if (selectedSubCategory !== "all" && product.subCategory !== selectedSubCategory) return false;
+        if (selectedProductType !== "all" && product.productType !== selectedProductType) return false;
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
         return (
             product.name.toLowerCase().includes(query) ||
             product.code.toLowerCase().includes(query) ||
-            // Category text search logic can remain or be removed. Keeping it is fine for "flexible" search.
             (product.category && product.category.toLowerCase().includes(query)) ||
             (product.subCategory && product.subCategory.toLowerCase().includes(query)) ||
             (product.productType && product.productType.toLowerCase().includes(query)) ||
@@ -156,125 +139,127 @@ export function ProductList({ products }: ProductListProps) {
         );
     });
 
+    const hasActiveFilters = selectedCategory !== "all" || selectedSubCategory !== "all" || selectedProductType !== "all" || searchQuery !== "";
+
     return (
         <div className="space-y-4">
-            <div className="flex justify-between items-center bg-muted/40 p-3 rounded-lg border">
-                <div className="flex gap-4 items-center">
-                    <div className="text-sm">
+            {/* ヘッダー - モバイル対応 */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-muted/40 p-3 rounded-lg border">
+                <div className="flex gap-4 items-center text-sm">
+                    <div>
                         <span className="font-semibold text-muted-foreground mr-2">登録総数:</span>
                         <span className="font-bold text-lg">{totalCount}</span>
                         <span className="text-xs text-muted-foreground ml-1">件</span>
                     </div>
-                    <div className="h-4 w-px bg-border" />
-                    <div className="text-sm">
-                        <span className="font-semibold text-muted-foreground mr-2">最終登録日時:</span>
-                        <span className="font-medium">{lastUpdated}</span>
+                    <div className="hidden sm:block h-4 w-px bg-border" />
+                    <div className="hidden sm:block">
+                        <span className="font-semibold text-muted-foreground mr-2">最終登録:</span>
+                        <span className="font-medium text-xs">{lastUpdated}</span>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     <ProductImportDialog />
                     <ProductExportButton products={products} />
-                    <Button onClick={handleCreate}>
+                    <Button onClick={handleCreate} className="flex-1 md:flex-none">
                         <Plus className="w-4 h-4 mr-2" />
                         商品登録
                     </Button>
                 </div>
             </div>
 
-            <div className="flex items-center gap-2">
-                {/* Category Select */}
-                <div className="w-[180px]">
+            {/* 検索とフィルター - モバイル対応 */}
+            <div className="space-y-3">
+                {/* 検索バー（常に表示） */}
+                <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+                        <Input
+                            type="search"
+                            placeholder="商品名、品番で検索..."
+                            className="pl-9"
+                            value={searchQuery}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <Button
+                        variant="outline"
+                        className="md:hidden"
+                        onClick={() => setShowFilters(!showFilters)}
+                    >
+                        {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </Button>
+                    {hasActiveFilters && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                                setSelectedCategory("all");
+                                setSelectedSubCategory("all");
+                                setSelectedProductType("all");
+                                setSearchQuery("");
+                            }}
+                        >
+                            <X className="w-4 h-4 mr-1" />
+                            クリア
+                        </Button>
+                    )}
+                </div>
+
+                {/* カテゴリフィルター - PC常時表示、モバイル展開式 */}
+                <div className={`flex-col md:flex md:flex-row gap-2 ${showFilters ? 'flex' : 'hidden md:flex'}`}>
                     <Select
                         value={selectedCategory}
                         onValueChange={(val) => {
                             setSelectedCategory(val);
-                            setSelectedSubCategory("all"); // Reset sub on main change
-                            setSelectedProductType("all"); // Reset type on main change
+                            setSelectedSubCategory("all");
+                            setSelectedProductType("all");
                         }}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full md:w-[180px]">
                             <SelectValue placeholder="カテゴリ(大)" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">カテゴリ(大): 全て</SelectItem>
                             {attributeOptions.categories.map((cat) => (
-                                <SelectItem key={cat} value={cat}>
-                                    {cat}
-                                </SelectItem>
+                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
 
-                {/* SubCategory Select */}
-                <div className="w-[180px]">
                     <Select
                         value={selectedSubCategory}
                         onValueChange={(val) => {
                             setSelectedSubCategory(val);
-                            setSelectedProductType("all"); // Reset type on sub change
+                            setSelectedProductType("all");
                         }}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full md:w-[180px]">
                             <SelectValue placeholder="カテゴリ(中)" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">カテゴリ(中): 全て</SelectItem>
                             {attributeOptions.subCategories.map((sub) => (
-                                <SelectItem key={sub} value={sub}>
-                                    {sub}
-                                </SelectItem>
+                                <SelectItem key={sub} value={sub}>{sub}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
 
-                {/* ProductType Select */}
-                <div className="w-[180px]">
                     <Select value={selectedProductType} onValueChange={setSelectedProductType}>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full md:w-[180px]">
                             <SelectValue placeholder="カテゴリ(小)" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">カテゴリ(小): 全て</SelectItem>
                             {attributeOptions.productTypes.map((type) => (
-                                <SelectItem key={type} value={type}>
-                                    {type}
-                                </SelectItem>
+                                <SelectItem key={type} value={type}>{type}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                 </div>
-
-                {/* Search Input */}
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-                    <Input
-                        type="search"
-                        placeholder="商品名、品番、仕入先、色..."
-                        className="pl-9"
-                        value={searchQuery}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-
-                {/* Reset Filters */}
-                {(selectedCategory !== "all" || searchQuery !== "") && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                            setSelectedCategory("all");
-                            setSearchQuery("");
-                        }}
-                    >
-                        <X className="w-4 h-4 mr-2" />
-                        クリア
-                    </Button>
-                )}
             </div>
 
-            <div className="border rounded-lg">
+            {/* PC用テーブル表示 */}
+            <div className="hidden md:block border rounded-lg">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -358,11 +343,85 @@ export function ProductList({ products }: ProductListProps) {
                 </Table>
             </div>
 
+            {/* モバイル用カード表示 */}
+            <div className="md:hidden space-y-3">
+                {filteredProducts.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground bg-white rounded-lg border">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                        <p>登録されている商品がありません</p>
+                    </div>
+                ) : (
+                    filteredProducts.map((product) => {
+                        const margin = getMargin(product.priceA, product.cost);
+                        return (
+                            <div
+                                key={product.id}
+                                className="bg-white rounded-lg border shadow-sm p-4"
+                            >
+                                <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-medium truncate">{product.name}</div>
+                                        <div className="text-xs text-muted-foreground">{product.code}</div>
+                                    </div>
+                                    <div className={`text-lg font-bold ml-2 ${product.stock <= product.minStock ? "text-red-500" : ""}`}>
+                                        在庫: {product.stock}
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-muted-foreground mb-3">
+                                    {product.category}
+                                    {product.subCategory && ` > ${product.subCategory}`}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                                    <div>
+                                        <span className="text-muted-foreground">単価A:</span>
+                                        <span className="ml-1 font-bold">{formatCurrency(product.priceA)}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">原価率:</span>
+                                        <span className={`ml-1 font-bold ${margin < 20 ? "text-red-500" : "text-green-600"}`}>
+                                            {product.priceA > 0 ? `${margin.toFixed(1)}%` : "-"}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-2 border-t pt-3">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1"
+                                        onClick={() => handleAdjustStock(product)}
+                                    >
+                                        <PackagePlus className="w-4 h-4 mr-1" />
+                                        在庫調整
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleEdit(product)}
+                                    >
+                                        <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleDelete(product.id)}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
             <ProductDialog
                 open={productDialogOpen}
                 onOpenChange={setProductDialogOpen}
                 product={editingProduct}
-                initialValues={{}} // Pass empty if unnecessary or adjust logic
+                initialValues={{}}
                 attributeOptions={attributeOptions}
                 onSuccess={handleSuccess}
             />
@@ -374,8 +433,7 @@ export function ProductList({ products }: ProductListProps) {
                     product={adjustingProduct}
                     onSuccess={handleSuccess}
                 />
-            )
-            }
-        </div >
+            )}
+        </div>
     );
 }

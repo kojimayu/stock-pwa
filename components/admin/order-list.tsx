@@ -17,7 +17,9 @@ import {
     ClipboardList,
     ChevronRight,
     Loader2,
-    Trash2
+    Trash2,
+    Edit,
+    Package
 } from "lucide-react";
 import Link from "next/link";
 import { generateDraftOrders, deleteOrder } from "@/lib/actions";
@@ -33,7 +35,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit } from "lucide-react";
 import { createManualOrder } from "@/lib/actions";
 
 interface OrderListProps {
@@ -41,7 +42,6 @@ interface OrderListProps {
 }
 
 export function OrderList({ initialOrders: orders }: OrderListProps) {
-    // const [orders, setOrders] = useState(initialOrders); // Removed to use props directly
     const [isGenerating, setIsGenerating] = useState(false);
     const router = useRouter();
 
@@ -74,7 +74,6 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                 toast.success("発注書を作成しました");
                 setManualDialogOpen(false);
                 setNewSupplier("");
-                // Force router refresh to update list
                 router.refresh();
                 router.push(`/admin/orders/${result.id}`);
             }
@@ -108,8 +107,9 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
 
     return (
         <div className="space-y-4">
-            <div className="flex justify-end">
-                <Button onClick={handleGenerate} disabled={isGenerating}>
+            {/* アクションボタン - モバイル対応 */}
+            <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <Button onClick={handleGenerate} disabled={isGenerating} className="w-full sm:w-auto">
                     {isGenerating ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -124,7 +124,7 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                 </Button>
                 <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
                     <DialogTrigger asChild>
-                        <Button variant="outline" className="ml-2">
+                        <Button variant="outline" className="w-full sm:w-auto">
                             <Edit className="mr-2 h-4 w-4" />
                             手動作成
                         </Button>
@@ -151,7 +151,8 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                 </Dialog>
             </div>
 
-            <div className="border rounded-lg bg-white overflow-hidden shadow-sm">
+            {/* PC用テーブル表示 */}
+            <div className="hidden md:block border rounded-lg bg-white overflow-hidden shadow-sm">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50">
@@ -205,6 +206,55 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                         )}
                     </TableBody>
                 </Table>
+            </div>
+
+            {/* モバイル用カード表示 */}
+            <div className="md:hidden space-y-3">
+                {orders.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground bg-white rounded-lg border">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                        <p>発注書がありません</p>
+                    </div>
+                ) : (
+                    orders.map((order) => (
+                        <Link
+                            key={order.id}
+                            href={`/admin/orders/${order.id}`}
+                            className="block bg-white rounded-lg border shadow-sm p-4 hover:bg-slate-50 transition-colors"
+                        >
+                            <div className="flex items-start justify-between mb-2">
+                                <div>
+                                    <span className="font-bold text-lg">#{order.id}</span>
+                                    <span className="ml-2">{getStatusBadge(order.status)}</span>
+                                </div>
+                                <ChevronRight className="w-5 h-5 text-slate-400" />
+                            </div>
+                            <div className="text-sm text-slate-600 space-y-1">
+                                <p className="font-medium text-slate-900">{order.supplier}</p>
+                                <div className="flex justify-between">
+                                    <span>{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</span>
+                                    <span>{order.items?.length || 0} 品目</span>
+                                </div>
+                            </div>
+                            {order.status === 'DRAFT' && (
+                                <div className="mt-3 pt-3 border-t">
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            handleDelete(order.id);
+                                        }}
+                                    >
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        削除
+                                    </Button>
+                                </div>
+                            )}
+                        </Link>
+                    ))
+                )}
             </div>
         </div>
     );

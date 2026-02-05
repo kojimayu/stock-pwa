@@ -18,7 +18,8 @@ import {
     Send,
     Loader2,
     Copy,
-    RotateCcw
+    RotateCcw,
+    Package
 } from "lucide-react";
 import Link from "next/link";
 import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, cancelReceipt } from "@/lib/actions";
@@ -30,7 +31,6 @@ interface OrderDetailProps {
 }
 
 export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
-    // const [order] = useState(initialOrder); // Removed to separate state from props
     const [isUpdating, setIsUpdating] = useState(false);
     const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>({});
     const router = useRouter();
@@ -95,24 +95,6 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     // Product Search State
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [isSearching, setIsSearching] = useState(false);
-    const [showSearch, setShowSearch] = useState(false);
-
-    const handleSearch = async (query: string) => {
-        setSearchQuery(query);
-        if (query.length < 2) {
-            setSearchResults([]);
-            return;
-        }
-        setIsSearching(true);
-        // We need to import searchProducts from actions (add to imports later)
-        // For now assuming it is dynamic import or added to props? No, server action.
-        // Assuming searchProducts is exported from actions
-    };
-
-    // We will implement debounced search in useEffect or simple onchange in the render part
-
-
 
     const handleCopy = () => {
         const text = order.items.map((item: any) =>
@@ -137,57 +119,59 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" asChild>
-                    <Link href="/admin/orders">
-                        <ArrowLeft className="w-4 h-4" />
-                    </Link>
-                </Button>
-                <div>
-                    <h2 className="text-2xl font-bold">発注書 #{order.id}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                        <span className="text-muted-foreground">{order.supplier}</span>
-                        {getStatusBadge(order.status)}
+        <div className="space-y-4 md:space-y-6">
+            {/* ヘッダー - モバイル対応 */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                <div className="flex items-center gap-3">
+                    <Button variant="ghost" size="icon" asChild>
+                        <Link href="/admin/orders">
+                            <ArrowLeft className="w-4 h-4" />
+                        </Link>
+                    </Button>
+                    <div>
+                        <h2 className="text-xl md:text-2xl font-bold">発注書 #{order.id}</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-muted-foreground text-sm">{order.supplier}</span>
+                            {getStatusBadge(order.status)}
+                        </div>
                     </div>
                 </div>
-                <div className="ml-auto flex gap-2">
+                <div className="flex gap-2 sm:ml-auto">
                     <Button variant="outline" size="icon" onClick={handleCopy} title="注文内容をコピー">
                         <Copy className="h-4 w-4" />
                     </Button>
                     {order.status === 'DRAFT' && (
-                        <Button onClick={handleConfirm} disabled={isUpdating}>
+                        <Button onClick={handleConfirm} disabled={isUpdating} className="flex-1 sm:flex-none">
                             {isUpdating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}
-                            発注を確定する
+                            発注を確定
                         </Button>
                     )}
                 </div>
             </div>
 
+            {/* 商品追加 (下書き時のみ) */}
             {order.status === 'DRAFT' && (
-                <div className="bg-slate-50 p-4 rounded-lg border">
+                <div className="bg-slate-50 p-3 md:p-4 rounded-lg border">
                     <h3 className="text-sm font-semibold mb-2">商品を追加</h3>
                     <div className="relative">
-                        <div className="flex gap-2">
-                            <Input
-                                placeholder="商品の品番または名前で検索..."
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    if (e.target.value.length >= 2) {
-                                        searchProducts(e.target.value).then(setSearchResults);
-                                    } else {
-                                        setSearchResults([]);
-                                    }
-                                }}
-                            />
-                        </div>
+                        <Input
+                            placeholder="商品の品番または名前で検索..."
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                if (e.target.value.length >= 2) {
+                                    searchProducts(e.target.value).then(setSearchResults);
+                                } else {
+                                    setSearchResults([]);
+                                }
+                            }}
+                        />
                         {searchResults.length > 0 && (
                             <div className="absolute top-full left-0 z-10 w-full bg-white border rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
                                 {searchResults.map((product) => (
                                     <div
                                         key={product.id}
-                                        className="p-2 hover:bg-slate-100 cursor-pointer flex justify-between items-center"
+                                        className="p-3 hover:bg-slate-100 cursor-pointer flex justify-between items-center"
                                         onClick={async () => {
                                             try {
                                                 await addOrderItem(order.id, product.id, 1);
@@ -213,13 +197,14 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                 </div>
             )}
 
-            <div className="border rounded-lg bg-white overflow-hidden shadow-sm">
+            {/* PC用テーブル表示 */}
+            <div className="hidden md:block border rounded-lg bg-white overflow-hidden shadow-sm">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50">
                             <TableHead>商品名</TableHead>
                             <TableHead className="text-right">発注数</TableHead>
-                            <TableHead className="text-right">荷済数</TableHead>
+                            <TableHead className="text-right">入荷済数</TableHead>
                             <TableHead className="text-center w-[200px]">入荷操作</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -288,6 +273,85 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                         ))}
                     </TableBody>
                 </Table>
+            </div>
+
+            {/* モバイル用カード表示 */}
+            <div className="md:hidden space-y-3">
+                {order.items.length === 0 ? (
+                    <div className="text-center py-12 text-muted-foreground bg-white rounded-lg border">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                        <p>商品がありません</p>
+                    </div>
+                ) : (
+                    order.items.map((item: any) => (
+                        <div key={item.id} className="bg-white rounded-lg border shadow-sm p-4">
+                            <div className="mb-3">
+                                <div className="font-medium">{item.product.name}</div>
+                                <div className="text-xs text-muted-foreground">{item.product.code}</div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                                <div>
+                                    <span className="text-muted-foreground">発注数:</span>
+                                    {order.status === 'DRAFT' ? (
+                                        <div className="flex items-center gap-1 mt-1">
+                                            <Input
+                                                type="number"
+                                                className="w-20 h-8 text-right"
+                                                defaultValue={item.quantity}
+                                                onBlur={(e) => handleQtyChange(item.id, parseInt(e.target.value))}
+                                            />
+                                            <span className="text-xs">{item.product.unit}</span>
+                                        </div>
+                                    ) : (
+                                        <span className="ml-1 font-medium">{item.quantity} {item.product.unit}</span>
+                                    )}
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground">入荷済:</span>
+                                    <span className={`ml-1 font-medium ${item.isReceived ? "text-green-600" : ""}`}>
+                                        {item.receivedQuantity} / {item.quantity}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* 入荷操作 */}
+                            {(order.status === 'ORDERED' || order.status === 'PARTIAL') && !item.isReceived ? (
+                                <div className="border-t pt-3">
+                                    <div className="flex gap-2 items-center">
+                                        <span className="text-sm text-muted-foreground">入荷数:</span>
+                                        <Input
+                                            type="number"
+                                            className="flex-1 h-10 text-right"
+                                            value={receiveQtys[item.id] ?? (item.quantity - item.receivedQuantity)}
+                                            onChange={(e) => setReceiveQtys(prev => ({ ...prev, [item.id]: parseInt(e.target.value) }))}
+                                        />
+                                        <Button onClick={() => handleReceive(item)} disabled={isUpdating}>
+                                            入荷確定
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : item.isReceived ? (
+                                <div className="border-t pt-3 flex items-center justify-between">
+                                    <div className="flex items-center text-green-600 gap-1">
+                                        <Check className="w-4 h-4" />
+                                        <span className="font-medium">入荷完了</span>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-muted-foreground hover:text-destructive"
+                                        onClick={() => handleCancel(item)}
+                                        disabled={isUpdating}
+                                    >
+                                        <RotateCcw className="w-4 h-4 mr-1" />
+                                        取消
+                                    </Button>
+                                </div>
+                            ) : null}
+                        </div>
+                    ))
+                )}
             </div>
         </div>
     );
