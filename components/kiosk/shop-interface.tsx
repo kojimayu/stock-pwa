@@ -36,9 +36,19 @@ interface Product {
 interface ShopInterfaceProps {
     products: Product[];
     isInventoryActive: boolean;
+    // 代理入力モード用
+    proxyMode?: boolean;
+    vendorOverride?: { id: number; name: string } | null;
+    onProxyExit?: () => void;
 }
 
-export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProps) {
+export function ShopInterface({
+    products,
+    isInventoryActive,
+    proxyMode = false,
+    vendorOverride,
+    onProxyExit
+}: ShopInterfaceProps) {
     const [selectedCategory, setSelectedCategory] = useState("すべて");
     const [selectedSubCategory, setSelectedSubCategory] = useState("すべて");
     const [selectedProductType, setSelectedProductType] = useState("すべて"); // New: Small Category
@@ -47,7 +57,25 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
 
     const router = useRouter();
     const clearCart = useCartStore((state) => state.clearCart);
-    const vendor = useCartStore((state) => state.vendor);
+    const setVendor = useCartStore((state) => state.setVendor);
+    const setProxyMode = useCartStore((state) => state.setProxyMode);
+    const storeVendor = useCartStore((state) => state.vendor);
+
+    // 代理入力モードではvendorOverrideを使用
+    const vendor = proxyMode ? vendorOverride : storeVendor;
+
+    // 代理入力モードの場合、vendorをストアに設定（CheckoutButton用）
+    useEffect(() => {
+        if (proxyMode && vendorOverride) {
+            setVendor(vendorOverride);
+            setProxyMode(true);
+        }
+        return () => {
+            if (proxyMode) {
+                setProxyMode(false);
+            }
+        };
+    }, [proxyMode, vendorOverride, setVendor, setProxyMode]);
 
     // Voice Search Handler
     const handleVoiceSearch = () => {
@@ -161,9 +189,16 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
     }, [products, selectedCategory, selectedSubCategory, selectedProductType, searchQuery]);
 
     const handleLogout = () => {
-        if (confirm("ログアウトしますか？カートの中身は破棄されます。")) {
-            clearCart();
-            router.push("/");
+        if (proxyMode) {
+            if (confirm("代理入力を終了しますか？カートの中身は破棄されます。")) {
+                clearCart();
+                onProxyExit?.();
+            }
+        } else {
+            if (confirm("ログアウトしますか？カートの中身は破棄されます。")) {
+                clearCart();
+                router.push("/");
+            }
         }
     };
 

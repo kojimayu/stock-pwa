@@ -17,7 +17,11 @@ export type Vendor = {
 type CartState = {
     vendor: Vendor | null;
     items: CartItem[];
+    isProxyMode: boolean; // 代理入力モードフラグ
+    transactionDate: Date | null; // 代理入力用：引取日
     setVendor: (vendor: Vendor | null) => void;
+    setProxyMode: (isProxy: boolean) => void;
+    setTransactionDate: (date: Date | null) => void;
     addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number }) => void;
     removeItem: (productId: number) => void;
     updateQuantity: (productId: number, quantity: number) => void;
@@ -30,7 +34,11 @@ export const useCartStore = create<CartState>()(
         (set) => ({
             vendor: null,
             items: [],
+            isProxyMode: false,
+            transactionDate: null,
             setVendor: (vendor) => set({ vendor }),
+            setProxyMode: (isProxyMode) => set({ isProxyMode }),
+            setTransactionDate: (transactionDate) => set({ transactionDate }),
             addItem: (newItem) =>
                 set((state) => {
                     const existing = state.items.find((i) => {
@@ -71,7 +79,7 @@ export const useCartStore = create<CartState>()(
                     };
                 }),
             clearCart: () => set({ items: [] }),
-            clearSession: () => set({ vendor: null, items: [] }),
+            clearSession: () => set({ vendor: null, items: [], isProxyMode: false, transactionDate: null }),
         }),
         {
             name: 'kiosk-cart-storage',

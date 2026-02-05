@@ -609,7 +609,8 @@ export async function createTransaction(
     vendorId: number,
     items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[],
     totalAmountParam?: number,
-    isProxyInput: boolean = false
+    isProxyInput: boolean = false,
+    transactionDate?: Date  // 代理入力用：引取日を指定
 ) {
     // 0. Check for active inventory
     if (await checkActiveInventory()) {
@@ -622,7 +623,8 @@ export async function createTransaction(
 
     // Log proxy input operation
     if (isProxyInput) {
-        await logOperation('PROXY_INPUT', `代理入力: 業者ID=${vendorId}, 商品数=${items.length}, 合計=¥${totalAmount}`);
+        const dateStr = transactionDate ? transactionDate.toLocaleDateString('ja-JP') : '本日';
+        await logOperation('PROXY_INPUT', `代理入力: 業者ID=${vendorId}, 商品数=${items.length}, 合計=¥${totalAmount}, 引取日=${dateStr}`);
     }
 
     // 2. Transactional update (Create Transaction + Decrease Stock + Create Log)
@@ -635,7 +637,7 @@ export async function createTransaction(
                     items: JSON.stringify(items), // Store detailed items as JSON
                     totalAmount,
                     hasUnregisteredItems, // Set flag
-                    date: new Date(),
+                    date: transactionDate ?? new Date(),  // 指定された日付または現在日時
                 },
             });
 

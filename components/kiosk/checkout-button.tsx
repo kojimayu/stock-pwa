@@ -10,7 +10,7 @@ import { Loader2, CheckCircle } from "lucide-react";
 
 export function CheckoutButton() {
     const [loading, setLoading] = useState(false);
-    const { items, vendor, clearCart } = useCartStore();
+    const { items, vendor, isProxyMode, transactionDate, clearCart } = useCartStore();
     const router = useRouter();
 
     const handleCheckout = async () => {
@@ -26,12 +26,24 @@ export function CheckoutButton() {
 
         setLoading(true);
         try {
-            const res = await createTransaction(vendor.id, items);
+            // 代理入力モードの場合、isProxyInput=trueと引取日を渡す
+            const res = await createTransaction(
+                vendor.id,
+                items,
+                undefined,
+                isProxyMode,
+                transactionDate ?? undefined  // 引取日（代理入力時のみ使用）
+            );
 
             if (res.success) {
                 clearCart();
-                // Navigate to complete page
-                router.push("/shop/complete");
+                if (isProxyMode) {
+                    // 代理入力の場合はトースト表示して同じ画面に留まる
+                    toast.success("出庫処理が完了しました");
+                } else {
+                    // 通常のKioskの場合は完了画面へ
+                    router.push("/shop/complete");
+                }
             } else {
                 toast.error(res.message || "出庫処理に失敗しました");
             }
