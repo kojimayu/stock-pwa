@@ -30,6 +30,7 @@ type Transaction = {
     items: string; // JSON string
     hasUnregisteredItems?: boolean;
     isReturned?: boolean;
+    isProxyInput?: boolean;
 };
 
 interface TransactionListProps {
@@ -279,6 +280,9 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                 <TableRow key={tx.id} className={tx.hasUnregisteredItems ? "bg-yellow-50 hover:bg-yellow-100" : ""}>
                                     <TableCell>
                                         {formatDate(tx.date)}
+                                        {tx.isProxyInput && (
+                                            <div className="text-xs bg-purple-100 text-purple-700 font-bold mt-1 inline-block px-1.5 rounded">代理入力</div>
+                                        )}
                                         {tx.hasUnregisteredItems && (
                                             <div className="text-xs text-amber-600 font-bold mt-1">手入力あり</div>
                                         )}

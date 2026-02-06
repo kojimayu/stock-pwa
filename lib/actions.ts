@@ -638,6 +638,7 @@ export async function createTransaction(
                     totalAmount,
                     hasUnregisteredItems, // Set flag
                     date: transactionDate ?? new Date(),  // 指定された日付または現在日時
+                    isProxyInput,  // 代理入力フラグ
                 },
             });
 
