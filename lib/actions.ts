@@ -60,7 +60,7 @@ export async function getVendors() {
     });
 }
 
-// 管理画面用（全業者）
+// 管理画面用（全業者）- 有効な業者を上に表示
 export async function getAllVendors() {
     const vendors = await prisma.vendor.findMany({
         include: {
@@ -68,7 +68,10 @@ export async function getAllVendors() {
                 select: { transactions: true }
             }
         },
-        orderBy: { name: 'asc' }
+        orderBy: [
+            { isActive: 'desc' },  // 有効な業者が先
+            { name: 'asc' }
+        ]
     });
     return vendors;
 }

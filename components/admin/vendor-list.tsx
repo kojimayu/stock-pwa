@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
     Table,
     TableBody,
@@ -10,7 +11,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Edit, Plus, Trash2, RotateCcw, Download, Loader2 } from "lucide-react";
+import { Edit, Plus, Trash2, RotateCcw, Download, Loader2, Search } from "lucide-react";
 import { VendorDialog } from "./vendor-dialog";
 import { deleteVendor, resetPin, toggleVendorActive, importVendorsFromAccess } from "@/lib/actions";
 import { toast } from "sonner";
@@ -34,7 +35,18 @@ export function VendorList({ vendors }: VendorListProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
     const [importing, setImporting] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
     const router = useRouter();
+
+    // 検索フィルター
+    const filteredVendors = useMemo(() => {
+        if (!searchQuery.trim()) return vendors;
+        const q = searchQuery.toLowerCase();
+        return vendors.filter(v =>
+            v.name.toLowerCase().includes(q) ||
+            (v.email && v.email.toLowerCase().includes(q))
+        );
+    }, [vendors, searchQuery]);
 
     const handleCreate = () => {
         setEditingVendor(null);
@@ -122,6 +134,22 @@ export function VendorList({ vendors }: VendorListProps) {
                 </Button>
             </div>
 
+            {/* 検索バー */}
+            <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                        placeholder="業者名で検索..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
+                <div className="text-sm text-slate-500 flex items-center">
+                    {filteredVendors.length} / {vendors.length} 件
+                </div>
+            </div>
+
             <div className="border rounded-lg">
                 <Table>
                     <TableHeader>
@@ -135,7 +163,7 @@ export function VendorList({ vendors }: VendorListProps) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {vendors.map((vendor) => (
+                        {filteredVendors.map((vendor) => (
                             <TableRow key={vendor.id} className={vendor.isActive === false ? 'opacity-50 bg-slate-50' : ''}>
                                 <TableCell className="text-center">
                                     <input
