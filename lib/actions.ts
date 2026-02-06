@@ -195,14 +195,14 @@ export async function getUniqueProductAttributes() {
     };
 }
 
-export async function upsertVendor(data: { id?: number; name: string; pinCode: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean }) {
+export async function upsertVendor(data: { id?: number; name: string; pinCode?: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean }) {
     if (data.id) {
         // Update
         await prisma.vendor.update({
             where: { id: data.id },
             data: {
                 name: data.name,
-                pinCode: data.pinCode,
+                // pinCode is not updated anymore
                 email: data.email,
                 accessCompanyName: data.accessCompanyName,
                 showPriceInEmail: data.showPriceInEmail ?? true,
@@ -214,12 +214,24 @@ export async function upsertVendor(data: { id?: number; name: string; pinCode: s
         const newVendor = await prisma.vendor.create({
             data: {
                 name: data.name,
-                pinCode: data.pinCode,
+                pinCode: '1234', // Legacy filler
                 email: data.email,
                 accessCompanyName: data.accessCompanyName,
                 showPriceInEmail: data.showPriceInEmail ?? true,
+                isActive: true,
             },
         });
+
+        // デフォルト担当者「代表」を作成
+        await prisma.vendorUser.create({
+            data: {
+                vendorId: newVendor.id,
+                name: '代表',
+                pinCode: '1234',
+                pinChanged: false
+            }
+        });
+
         await logOperation("VENDOR_CREATE", `Vendor: ${data.name}`, `Created new vendor. AccessLink: ${data.accessCompanyName || 'None'}`);
     }
     revalidatePath('/admin/vendors');

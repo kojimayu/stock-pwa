@@ -6,14 +6,22 @@ import { createTransaction } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle, WifiOff } from "lucide-react";
+
+import { useOnlineStatus } from "@/hooks/use-online-status";
 
 export function CheckoutButton() {
     const [loading, setLoading] = useState(false);
     const { items, vendor, vendorUser, isProxyMode, transactionDate, clearCart } = useCartStore();
     const router = useRouter();
+    const isOnline = useOnlineStatus();
 
     const handleCheckout = async () => {
+        if (!isOnline) {
+            toast.error("インターネットに接続されていません。接続を確認してください。");
+            return;
+        }
+
         if (!vendor) {
             toast.error("ログインセッションが切れました。再度ログインしてください。");
             router.push("/");
@@ -58,16 +66,16 @@ export function CheckoutButton() {
     return (
         <Button
             size="lg"
-            className="w-full h-16 text-xl font-bold bg-blue-600 hover:bg-blue-700 shadow-lg"
+            className={`w-full h-16 text-xl font-bold shadow-lg ${!isOnline ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
             onClick={handleCheckout}
-            disabled={loading || items.length === 0}
+            disabled={loading || items.length === 0 || !isOnline}
         >
             {loading ? (
                 <Loader2 className="mr-2 h-6 w-6 animate-spin" />
             ) : (
-                <CheckCircle className="mr-2 h-6 w-6" />
+                !isOnline ? <WifiOff className="mr-2 h-6 w-6" /> : <CheckCircle className="mr-2 h-6 w-6" />
             )}
-            出庫を確定する
+            {!isOnline ? "オフライン (送信不可)" : "出庫を確定する"}
         </Button>
     );
 }

@@ -372,7 +372,7 @@ export default function KioskLoginPage() {
               placeholder="例: 田中"
               value={newUserName}
               onChange={(e) => setNewUserName(e.target.value)}
-              className="h-16 text-xl text-center"
+              className="h-20 !text-4xl md:!text-4xl font-bold text-center"
               autoFocus
             />
 

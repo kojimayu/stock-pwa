@@ -1,5 +1,6 @@
 import { IdleTimer } from "@/components/kiosk/idle-timer";
 
+
 export default function KioskLayout({
     children,
 }: {

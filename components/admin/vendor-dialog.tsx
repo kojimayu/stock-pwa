@@ -32,7 +32,8 @@ import {
 interface VendorDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    vendor?: { id: number; name: string; pinCode: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean } | null;
+    // pinCode removed
+    vendor?: { id: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean } | null;
     onSuccess: () => void;
 }
 
@@ -93,14 +94,14 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
 
         const formData = new FormData(e.currentTarget);
         const name = formData.get("name") as string;
-        const pin = formData.get("pin") as string;
+        // pinCode is no longer handled here
         // accessCompanyName is retrieved from hidden input
 
         try {
             await upsertVendor({
                 id: vendor?.id,
                 name,
-                pinCode: pin,
+                // pinCode: pin, // removed
                 email: formData.get("email") as string || null,
                 accessCompanyName: selectedAccessVendor === "_none" || !selectedAccessVendor ? null : selectedAccessVendor,
                 showPriceInEmail,
@@ -139,21 +140,9 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                                 required
                             />
                         </div>
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <label htmlFor="pin" className="text-right text-sm font-medium">
-                                PINコード
-                            </label>
-                            <Input
-                                id="pin"
-                                name="pin"
-                                defaultValue={vendor?.pinCode || "1234"}
-                                className="col-span-3"
-                                placeholder="4桁の数字 (例: 1234)"
-                                pattern="\d{4}"
-                                title="4桁の数字を入力してください"
-                                required
-                            />
-                        </div>
+
+                        {/* PIN Code field removed */}
+
                         <div className="grid grid-cols-4 items-center gap-4">
                             <label htmlFor="email" className="text-right text-sm font-medium">
                                 メール (任意)

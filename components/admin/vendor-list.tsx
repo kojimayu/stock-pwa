@@ -11,20 +11,25 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Edit, Plus, Trash2, RotateCcw, Download, Loader2, Search } from "lucide-react";
+import { Edit, Plus, Trash2, RotateCcw, Download, Loader2, Search, ChevronDown, ChevronUp, UserPlus, X, User } from "lucide-react";
 import { VendorDialog } from "./vendor-dialog";
-import { deleteVendor, resetPin, toggleVendorActive, importVendorsFromAccess } from "@/lib/actions";
+import { deleteVendor, resetPin, toggleVendorActive, importVendorsFromAccess, deleteVendorUser, createVendorUser } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 
-// Define the type here or import from Prisma types if clear
+type VendorUser = {
+    id: number;
+    name: string;
+    pinChanged: boolean;
+};
+
 type Vendor = {
     id: number;
     name: string;
-    pinCode: string;
-    pinChanged: boolean;
     email?: string | null;
     isActive?: boolean;
+    users: VendorUser[];
 };
 
 interface VendorListProps {
@@ -36,6 +41,9 @@ export function VendorList({ vendors }: VendorListProps) {
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
     const [importing, setImporting] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [expandedVendorId, setExpandedVendorId] = useState<number | null>(null);
+    const [newUserName, setNewUserName] = useState("");
+    const [isCreatingUser, setIsCreatingUser] = useState(false);
     const router = useRouter();
 
     // 検索フィルター
@@ -53,12 +61,14 @@ export function VendorList({ vendors }: VendorListProps) {
         setIsDialogOpen(true);
     };
 
-    const handleEdit = (vendor: Vendor) => {
+    const handleEdit = (vendor: Vendor, e: React.MouseEvent) => {
+        e.stopPropagation();
         setEditingVendor(vendor);
         setIsDialogOpen(true);
     };
 
-    const handleDelete = async (id: number) => {
+    const handleDelete = async (id: number, e: React.MouseEvent) => {
+        e.stopPropagation();
         if (!confirm("本当に削除しますか？")) return;
         try {
             await deleteVendor(id);
@@ -69,22 +79,8 @@ export function VendorList({ vendors }: VendorListProps) {
         }
     };
 
-    const handleResetPin = async (vendor: Vendor) => {
-        if (!confirm(`${vendor.name}のPINを初期化（1234）しますか？\n※次回ログイン時にPIN変更が必要になります`)) return;
-        try {
-            await resetPin(vendor.id);
-            toast.success(`${vendor.name}のPINをリセットしました`);
-            router.refresh();
-        } catch (error: any) {
-            toast.error(error.message || "リセットに失敗しました");
-        }
-    };
-
-    const handleSuccess = () => {
-        router.refresh();
-    };
-
-    const handleToggleActive = async (vendor: Vendor) => {
+    const handleToggleActive = async (vendor: Vendor, e: React.MouseEvent) => {
+        e.stopPropagation();
         try {
             await toggleVendorActive(vendor.id, !vendor.isActive);
             toast.success(`${vendor.name}を${vendor.isActive ? '無効' : '有効'}にしました`);
@@ -110,6 +106,55 @@ export function VendorList({ vendors }: VendorListProps) {
             toast.error(error.message || "エラーが発生しました");
         } finally {
             setImporting(false);
+        }
+    };
+
+    const toggleExpand = (vendorId: number) => {
+        setExpandedVendorId(expandedVendorId === vendorId ? null : vendorId);
+        setNewUserName("");
+    };
+
+    // --- VendorUser Actions ---
+
+    const handleCreateUser = async (vendorId: number) => {
+        if (!newUserName.trim()) return;
+        setIsCreatingUser(true);
+        try {
+            const res = await createVendorUser(vendorId, newUserName.trim());
+            // createVendorUserの戻り値変更に対応
+            if ('success' in res && !res.success) {
+                toast.error(res.message);
+            } else {
+                toast.success(`${newUserName}を追加しました`);
+                setNewUserName("");
+                router.refresh();
+            }
+        } catch (error: any) {
+            toast.error("追加に失敗しました");
+        } finally {
+            setIsCreatingUser(false);
+        }
+    };
+
+    const handleDeleteUser = async (userId: number, userName: string) => {
+        if (!confirm(`${userName}さんを削除しますか？\n※この操作は取り消せません`)) return;
+        try {
+            await deleteVendorUser(userId);
+            toast.success("削除しました");
+            router.refresh();
+        } catch (error: any) {
+            toast.error("削除に失敗しました");
+        }
+    };
+
+    const handleResetUserPin = async (user: VendorUser) => {
+        if (!confirm(`${user.name}さんのPINを初期化（1234）しますか？`)) return;
+        try {
+            await resetPin(user.id);
+            toast.success("PINをリセットしました");
+            router.refresh();
+        } catch (error: any) {
+            toast.error("リセットに失敗しました");
         }
     };
 
@@ -142,8 +187,16 @@ export function VendorList({ vendors }: VendorListProps) {
                         placeholder="業者名で検索..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 pr-10"
                     />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
                 <div className="text-sm text-slate-500 flex items-center">
                     {filteredVendors.length} / {vendors.length} 件
@@ -154,64 +207,126 @@ export function VendorList({ vendors }: VendorListProps) {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-[40px]"></TableHead>
                             <TableHead className="w-[60px] text-center">有効</TableHead>
                             <TableHead className="w-[60px]">ID</TableHead>
                             <TableHead>名前</TableHead>
-                            <TableHead>PIN状態</TableHead>
+                            <TableHead>担当者数</TableHead>
                             <TableHead>メール</TableHead>
                             <TableHead className="text-right">操作</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredVendors.map((vendor) => (
-                            <TableRow key={vendor.id} className={vendor.isActive === false ? 'opacity-50 bg-slate-50' : ''}>
-                                <TableCell className="text-center">
-                                    <input
-                                        type="checkbox"
-                                        checked={vendor.isActive !== false}
-                                        onChange={() => handleToggleActive(vendor)}
-                                        className="w-4 h-4 cursor-pointer"
-                                        title={vendor.isActive !== false ? '無効にする' : '有効にする'}
-                                    />
-                                </TableCell>
-                                <TableCell>{vendor.id}</TableCell>
-                                <TableCell className="font-medium">{vendor.name}</TableCell>
-                                <TableCell>
-                                    {vendor.pinChanged ? (
-                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
-                                            変更済
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                                            初期PIN
-                                        </span>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-muted-foreground">{vendor.email || '-'}</TableCell>
-                                <TableCell className="text-right space-x-1">
-                                    {vendor.pinChanged && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleResetPin(vendor)}
-                                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
-                                        >
-                                            <RotateCcw className="w-3 h-3 mr-1" />
-                                            PINリセット
+                            <>
+                                <TableRow
+                                    key={vendor.id}
+                                    className={`cursor-pointer hover:bg-slate-50 ${vendor.isActive === false ? 'opacity-70 bg-slate-50' : ''}`}
+                                    onClick={() => toggleExpand(vendor.id)}
+                                >
+                                    <TableCell>
+                                        {expandedVendorId === vendor.id ? (
+                                            <ChevronUp className="w-4 h-4 text-slate-400" />
+                                        ) : (
+                                            <ChevronDown className="w-4 h-4 text-slate-400" />
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                            type="checkbox"
+                                            checked={vendor.isActive !== false}
+                                            onChange={(e) => handleToggleActive(vendor, e as unknown as React.MouseEvent)}
+                                            className="w-4 h-4 cursor-pointer"
+                                            title={vendor.isActive !== false ? '無効にする' : '有効にする'}
+                                        />
+                                    </TableCell>
+                                    <TableCell>{vendor.id}</TableCell>
+                                    <TableCell className="font-bold">{vendor.name}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary" className="font-normal">
+                                            {vendor.users.length} 名
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">{vendor.email || '-'}</TableCell>
+                                    <TableCell className="text-right space-x-1">
+                                        <Button variant="ghost" size="icon" onClick={(e) => handleEdit(vendor, e)} title="編集">
+                                            <Edit className="w-4 h-4" />
                                         </Button>
-                                    )}
-                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(vendor)} title="編集">
-                                        <Edit className="w-4 h-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={() => handleDelete(vendor.id)} title="削除">
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
+                                        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600" onClick={(e) => handleDelete(vendor.id, e)} title="削除">
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+
+                                {/* 展開行：担当者リスト */}
+                                {expandedVendorId === vendor.id && (
+                                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
+                                        <TableCell colSpan={7} className="p-0">
+                                            <div className="p-4 pl-12 space-y-4">
+                                                <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                                                    <User className="w-4 h-4" />
+                                                    担当者一覧
+                                                </div>
+
+                                                <div className="grid gap-2">
+                                                    {vendor.users.map(user => (
+                                                        <div key={user.id} className="flex items-center justify-between bg-white p-3 rounded border border-slate-200 shadow-sm">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="font-medium">{user.name}</span>
+                                                                {user.pinChanged ? (
+                                                                    <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">変更済</Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">初期PIN</Badge>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-8 text-xs"
+                                                                    onClick={() => handleResetUserPin(user)}
+                                                                >
+                                                                    <RotateCcw className="w-3 h-3 mr-1" />
+                                                                    PINリセット
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                                                    onClick={() => handleDeleteUser(user.id, user.name)}
+                                                                >
+                                                                    <Trash2 className="w-3 h-3" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* 担当者追加フォーム */}
+                                                <div className="flex gap-2 items-center max-w-md mt-2">
+                                                    <Input
+                                                        placeholder="新しい担当者名..."
+                                                        value={newUserName}
+                                                        onChange={(e) => setNewUserName(e.target.value)}
+                                                        className="bg-white"
+                                                    />
+                                                    <Button
+                                                        onClick={() => handleCreateUser(vendor.id)}
+                                                        disabled={!newUserName.trim() || isCreatingUser}
+                                                    >
+                                                        {isCreatingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4 mr-2" />}
+                                                        追加
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </>
                         ))}
                         {vendors.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={7} className="text-center py-10 text-slate-500">
                                     業者が登録されていません
                                 </TableCell>
                             </TableRow>
@@ -224,7 +339,7 @@ export function VendorList({ vendors }: VendorListProps) {
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 vendor={editingVendor}
-                onSuccess={handleSuccess}
+                onSuccess={() => router.refresh()}
             />
         </div>
     );
