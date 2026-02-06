@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { PinPad } from "@/components/kiosk/pin-pad";
-import { verifyPin, getVendors, getVendorUsers } from "@/lib/actions";
+import { verifyPin, getVendors, getVendorUsers, createVendorUser } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
-import { Loader2, ChevronLeft } from "lucide-react";
+import { Loader2, ChevronLeft, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,11 +22,17 @@ type VendorUser = { id: number; name: string; pinChanged: boolean };
 
 // Client Component for Login Logic
 export default function KioskLoginPage() {
-  const [step, setStep] = useState<"SELECT_VENDOR" | "SELECT_USER" | "PIN">("SELECT_VENDOR");
+  const [step, setStep] = useState<"SELECT_VENDOR" | "SELECT_USER" | "ADD_SELF" | "SET_PIN" | "PIN">("SELECT_VENDOR");
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [vendorUsers, setVendorUsers] = useState<VendorUser[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [selectedUser, setSelectedUser] = useState<VendorUser | null>(null);
+
+  // 自分追加用
+  const [newUserName, setNewUserName] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinStep, setPinStep] = useState<"ENTER" | "CONFIRM">("ENTER");
 
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
@@ -82,6 +89,20 @@ export default function KioskLoginPage() {
     }
   };
 
+  const handleAddSelf = () => {
+    setStep("ADD_SELF");
+    setNewUserName("");
+  };
+
+  const handleAddSelfNext = () => {
+    if (newUserName.trim()) {
+      setStep("SET_PIN");
+      setNewPin("");
+      setConfirmPin("");
+      setPinStep("ENTER");
+    }
+  };
+
   const handleBack = () => {
     if (step === "SELECT_USER") {
       setStep("SELECT_VENDOR");
@@ -92,29 +113,113 @@ export default function KioskLoginPage() {
       setStep("SELECT_USER");
       setSelectedUser(null);
       setPin("");
+    } else if (step === "ADD_SELF") {
+      setStep("SELECT_USER");
+      setNewUserName("");
+    } else if (step === "SET_PIN") {
+      if (pinStep === "CONFIRM") {
+        setPinStep("ENTER");
+        setConfirmPin("");
+      } else {
+        setStep("ADD_SELF");
+        setNewPin("");
+      }
     }
   };
 
   const handleDigit = (digit: string) => {
-    if (pin.length < 4) {
+    if (step === "PIN" && pin.length < 4) {
       setPin((prev) => prev + digit);
+    } else if (step === "SET_PIN") {
+      if (pinStep === "ENTER" && newPin.length < 4) {
+        setNewPin((prev) => prev + digit);
+      } else if (pinStep === "CONFIRM" && confirmPin.length < 4) {
+        setConfirmPin((prev) => prev + digit);
+      }
     }
   };
 
   const handleDelete = () => {
-    setPin((prev) => prev.slice(0, -1));
+    if (step === "PIN") {
+      setPin((prev) => prev.slice(0, -1));
+    } else if (step === "SET_PIN") {
+      if (pinStep === "ENTER") {
+        setNewPin((prev) => prev.slice(0, -1));
+      } else {
+        setConfirmPin((prev) => prev.slice(0, -1));
+      }
+    }
   };
 
   const handleClear = () => {
-    setPin("");
+    if (step === "PIN") {
+      setPin("");
+    } else if (step === "SET_PIN") {
+      if (pinStep === "ENTER") {
+        setNewPin("");
+      } else {
+        setConfirmPin("");
+      }
+    }
   };
 
-  // Auto-submit when 4 digits
+  // Auto-submit when 4 digits for login
   useEffect(() => {
     if (pin.length === 4 && selectedVendor && selectedUser) {
       login(selectedVendor.id, selectedUser.id, pin);
     }
   }, [pin, selectedVendor, selectedUser]);
+
+  // PIN設定のフロー
+  useEffect(() => {
+    if (step === "SET_PIN" && pinStep === "ENTER" && newPin.length === 4) {
+      if (newPin === "1234") {
+        toast.error("初期PIN(1234)は使用できません");
+        setNewPin("");
+        return;
+      }
+      setPinStep("CONFIRM");
+    }
+  }, [newPin, pinStep, step]);
+
+  useEffect(() => {
+    if (step === "SET_PIN" && pinStep === "CONFIRM" && confirmPin.length === 4) {
+      if (newPin !== confirmPin) {
+        toast.error("PINが一致しません");
+        setConfirmPin("");
+        return;
+      }
+      createSelfUser();
+    }
+  }, [confirmPin, pinStep, step]);
+
+  const createSelfUser = async () => {
+    if (!selectedVendor || !newUserName.trim()) return;
+
+    setLoading(true);
+    try {
+      const res = await createVendorUser(selectedVendor.id, newUserName.trim(), newPin);
+      if (res.success && res.vendorUser) {
+        toast.success(`${newUserName}さんを登録しました`);
+        // 登録完了後、自動ログイン
+        setVendorStore(selectedVendor);
+        setVendorUserStore({
+          id: res.vendorUser.id,
+          name: res.vendorUser.name,
+          pinChanged: true
+        });
+        router.push("/mode-select");
+        return;
+      } else {
+        toast.error(res.message || "登録に失敗しました");
+        setStep("ADD_SELF");
+      }
+    } catch (e) {
+      toast.error("システムエラーが発生しました");
+      setStep("ADD_SELF");
+    }
+    setLoading(false);
+  };
 
   const login = async (vendorId: number, vendorUserId: number, inputPin: string) => {
     setLoading(true);
@@ -223,9 +328,116 @@ export default function KioskLoginPage() {
                 >
                   次へ進む
                 </Button>
+
+                {/* 自分を追加ボタン */}
+                <div className="pt-2 border-t border-slate-100">
+                  <Button
+                    variant="outline"
+                    className="w-full h-14 text-lg"
+                    onClick={handleAddSelf}
+                  >
+                    <UserPlus className="w-5 h-5 mr-2" />
+                    自分がいない場合（新規登録）
+                  </Button>
+                </div>
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Step: Add Self - Name Input */}
+      {step === "ADD_SELF" && selectedVendor && (
+        <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-right-4 duration-300">
+          <button
+            onClick={handleBack}
+            className="flex items-center text-slate-500 hover:text-slate-900"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            戻る
+          </button>
+
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-2">
+              <UserPlus className="w-8 h-8 text-blue-600" />
+            </div>
+            <div className="text-lg font-bold text-blue-600">{selectedVendor.name}</div>
+            <h1 className="text-2xl font-bold text-slate-900">新規登録</h1>
+            <p className="text-slate-500">お名前を入力してください</p>
+          </div>
+
+          <div className="space-y-4">
+            <Input
+              type="text"
+              placeholder="例: 田中"
+              value={newUserName}
+              onChange={(e) => setNewUserName(e.target.value)}
+              className="h-16 text-xl text-center"
+              autoFocus
+            />
+
+            <Button
+              className="w-full h-14 text-lg font-bold"
+              disabled={!newUserName.trim()}
+              onClick={handleAddSelfNext}
+            >
+              次へ（PIN設定）
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Step: Set PIN for new user */}
+      {step === "SET_PIN" && selectedVendor && (
+        <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-right-4 duration-300">
+          <button
+            onClick={handleBack}
+            className="flex items-center text-slate-500 hover:text-slate-900"
+          >
+            <ChevronLeft className="w-5 h-5" />
+            戻る
+          </button>
+
+          <div className="text-center space-y-2">
+            <div className="text-lg font-bold text-blue-600">
+              {selectedVendor.name} / {newUserName}
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {pinStep === "ENTER" ? "PIN設定" : "PIN確認"}
+            </h1>
+            <p className="text-slate-500">
+              {pinStep === "ENTER"
+                ? "4桁のPINコードを設定してください（1234以外）"
+                : "もう一度同じPINを入力してください"}
+            </p>
+          </div>
+
+          <div className="flex justify-center space-x-4 mb-4">
+            {[0, 1, 2, 3].map((i) => {
+              const currentPin = pinStep === "ENTER" ? newPin : confirmPin;
+              return (
+                <div
+                  key={i}
+                  className={`w-6 h-6 rounded-full border-2 transition-colors ${currentPin.length > i
+                    ? "bg-blue-600 border-blue-600"
+                    : "bg-white border-slate-300"
+                    }`}
+                />
+              );
+            })}
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center h-80">
+              <Loader2 className="w-12 h-12 animate-spin text-slate-400" />
+            </div>
+          ) : (
+            <PinPad
+              onDigitPress={handleDigit}
+              onDeletePress={handleDelete}
+              onClearPress={handleClear}
+            />
+          )}
         </div>
       )}
 

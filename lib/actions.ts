@@ -344,20 +344,32 @@ export async function getVendorUsers(vendorId: number) {
 }
 
 // 担当者を作成
-export async function createVendorUser(vendorId: number, name: string) {
+export async function createVendorUser(vendorId: number, name: string, pin?: string) {
+    // 名前の重複チェック
+    const existing = await prisma.vendorUser.findFirst({
+        where: { vendorId, name }
+    });
+    if (existing) {
+        return { success: false, message: 'この名前は既に登録されています' };
+    }
+
+    // PINが指定されていれば使用、なければ初期PIN
+    const pinCode = pin || '1234';
+    const pinChanged = !!pin && pin !== '1234';
+
     const vendorUser = await prisma.vendorUser.create({
         data: {
             name,
             vendorId,
-            pinCode: '1234',
-            pinChanged: false
+            pinCode,
+            pinChanged
         }
     });
 
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
-    await logOperation("VENDOR_USER_CREATE", `${vendor?.name} / ${name}`, `担当者を追加`);
+    await logOperation("VENDOR_USER_CREATE", `${vendor?.name} / ${name}`, `担当者を追加${pin ? '（自己登録）' : ''}`);
     revalidatePath('/admin/vendors');
-    return vendorUser;
+    return { success: true, vendorUser };
 }
 
 // 担当者を削除
