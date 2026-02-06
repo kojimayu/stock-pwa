@@ -10,9 +10,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Edit, Plus, Trash2, RotateCcw } from "lucide-react";
+import { Edit, Plus, Trash2, RotateCcw, Download, Loader2 } from "lucide-react";
 import { VendorDialog } from "./vendor-dialog";
-import { deleteVendor, resetPin, toggleVendorActive } from "@/lib/actions";
+import { deleteVendor, resetPin, toggleVendorActive, importVendorsFromAccess } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -33,6 +33,7 @@ interface VendorListProps {
 export function VendorList({ vendors }: VendorListProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+    const [importing, setImporting] = useState(false);
     const router = useRouter();
 
     const handleCreate = () => {
@@ -81,9 +82,40 @@ export function VendorList({ vendors }: VendorListProps) {
         }
     };
 
+    const handleImportFromAccess = async () => {
+        if (!confirm("Access DBから業者をインポートしますか？\n\n※新規業者は「無効」状態で登録されます\n※既存の業者はスキップされます")) return;
+
+        setImporting(true);
+        try {
+            const result = await importVendorsFromAccess();
+            if (result.success) {
+                toast.success(result.message);
+                router.refresh();
+            } else {
+                toast.error(result.message || "インポートに失敗しました");
+            }
+        } catch (error: any) {
+            toast.error(error.message || "エラーが発生しました");
+        } finally {
+            setImporting(false);
+        }
+    };
+
     return (
         <div className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+                <Button
+                    variant="outline"
+                    onClick={handleImportFromAccess}
+                    disabled={importing}
+                >
+                    {importing ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                    )}
+                    Accessからインポート
+                </Button>
                 <Button onClick={handleCreate}>
                     <Plus className="w-4 h-4 mr-2" />
                     新規登録

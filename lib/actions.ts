@@ -88,6 +88,78 @@ export async function toggleVendorActive(vendorId: number, isActive: boolean) {
     return { success: true };
 }
 
+// Accessから業者をインポート
+export async function importVendorsFromAccess() {
+    try {
+        // 1. Access DBから業者リストを取得
+        const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+        const response = await fetch(`${baseUrl}/api/access/vendors`, {
+            cache: 'no-store'
+        });
+
+        if (!response.ok) {
+            return { success: false, message: 'Access DBへの接続に失敗しました' };
+        }
+
+        const result = await response.json();
+        if (!result.success || !result.data) {
+            return { success: false, message: 'Access DBからデータを取得できませんでした' };
+        }
+
+        const accessVendors: { id: string; name: string }[] = result.data;
+
+        // 2. 既存の業者を取得（accessCompanyNameで照合）
+        const existingVendors = await prisma.vendor.findMany({
+            select: { accessCompanyName: true, name: true }
+        });
+        const existingAccessNames = new Set(
+            existingVendors.map(v => v.accessCompanyName).filter(Boolean)
+        );
+        const existingNames = new Set(existingVendors.map(v => v.name));
+
+        // 3. 新規業者のみ登録
+        let imported = 0;
+        let skipped = 0;
+
+        for (const av of accessVendors) {
+            // 既にaccessCompanyNameで紐付けられているか、同名の業者が存在する場合はスキップ
+            if (existingAccessNames.has(av.name) || existingNames.has(av.name)) {
+                skipped++;
+                continue;
+            }
+
+            // 新規作成（isActive: false, 初期PIN: 1234）
+            await prisma.vendor.create({
+                data: {
+                    name: av.name,
+                    pinCode: '1234',
+                    pinChanged: false,
+                    isActive: false,  // 初期は無効（管理者が有効化）
+                    accessCompanyName: av.name
+                }
+            });
+            imported++;
+        }
+
+        await logOperation(
+            'VENDOR_IMPORT',
+            'Access DB',
+            `${imported}件インポート、${skipped}件スキップ（既存）`
+        );
+
+        revalidatePath('/admin/vendors');
+        return {
+            success: true,
+            imported,
+            skipped,
+            message: `${imported}件の業者をインポートしました（${skipped}件は既存のためスキップ）`
+        };
+    } catch (error) {
+        console.error('Import vendors error:', error);
+        return { success: false, message: 'インポート中にエラーが発生しました' };
+    }
+}
+
 // Product Attribute Actions (For Autocomplete)
 export async function getUniqueProductAttributes() {
     // We want unique categories, subCategories, suppliers
