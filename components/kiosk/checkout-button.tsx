@@ -10,7 +10,7 @@ import { Loader2, CheckCircle } from "lucide-react";
 
 export function CheckoutButton() {
     const [loading, setLoading] = useState(false);
-    const { items, vendor, isProxyMode, transactionDate, clearCart } = useCartStore();
+    const { items, vendor, vendorUser, isProxyMode, transactionDate, clearCart } = useCartStore();
     const router = useRouter();
 
     const handleCheckout = async () => {
@@ -29,6 +29,7 @@ export function CheckoutButton() {
             // 代理入力モードの場合、isProxyInput=trueと引取日を渡す
             const res = await createTransaction(
                 vendor.id,
+                vendorUser?.id ?? null,  // 担当者ID
                 items,
                 undefined,
                 isProxyMode,

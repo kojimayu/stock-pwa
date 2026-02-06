@@ -14,12 +14,20 @@ export type Vendor = {
     name: string;
 };
 
+export type VendorUser = {
+    id: number;
+    name: string;
+    pinChanged?: boolean;
+};
+
 type CartState = {
     vendor: Vendor | null;
+    vendorUser: VendorUser | null;
     items: CartItem[];
     isProxyMode: boolean; // 代理入力モードフラグ
     transactionDate: Date | null; // 代理入力用：引取日
     setVendor: (vendor: Vendor | null) => void;
+    setVendorUser: (vendorUser: VendorUser | null) => void;
     setProxyMode: (isProxy: boolean) => void;
     setTransactionDate: (date: Date | null) => void;
     addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number }) => void;
@@ -33,10 +41,12 @@ export const useCartStore = create<CartState>()(
     persist(
         (set) => ({
             vendor: null,
+            vendorUser: null,
             items: [],
             isProxyMode: false,
             transactionDate: null,
             setVendor: (vendor) => set({ vendor }),
+            setVendorUser: (vendorUser) => set({ vendorUser }),
             setProxyMode: (isProxyMode) => set({ isProxyMode }),
             setTransactionDate: (transactionDate) => set({ transactionDate }),
             addItem: (newItem) =>
@@ -79,7 +89,7 @@ export const useCartStore = create<CartState>()(
                     };
                 }),
             clearCart: () => set({ items: [] }),
-            clearSession: () => set({ vendor: null, items: [], isProxyMode: false, transactionDate: null }),
+            clearSession: () => set({ vendor: null, vendorUser: null, items: [], isProxyMode: false, transactionDate: null }),
         }),
         {
             name: 'kiosk-cart-storage',

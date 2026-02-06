@@ -10,17 +10,29 @@ datasource db {
 model Vendor {
   id                 Int                 @id @default(autoincrement())
   name               String
-  pinCode            String
-  pinChanged         Boolean             @default(false)
-  qrToken            String?             @unique
   email              String?
+  qrToken            String?             @unique
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   accessCompanyName  String?
   showPriceInEmail   Boolean             @default(true)
   isActive           Boolean             @default(true)
+  users              VendorUser[]
   airConditionerLogs AirConditionerLog[]
   transactions       Transaction[]
+}
+
+model VendorUser {
+  id                 Int                 @id @default(autoincrement())
+  name               String              // 担当者名
+  pinCode            String              @default("1234")
+  pinChanged         Boolean             @default(false)
+  vendorId           Int
+  vendor             Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  transactions       Transaction[]
+  airConditionerLogs AirConditionerLog[]
 }
 
 model Product {
@@ -81,17 +93,19 @@ model InventoryCountItem {
 }
 
 model Transaction {
-  id                   Int       @id @default(autoincrement())
-  date                 DateTime  @default(now())
+  id                   Int         @id @default(autoincrement())
+  date                 DateTime    @default(now())
   vendorId             Int
+  vendorUserId         Int?
   items                String
-  hasUnregisteredItems Boolean   @default(false)
+  hasUnregisteredItems Boolean     @default(false)
   totalAmount          Int
-  createdAt            DateTime  @default(now())
-  isReturned           Boolean   @default(false)
+  createdAt            DateTime    @default(now())
+  isReturned           Boolean     @default(false)
   returnedAt           DateTime?
-  isProxyInput         Boolean   @default(false)
-  vendor               Vendor    @relation(fields: [vendorId], references: [id])
+  isProxyInput         Boolean     @default(false)
+  vendor               Vendor      @relation(fields: [vendorId], references: [id])
+  vendorUser           VendorUser? @relation(fields: [vendorUserId], references: [id])
 }
 
 model OperationLog {
@@ -130,12 +144,14 @@ model AirConditionerLog {
   contractor      String?
   modelNumber     String
   vendorId        Int
+  vendorUserId    Int?
   airconProductId Int?
   isReturned      Boolean        @default(false)
   returnedAt      DateTime?
   createdAt       DateTime       @default(now())
   airconProduct   AirconProduct? @relation(fields: [airconProductId], references: [id])
   vendor          Vendor         @relation(fields: [vendorId], references: [id])
+  vendorUser      VendorUser?    @relation(fields: [vendorUserId], references: [id])
 }
 
 model AirconProduct {

@@ -66,6 +66,9 @@ export async function getAllVendors() {
         include: {
             _count: {
                 select: { transactions: true }
+            },
+            users: {
+                orderBy: { name: 'asc' }
             }
         },
         orderBy: [
@@ -241,37 +244,56 @@ export async function deleteVendor(id: number) {
     revalidatePath('/admin/vendors');
 }
 
-export async function verifyPin(vendorId: string | number, pin: string) {
-    const vendor = await prisma.vendor.findUnique({
-        where: { id: Number(vendorId) },
+export async function verifyPin(vendorId: string | number, vendorUserId: string | number, pin: string) {
+    const vendorUser = await prisma.vendorUser.findUnique({
+        where: { id: Number(vendorUserId) },
+        include: { vendor: true }
     });
 
-    if (!vendor) {
-        return { success: false, message: '業者が存在しません' };
+    if (!vendorUser) {
+        return { success: false, message: '担当者が存在しません' };
     }
 
-    if (vendor.pinCode !== pin) {
+    if (vendorUser.vendorId !== Number(vendorId)) {
+        return { success: false, message: '担当者の所属が一致しません' };
+    }
+
+    if (vendorUser.pinCode !== pin) {
         return { success: false, message: 'PINコードが正しくありません' };
     }
 
-    // pinChangedフラグも返す
-    return { success: true, vendor, pinChanged: vendor.pinChanged };
+    return {
+        success: true,
+        vendor: vendorUser.vendor,
+        vendorUser,
+        pinChanged: vendorUser.pinChanged
+    };
 }
 
 export async function loginByPin(pin: string) {
-    const vendor = await prisma.vendor.findFirst({
+    const vendorUser = await prisma.vendorUser.findFirst({
         where: { pinCode: pin },
+        include: { vendor: true }
     });
 
-    if (!vendor) {
+    if (!vendorUser) {
         return { success: false, message: 'PINコードが無効です' };
     }
 
-    return { success: true, vendor, pinChanged: vendor.pinChanged };
+    if (!vendorUser.vendor.isActive) {
+        return { success: false, message: 'この業者は現在無効です' };
+    }
+
+    return {
+        success: true,
+        vendor: vendorUser.vendor,
+        vendorUser,
+        pinChanged: vendorUser.pinChanged
+    };
 }
 
-// PINコードを変更
-export async function changePin(vendorId: number, newPin: string) {
+// PINコードを変更（担当者用）
+export async function changePin(vendorUserId: number, newPin: string) {
     // 4桁の数字のみ許可
     if (!/^\d{4}$/.test(newPin)) {
         return { success: false, message: 'PINは4桁の数字で入力してください' };
@@ -282,33 +304,84 @@ export async function changePin(vendorId: number, newPin: string) {
         return { success: false, message: '初期PIN(1234)は使用できません' };
     }
 
-    // 重複チェック
-    const existing = await prisma.vendor.findFirst({
+    // 重複チェック（全担当者で一意）
+    const existing = await prisma.vendorUser.findFirst({
         where: { pinCode: newPin },
     });
-    if (existing && existing.id !== vendorId) {
+    if (existing && existing.id !== vendorUserId) {
         return { success: false, message: 'このPINは既に使用されています' };
     }
 
-    const vendor = await prisma.vendor.update({
-        where: { id: vendorId },
+    const vendorUser = await prisma.vendorUser.update({
+        where: { id: vendorUserId },
         data: { pinCode: newPin, pinChanged: true },
+        include: { vendor: true }
     });
 
-    await logOperation("VENDOR_PIN_CHANGE", `Vendor: ${vendor.name}`, `PIN changed`);
-    return { success: true, vendor };
+    await logOperation("VENDOR_USER_PIN_CHANGE", `${vendorUser.vendor.name} / ${vendorUser.name}`, `PIN changed`);
+    return { success: true, vendorUser };
 }
 
 // PINコードをリセット（管理者用）
-export async function resetPin(vendorId: number) {
-    const vendor = await prisma.vendor.update({
-        where: { id: vendorId },
+export async function resetPin(vendorUserId: number) {
+    const vendorUser = await prisma.vendorUser.update({
+        where: { id: vendorUserId },
         data: { pinCode: '1234', pinChanged: false },
+        include: { vendor: true }
     });
 
-    await logOperation("VENDOR_PIN_RESET", `Vendor: ${vendor.name}`, `PIN reset to 1234`);
+    await logOperation("VENDOR_USER_PIN_RESET", `${vendorUser.vendor.name} / ${vendorUser.name}`, `PIN reset to 1234`);
     revalidatePath('/admin/vendors');
     return { success: true };
+}
+
+// 担当者一覧を取得
+export async function getVendorUsers(vendorId: number) {
+    return await prisma.vendorUser.findMany({
+        where: { vendorId },
+        orderBy: { name: 'asc' }
+    });
+}
+
+// 担当者を作成
+export async function createVendorUser(vendorId: number, name: string) {
+    const vendorUser = await prisma.vendorUser.create({
+        data: {
+            name,
+            vendorId,
+            pinCode: '1234',
+            pinChanged: false
+        }
+    });
+
+    const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
+    await logOperation("VENDOR_USER_CREATE", `${vendor?.name} / ${name}`, `担当者を追加`);
+    revalidatePath('/admin/vendors');
+    return vendorUser;
+}
+
+// 担当者を削除
+export async function deleteVendorUser(vendorUserId: number) {
+    const vendorUser = await prisma.vendorUser.findUnique({
+        where: { id: vendorUserId },
+        include: { vendor: true }
+    });
+
+    if (!vendorUser) {
+        throw new Error('担当者が見つかりません');
+    }
+
+    // 最後の担当者は削除できない
+    const count = await prisma.vendorUser.count({
+        where: { vendorId: vendorUser.vendorId }
+    });
+    if (count <= 1) {
+        throw new Error('最後の担当者は削除できません');
+    }
+
+    await prisma.vendorUser.delete({ where: { id: vendorUserId } });
+    await logOperation("VENDOR_USER_DELETE", `${vendorUser.vendor.name} / ${vendorUser.name}`, `担当者を削除`);
+    revalidatePath('/admin/vendors');
 }
 
 // QRトークンでログイン
@@ -733,6 +806,7 @@ import { sendTransactionEmail } from './mail';
 
 export async function createTransaction(
     vendorId: number,
+    vendorUserId: number | null,  // 担当者ID追加
     items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[],
     totalAmountParam?: number,
     isProxyInput: boolean = false,
@@ -760,6 +834,7 @@ export async function createTransaction(
             const transaction = await tx.transaction.create({
                 data: {
                     vendorId,
+                    vendorUserId,  // 担当者ID
                     items: JSON.stringify(items), // Store detailed items as JSON
                     totalAmount,
                     hasUnregisteredItems, // Set flag

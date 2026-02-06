@@ -115,6 +115,7 @@ export function ProxyShopInterface({ products, vendor, onExit }: ProxyShopInterf
         try {
             await createTransaction(
                 vendor.id,
+                null,  // 代理入力は担当者不明
                 cart.map(item => ({
                     productId: item.productId,
                     name: item.name,

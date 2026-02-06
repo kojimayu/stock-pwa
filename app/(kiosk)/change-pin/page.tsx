@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 export default function ChangePinPage() {
     const router = useRouter();
     const vendor = useCartStore((state) => state.vendor);
-    const setVendor = useCartStore((state) => state.setVendor);
+    const vendorUser = useCartStore((state) => state.vendorUser);
+    const setVendorUser = useCartStore((state) => state.setVendorUser);
 
     const [step, setStep] = useState<"ENTER" | "CONFIRM">("ENTER");
     const [newPin, setNewPin] = useState("");
@@ -21,10 +22,10 @@ export default function ChangePinPage() {
 
     // 未ログインならログイン画面へ
     useEffect(() => {
-        if (!vendor) {
+        if (!vendor || !vendorUser) {
             router.push("/");
         }
-    }, [vendor, router]);
+    }, [vendor, vendorUser, router]);
 
     const handleDigit = (digit: string) => {
         if (step === "ENTER" && newPin.length < 4) {
@@ -76,13 +77,13 @@ export default function ChangePinPage() {
     }, [confirmPin, step]);
 
     const submitPin = async () => {
-        if (!vendor) return;
+        if (!vendorUser) return;
 
         setLoading(true);
         try {
-            const res = await changePin(vendor.id, newPin);
-            if (res.success && res.vendor) {
-                setVendor(res.vendor);
+            const res = await changePin(vendorUser.id, newPin);
+            if (res.success && res.vendorUser) {
+                setVendorUser(res.vendorUser);
                 toast.success("PINを変更しました");
                 // 強制的にリロードして遷移（ルーターの不具合回避）
                 window.location.href = "/mode-select";
@@ -109,7 +110,7 @@ export default function ChangePinPage() {
         }
     };
 
-    if (!vendor) return null;
+    if (!vendor || !vendorUser) return null;
 
     return (
         <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
@@ -128,7 +129,9 @@ export default function ChangePinPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-2">
                         <KeyRound className="w-8 h-8 text-blue-600" />
                     </div>
-                    <div className="text-lg font-bold text-blue-600">{vendor.name}</div>
+                    <div className="text-lg font-bold text-blue-600">
+                        {vendor.name} / {vendorUser.name}
+                    </div>
                     <h1 className="text-2xl font-bold text-slate-900">
                         {step === "ENTER" ? "新しいPIN入力" : "確認のため再入力"}
                     </h1>
