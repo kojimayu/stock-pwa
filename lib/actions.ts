@@ -30,9 +30,10 @@ async function logOperation(action: string, target: string, details?: string) {
     }
 }
 
-// Vendor Actions
+// Vendor Actions - Kiosk用（有効な業者のみ）
 export async function getVendors() {
     const vendors = await prisma.vendor.findMany({
+        where: { isActive: true },  // 有効な業者のみ
         include: {
             _count: {
                 select: { transactions: true }
@@ -57,6 +58,34 @@ export async function getVendors() {
         // 同じ使用頻度なら名前順
         return a.name.localeCompare(b.name, 'ja');
     });
+}
+
+// 管理画面用（全業者）
+export async function getAllVendors() {
+    const vendors = await prisma.vendor.findMany({
+        include: {
+            _count: {
+                select: { transactions: true }
+            }
+        },
+        orderBy: { name: 'asc' }
+    });
+    return vendors;
+}
+
+// 業者の有効/無効を切り替え
+export async function toggleVendorActive(vendorId: number, isActive: boolean) {
+    await prisma.vendor.update({
+        where: { id: vendorId },
+        data: { isActive }
+    });
+    await logOperation(
+        'VENDOR_TOGGLE_ACTIVE',
+        `Vendor ID: ${vendorId}`,
+        `有効/無効を変更: ${isActive ? '有効' : '無効'}`
+    );
+    revalidatePath('/admin/vendors');
+    return { success: true };
 }
 
 // Product Attribute Actions (For Autocomplete)

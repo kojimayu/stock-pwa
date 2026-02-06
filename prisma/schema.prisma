@@ -18,6 +18,7 @@ model Vendor {
   updatedAt          DateTime            @updatedAt
   accessCompanyName  String?
   showPriceInEmail   Boolean             @default(true)
+  isActive           Boolean             @default(true)
   airConditionerLogs AirConditionerLog[]
   transactions       Transaction[]
 }

@@ -1,8 +1,8 @@
-import { getVendors } from "@/lib/actions";
+import { getAllVendors } from "@/lib/actions";
 import { VendorList } from "@/components/admin/vendor-list";
 
 export default async function VendorsPage() {
-    const vendors = await getVendors();
+    const vendors = await getAllVendors();
 
     return (
         <div className="space-y-6">

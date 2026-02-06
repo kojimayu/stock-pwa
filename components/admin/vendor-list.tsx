@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Edit, Plus, Trash2, RotateCcw } from "lucide-react";
 import { VendorDialog } from "./vendor-dialog";
-import { deleteVendor, resetPin } from "@/lib/actions";
+import { deleteVendor, resetPin, toggleVendorActive } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -23,6 +23,7 @@ type Vendor = {
     pinCode: string;
     pinChanged: boolean;
     email?: string | null;
+    isActive?: boolean;
 };
 
 interface VendorListProps {
@@ -70,6 +71,16 @@ export function VendorList({ vendors }: VendorListProps) {
         router.refresh();
     };
 
+    const handleToggleActive = async (vendor: Vendor) => {
+        try {
+            await toggleVendorActive(vendor.id, !vendor.isActive);
+            toast.success(`${vendor.name}を${vendor.isActive ? '無効' : '有効'}にしました`);
+            router.refresh();
+        } catch (error: any) {
+            toast.error(error.message || "変更に失敗しました");
+        }
+    };
+
     return (
         <div className="space-y-4">
             <div className="flex justify-end">
@@ -83,7 +94,8 @@ export function VendorList({ vendors }: VendorListProps) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[80px]">ID</TableHead>
+                            <TableHead className="w-[60px] text-center">有効</TableHead>
+                            <TableHead className="w-[60px]">ID</TableHead>
                             <TableHead>名前</TableHead>
                             <TableHead>PIN状態</TableHead>
                             <TableHead>メール</TableHead>
@@ -92,7 +104,16 @@ export function VendorList({ vendors }: VendorListProps) {
                     </TableHeader>
                     <TableBody>
                         {vendors.map((vendor) => (
-                            <TableRow key={vendor.id}>
+                            <TableRow key={vendor.id} className={vendor.isActive === false ? 'opacity-50 bg-slate-50' : ''}>
+                                <TableCell className="text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={vendor.isActive !== false}
+                                        onChange={() => handleToggleActive(vendor)}
+                                        className="w-4 h-4 cursor-pointer"
+                                        title={vendor.isActive !== false ? '無効にする' : '有効にする'}
+                                    />
+                                </TableCell>
                                 <TableCell>{vendor.id}</TableCell>
                                 <TableCell className="font-medium">{vendor.name}</TableCell>
                                 <TableCell>
@@ -130,7 +151,7 @@ export function VendorList({ vendors }: VendorListProps) {
                         ))}
                         {vendors.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={5} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={6} className="text-center py-10 text-slate-500">
                                     業者が登録されていません
                                 </TableCell>
                             </TableRow>
