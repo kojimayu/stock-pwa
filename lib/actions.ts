@@ -1430,3 +1430,177 @@ export async function searchProducts(query: string) {
         take: 10
     });
 }
+
+// 価格修正機能
+export async function correctTransactionPrice(
+    transactionId: number,
+    itemIndex: number,
+    newPrice: number,
+    reason: string
+) {
+    try {
+        // 1. 取引を取得
+        const transaction = await prisma.transaction.findUnique({
+            where: { id: transactionId },
+            include: { vendor: true }
+        });
+
+        if (!transaction) {
+            return { success: false, message: '取引が見つかりません' };
+        }
+
+        // 2. 商品リストをパース
+        let items: any[] = [];
+        try {
+            items = JSON.parse(transaction.items);
+        } catch {
+            return { success: false, message: '商品データの解析に失敗しました' };
+        }
+
+        if (itemIndex < 0 || itemIndex >= items.length) {
+            return { success: false, message: '商品インデックスが無効です' };
+        }
+
+        // 3. 価格を変更
+        const oldPrice = items[itemIndex].price;
+        const itemName = items[itemIndex].name;
+        items[itemIndex].price = newPrice;
+
+        // 4. 合計金額を再計算
+        const newTotalAmount = items.reduce((sum: number, item: any) => {
+            if (item.isManual) return sum;
+            return sum + item.price * item.quantity;
+        }, 0);
+
+        // 5. DBを更新
+        await prisma.transaction.update({
+            where: { id: transactionId },
+            data: {
+                items: JSON.stringify(items),
+                totalAmount: newTotalAmount
+            }
+        });
+
+        // 6. 操作ログに記録
+        await logOperation(
+            'PRICE_CORRECTION',
+            `取引ID: ${transactionId}, 商品: ${itemName}`,
+            `旧価格: ¥${oldPrice} → 新価格: ¥${newPrice}, 理由: ${reason}`
+        );
+
+        // 7. 管理者にメール通知（非同期で送信、失敗しても処理は続行）
+        sendPriceCorrectionNotification(
+            transactionId,
+            transaction.vendor.name,
+            itemName,
+            oldPrice,
+            newPrice,
+            reason
+        ).catch(e => console.error('メール送信失敗:', e));
+
+        revalidatePath('/admin/transactions');
+        return { success: true, newTotalAmount };
+    } catch (error) {
+        console.error('Price correction error:', error);
+        return { success: false, message: '価格修正に失敗しました' };
+    }
+}
+
+// 価格修正通知メール送信
+async function sendPriceCorrectionNotification(
+    transactionId: number,
+    vendorName: string,
+    itemName: string,
+    oldPrice: number,
+    newPrice: number,
+    reason: string
+) {
+    const fromAddress = process.env.SMTP_FROM_ADDRESS;
+    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()).filter(Boolean);
+
+    if (!fromAddress || !adminEmails?.length) {
+        console.warn('SMTP_FROM_ADDRESS or ADMIN_EMAILS not set. Skipping price correction notification.');
+        return;
+    }
+
+    const session = await getServerSession(authOptions);
+    const correctedBy = session?.user?.email || '不明';
+
+    const htmlContent = `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #dc2626;">⚠️ 価格修正通知</h2>
+            <p>以下の取引で価格が修正されました。</p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">取引ID</td><td style="padding: 8px;">#${transactionId}</td></tr>
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">業者名</td><td style="padding: 8px;">${vendorName}</td></tr>
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">商品名</td><td style="padding: 8px;">${itemName}</td></tr>
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">変更前</td><td style="padding: 8px;">¥${oldPrice.toLocaleString()}</td></tr>
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">変更後</td><td style="padding: 8px; color: #dc2626; font-weight: bold;">¥${newPrice.toLocaleString()}</td></tr>
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">修正理由</td><td style="padding: 8px;">${reason}</td></tr>
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">修正者</td><td style="padding: 8px;">${correctedBy}</td></tr>
+                <tr><td style="padding: 8px; background: #f3f4f6; font-weight: bold;">修正日時</td><td style="padding: 8px;">${new Date().toLocaleString('ja-JP')}</td></tr>
+            </table>
+            
+            <p style="font-size: 0.9em; color: #666;">
+                ※このメールは自動送信されています。
+            </p>
+        </div>
+    `;
+
+    // Get access token for Graph API
+    const tenantId = process.env.AZURE_TENANT_ID;
+    const clientId = process.env.AZURE_CLIENT_ID;
+    const clientSecret = process.env.AZURE_CLIENT_SECRET;
+
+    if (!tenantId || !clientId || !clientSecret) {
+        console.warn('Azure AD credentials missing. Skipping email.');
+        return;
+    }
+
+    const tokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+    const params = new URLSearchParams();
+    params.append('client_id', clientId);
+    params.append('scope', 'https://graph.microsoft.com/.default');
+    params.append('client_secret', clientSecret);
+    params.append('grant_type', 'client_credentials');
+
+    const tokenResponse = await fetch(tokenEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
+    });
+
+    if (!tokenResponse.ok) {
+        throw new Error(`Token fetch failed: ${tokenResponse.statusText}`);
+    }
+
+    const { access_token } = await tokenResponse.json();
+
+    const emailMessage = {
+        message: {
+            subject: `【価格修正】取引#${transactionId} - ${itemName}`,
+            body: { contentType: "HTML", content: htmlContent },
+            toRecipients: adminEmails.map(email => ({ emailAddress: { address: email } })),
+        },
+        saveToSentItems: false,
+    };
+
+    const sendMailEndpoint = `https://graph.microsoft.com/v1.0/users/${fromAddress}/sendMail`;
+
+    const response = await fetch(sendMailEndpoint, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailMessage),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Graph API Error: ${response.status} - ${errorText}`);
+    }
+
+    console.log(`Price correction notification sent to ${adminEmails.join(', ')}`);
+}

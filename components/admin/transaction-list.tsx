@@ -4,11 +4,12 @@ import { useState, useMemo } from "react";
 import { ProductDialog } from "./product-dialog";
 import { ProductSearchDialog } from "./product-search-dialog";
 import { TransactionReturnDialog } from "./transaction-return-dialog";
+import { PriceCorrectionDialog } from "./price-correction-dialog";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FilePlus, Link as LinkIcon, Loader2, Search, X, Download, Undo2 } from "lucide-react";
+import { FilePlus, Link as LinkIcon, Loader2, Search, X, Download, Undo2, Edit2 } from "lucide-react";
 import { reconcileTransactionItem, getUniqueProductAttributes, returnTransaction } from "@/lib/actions";
 import { toast } from "sonner";
 import {
@@ -47,6 +48,15 @@ export function TransactionList({ transactions }: TransactionListProps) {
     // Return Dialog
     const [returnDialogOpen, setReturnDialogOpen] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+
+    // Price Correction Dialog
+    const [priceDialogOpen, setPriceDialogOpen] = useState(false);
+    const [priceEditTarget, setPriceEditTarget] = useState<{
+        txId: number;
+        itemIndex: number;
+        itemName: string;
+        currentPrice: number;
+    } | null>(null);
 
     // 検索フィルター
     const [vendorFilter, setVendorFilter] = useState("");
@@ -293,11 +303,31 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                             {parsedItems.map((item, idx) => (
                                                 <div key={idx} className="flex items-center justify-between text-sm">
                                                     <span>
+                                                        {tx.isProxyInput && <span className="text-xs bg-purple-100 text-purple-700 px-1 rounded mr-1">代</span>}
                                                         {item.isManual && <span className="text-xs bg-amber-200 text-amber-800 px-1 rounded mr-1">手入力</span>}
                                                         {item.name || `商品ID:${item.productId}`} × {item.quantity}
                                                         <span className="text-slate-400 text-xs ml-2">
                                                             (@{item.isManual ? "-" : formatCurrency(item.price)})
                                                         </span>
+                                                        {!item.isManual && !tx.isReturned && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-5 w-5 p-0 ml-1 text-slate-400 hover:text-blue-600"
+                                                                onClick={() => {
+                                                                    setPriceEditTarget({
+                                                                        txId: tx.id,
+                                                                        itemIndex: idx,
+                                                                        itemName: item.name,
+                                                                        currentPrice: item.price
+                                                                    });
+                                                                    setPriceDialogOpen(true);
+                                                                }}
+                                                                title="価格修正"
+                                                            >
+                                                                <Edit2 className="w-3 h-3" />
+                                                            </Button>
+                                                        )}
                                                     </span>
                                                     {item.isManual && (
                                                         <div className="flex gap-1">
@@ -381,6 +411,20 @@ export function TransactionList({ transactions }: TransactionListProps) {
                 onOpenChange={setReturnDialogOpen}
                 transaction={selectedTransaction}
             />
+
+            {priceEditTarget && (
+                <PriceCorrectionDialog
+                    open={priceDialogOpen}
+                    onOpenChange={(open) => {
+                        setPriceDialogOpen(open);
+                        if (!open) setPriceEditTarget(null);
+                    }}
+                    transactionId={priceEditTarget.txId}
+                    itemIndex={priceEditTarget.itemIndex}
+                    itemName={priceEditTarget.itemName}
+                    currentPrice={priceEditTarget.currentPrice}
+                />
+            )}
         </div>
     );
 }
