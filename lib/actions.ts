@@ -32,8 +32,30 @@ async function logOperation(action: string, target: string, details?: string) {
 
 // Vendor Actions
 export async function getVendors() {
-    return await prisma.vendor.findMany({
-        orderBy: { name: 'asc' },
+    const vendors = await prisma.vendor.findMany({
+        include: {
+            _count: {
+                select: { transactions: true }
+            }
+        }
+    });
+
+    // ソート: テスト業者を最後に、それ以外は使用頻度順
+    return vendors.sort((a, b) => {
+        const aIsTest = a.name.startsWith('テスト');
+        const bIsTest = b.name.startsWith('テスト');
+
+        // テスト業者は最後
+        if (aIsTest && !bIsTest) return 1;
+        if (!aIsTest && bIsTest) return -1;
+
+        // 使用頻度（トランザクション数）の降順
+        const aCount = a._count?.transactions || 0;
+        const bCount = b._count?.transactions || 0;
+        if (aCount !== bCount) return bCount - aCount;
+
+        // 同じ使用頻度なら名前順
+        return a.name.localeCompare(b.name, 'ja');
     });
 }
 
