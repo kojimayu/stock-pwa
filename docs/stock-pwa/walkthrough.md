@@ -42,13 +42,7 @@
 - `SystemSetting`: システム全体の設定値（初期サフィックス等）用に追加。
 - `AirConditionerLog`: `isReturned`, `returnedAt`, `airconProductId` を追加し、在庫連動を実現。
 
-### Conflict Resolution & Feature Sync
-Merge conflicts in `order-detail.tsx`, `order-list.tsx` were resolved.
-Key features retained:
-- **Receipt Cancellation**: Implemented in `actions.ts` (cancelReceipt) and UI.
-- **Azure AD Authentication**: Configuration files (`auth.ts`, `middleware.ts`) and implementation plan preserved.
-- **Conflict Fixes**: Syntax errors in `order-detail.tsx` were corrected.
-- **Git Push Error**: Resolved by removing accidentally committed secret file (`config/env_*.txt`) from history using `git rebase` and adding it to `.gitignore`.
+
 
 ### API / Server Actions
 - `lib/aircon-actions.ts`: 在庫操作、発注処理、サフィックス更新等のロジックを集約。
@@ -125,3 +119,15 @@ Key features retained:
         - **自動補正**: カテゴリ中が空欄の場合は記述なしとしてエラーにするのではなく、「その他」として自動登録します。
     - **管理者ダッシュボード強化**: 商品管理画面に「登録総数」と「最終登録日時」を表示し、インポート結果を即座に確認できるようにしました。
     - **整合性**: 検索バーとフィルターを組み合わせて利用可能にし、リセット機能も追加。
+
+### 13. マージ競合解消と機能同期 (2026-02-07)
+- **競合ファイルの解決**: `order-detail.tsx`, `order-list.tsx` 等で発生していた、ローカル（Azure AD認証追加）とリモート（入荷取消機能追加）の競合を解消し、両方の変更を統合しました。
+- **入荷取消機能**:
+    - `cancelReceipt` アクションとUI（取消ボタン）の実装を確認・維持しました。
+    - **価格修正機能**: `correctTransactionPrice` アクションと管理通知メール機能を保持しました。
+- **Azure AD認証**:
+    - 認証関連ファイル（`lib/auth.ts`, `middleware.ts` 等）の存在を確認しました。
+- **データ不整合の修正**: `lib/actions.ts` 内に残っていた競合マーカーを除去し、コードの整合性を回復しました。
+- **機密情報の削除 (Git History Cleanup)**:
+    - 誤ってコミットされた機密ファイル (`config/env_*.txt`) を `git rebase` を使用して履歴から完全に削除しました。
+    - `.gitignore` を更新し、将来的な再混入を防止しました。
