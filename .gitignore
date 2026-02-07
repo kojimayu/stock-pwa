@@ -46,3 +46,7 @@ next-env.d.ts
 **/dev.db-journal
 
 certificates
+
+# Ignore config dumps
+/config/*.txt
+/docs/stock-pwa/implementation_plan.md

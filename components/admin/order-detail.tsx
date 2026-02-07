@@ -17,10 +17,11 @@ import {
     Check,
     Send,
     Loader2,
-    Copy
+    Copy,
+    RotateCcw
 } from "lucide-react";
 import Link from "next/link";
-import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem } from "@/lib/actions";
+import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, cancelReceipt } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -62,6 +63,21 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
             router.refresh();
         } catch (e: any) {
             toast.error(e.message || "エラーが発生しました");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleCancel = async (item: any) => {
+        if (!confirm(`${item.product.name}の入荷を取り消しますか？\n在庫数も減算されます。`)) return;
+
+        setIsUpdating(true);
+        try {
+            await cancelReceipt(item.id);
+            toast.success("入荷を取り消しました");
+            router.refresh();
+        } catch (e: any) {
+            toast.error(e.message || "取消に失敗しました");
         } finally {
             setIsUpdating(false);
         }
@@ -248,9 +264,21 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                                             </Button>
                                         </div>
                                     ) : item.isReceived ? (
-                                        <div className="flex items-center justify-center text-green-600 gap-1 text-sm">
-                                            <Check className="w-4 h-4" />
-                                            入荷完了
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="flex items-center text-green-600 gap-1 text-sm">
+                                                <Check className="w-4 h-4" />
+                                                入荷完了
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                                title="入荷取り消し"
+                                                onClick={() => handleCancel(item)}
+                                                disabled={isUpdating}
+                                            >
+                                                <RotateCcw className="w-4 h-4" />
+                                            </Button>
                                         </div>
                                     ) : (
                                         <span className="text-xs text-muted-foreground">-</span>

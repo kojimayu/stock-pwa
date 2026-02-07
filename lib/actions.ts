@@ -223,6 +223,32 @@ export async function getProducts() {
     });
 }
 
+// Special sort for Kiosk Shop
+// 1. In Stock (Stock > 0)
+// 2. Popularity (Usage Count)
+// 3. Code (Tie-breaker)
+export async function getShopProducts() {
+    const products = await prisma.product.findMany();
+
+    return products.sort((a, b) => {
+        // Priority 1: Stock Availability (In Stock comes first)
+        const aInStock = a.stock > 0;
+        const bInStock = b.stock > 0;
+        if (aInStock && !bInStock) return -1;
+        if (!aInStock && bInStock) return 1;
+
+        // Priority 2: Usage Count (Higher usage comes first)
+        if (a.usageCount !== b.usageCount) {
+            return b.usageCount - a.usageCount; // Desc
+        }
+
+        // Priority 3: Code (Alphabetical)
+        const userCodeA = a.code || "";
+        const userCodeB = b.code || "";
+        return userCodeA.localeCompare(userCodeB);
+    });
+}
+
 const normalizeCode = (code: string) => {
     if (!code) return "";
     return code
@@ -1242,14 +1268,84 @@ export async function deleteOrder(id: number) {
     revalidatePath('/admin/orders');
 }
 
+
 export async function updateOrderItemQty(orderItemId: number, quantity: number) {
     await prisma.orderItem.update({
         where: { id: orderItemId },
         data: { quantity }
     });
-    // Caller should revalidate
 }
 
+export async function cancelReceipt(orderItemId: number) {
+    // 1. Get current item state
+    const item = await prisma.orderItem.findUnique({
+        where: { id: orderItemId },
+        include: { product: true }
+    });
+
+    if (!item || item.receivedQuantity === 0) {
+        throw new Error("取消可能な入荷記録がありません");
+    }
+
+    const qtyToRevert = item.receivedQuantity;
+
+    // 2. Revert Item stats
+    await prisma.orderItem.update({
+        where: { id: orderItemId },
+        data: {
+            receivedQuantity: 0,
+            isReceived: false
+        }
+    });
+
+    // 3. Revert Stock
+    await prisma.product.update({
+        where: { id: item.productId },
+        data: { stock: { decrement: qtyToRevert } }
+    });
+
+    // 4. Record Log
+    await prisma.inventoryLog.create({
+        data: {
+            productId: item.productId,
+            type: 'CORRECTION',
+            quantity: -qtyToRevert,
+            reason: `Order #${item.orderId} Receipt Cancelled`,
+        }
+    });
+
+    // 5. Update Order Status
+    // Even if other items are received, this order is no longer "fully" received if one item is reverted.
+    // However, we should check if *any* items are still received to decide between PARTIAL and ORDERED.
+    const allItems = await prisma.orderItem.findMany({
+        where: { orderId: item.orderId }
+    });
+
+    const anyReceived = allItems.some(i => i.isReceived);
+    // If we just cancelled the last one, anyReceived will be false (since we updated the item above)
+    // Wait, we need to fetch allItems *after* the update to be sure? 
+    // Yes, or use the logic: if we just set this one to false, and others might be true.
+
+    // Let's re-fetch to be safe and clean
+    const freshItems = await prisma.orderItem.findMany({
+        where: { orderId: item.orderId }
+    });
+    const hasReceives = freshItems.some(i => i.isReceived);
+
+    await prisma.order.update({
+        where: { id: item.orderId },
+        data: {
+            status: hasReceives ? 'PARTIAL' : 'ORDERED',
+            updatedAt: new Date()
+        }
+    });
+
+    await logOperation("ORDER_RECEIVE_CANCEL", `Order #${item.orderId}`, `Cancelled receipt for ${item.product.name}`);
+    revalidatePath('/admin/orders');
+    revalidatePath(`/admin/orders/${item.orderId}`);
+    revalidatePath('/admin/products');
+    return { success: true };
+}
 
 export async function createManualOrder(supplier: string) {
     const order = await prisma.order.create({

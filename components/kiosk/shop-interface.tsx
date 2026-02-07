@@ -7,10 +7,16 @@ import { VerticalSubCategoryList } from "./vertical-sub-category-list";
 import { ProductListItem } from "./product-list-item";
 import { ManualProductSheet } from "@/components/kiosk/manual-product-sheet";
 import { CartSummary } from "./cart-summary";
-import { LogOut, Plus, ChevronLeft } from "lucide-react";
+import { LogOut, Plus, ChevronLeft, Search, X, Mic } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+
+// Add Web Speech API types
+interface IWindow extends Window {
+    webkitSpeechRecognition: any;
+    SpeechRecognition: any;
+}
 
 interface Product {
     id: number;
@@ -24,6 +30,7 @@ interface Product {
     minStock: number;
     createdAt: string;
     updatedAt: string;
+    productType?: string | null;
 }
 
 interface ShopInterfaceProps {
@@ -34,14 +41,64 @@ interface ShopInterfaceProps {
 export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProps) {
     const [selectedCategory, setSelectedCategory] = useState("すべて");
     const [selectedSubCategory, setSelectedSubCategory] = useState("すべて");
+    const [selectedProductType, setSelectedProductType] = useState("すべて"); // New: Small Category
+    const [searchQuery, setSearchQuery] = useState(""); // New: Search
+    const [isListening, setIsListening] = useState(false);
+
     const router = useRouter();
     const clearCart = useCartStore((state) => state.clearCart);
     const vendor = useCartStore((state) => state.vendor);
 
-    // Reset SubCategory when Category changes
+    // Voice Search Handler
+    const handleVoiceSearch = () => {
+        const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
+        if (!webkitSpeechRecognition && !SpeechRecognition) {
+            alert("お使いのブラウザは音声入力に対応していません。");
+            return;
+        }
+
+        const Recognition = SpeechRecognition || webkitSpeechRecognition;
+        const recognition = new Recognition();
+
+        recognition.lang = 'ja-JP';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            setIsListening(true);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+        };
+
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setSearchQuery(transcript);
+        };
+
+        recognition.start();
+    };
+
+    // Reset Filters when parent filter changes
     useEffect(() => {
         setSelectedSubCategory("すべて");
     }, [selectedCategory]);
+
+    useEffect(() => {
+        setSelectedProductType("すべて");
+    }, [selectedCategory, selectedSubCategory]);
+
+    // Clear search when category changes? No, user might want to search anytime.
+    // Clear filters when search starts?
+    useEffect(() => {
+        if (searchQuery) {
+            // Optional: reset categories to show we are in search mode?
+            // keeping them as is might be confusing if UI shows "Aircon" but search shows "Cable".
+            // For now, let's leave them, but the list will be overridden.
+        }
+    }, [searchQuery]);
+
 
     const categories = useMemo(() => {
         const cats = new Set(products.map((p) => p.category));
@@ -58,16 +115,50 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
         return Array.from(subs).sort();
     }, [products, selectedCategory]);
 
+    // New: Product Types (Small Category)
+    const productTypes = useMemo(() => {
+        // Show product types only if SubCategory is selected (or Category if needed, but per plan "Under SubCategory")
+        // Plan says: "After selecting SubCategory, place filter chips"
+        if (selectedCategory === "すべて") return [];
+
+        let targetProducts = products.filter(p => p.category === selectedCategory);
+        if (selectedSubCategory !== "すべて") {
+            targetProducts = targetProducts.filter(p => p.subCategory === selectedSubCategory);
+        }
+
+        const types = new Set(
+            targetProducts
+                .filter(p => p.productType)
+                .map(p => p.productType!)
+        );
+        return Array.from(types).sort();
+    }, [products, selectedCategory, selectedSubCategory]);
+
+
     const filteredProducts = useMemo(() => {
+        // 1. Search Mode Override
+        if (searchQuery.trim().length > 0) {
+            const lowerQ = searchQuery.toLowerCase();
+            return products.filter(p =>
+                p.name.toLowerCase().includes(lowerQ) ||
+                (p.code && p.code.toLowerCase().includes(lowerQ))
+            );
+        }
+
+        // 2. Normal Category Filtering
         let res = products;
         if (selectedCategory !== "すべて") {
             res = res.filter((p) => p.category === selectedCategory);
             if (selectedSubCategory !== "すべて") {
                 res = res.filter((p) => p.subCategory === selectedSubCategory);
             }
+            // 3. Product Type Filtering
+            if (selectedProductType !== "すべて") {
+                res = res.filter((p) => p.productType === selectedProductType);
+            }
         }
         return res;
-    }, [products, selectedCategory, selectedSubCategory]);
+    }, [products, selectedCategory, selectedSubCategory, selectedProductType, searchQuery]);
 
     const handleLogout = () => {
         if (confirm("ログアウトしますか？カートの中身は破棄されます。")) {
@@ -96,12 +187,35 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
                     <ChevronLeft className="w-5 h-5 mr-1" />
                     戻る
                 </Button>
-                <div className="flex items-center gap-2">
-                    <h1 className="text-lg font-bold">商品選択</h1>
-                    <span className="text-slate-400">|</span>
-                    <span className="text-sm text-slate-300">
-                        {vendor ? `${vendor.name} 様` : "未ログイン"}
-                    </span>
+                <div className="flex-1 max-w-xl mx-4 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                        type="search"
+                        placeholder="商品名や品番で検索..."
+                        className="w-full h-10 pl-9 pr-16 rounded-full bg-slate-800 border border-slate-700 text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery("")}
+                                className="p-1 text-slate-400 hover:text-white"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                        <button
+                            onClick={handleVoiceSearch}
+                            className={`p-1.5 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                            title="音声で検索"
+                        >
+                            <Mic className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+                <div className="mr-2 hidden lg:block text-sm text-slate-300">
+                    {vendor ? `${vendor.name} 様` : ""}
                 </div>
                 <div className="flex items-center space-x-1">
                     <Button
@@ -223,11 +337,49 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
                     </div>
 
                     {/* Product List Content */}
-                    <div className="pb-32 bg-white min-h-full">
-                        {/* Manual Input Row (Mobile Only) */}
-                        <div className="md:hidden">
+                    <div className="p-4 bg-white min-h-full">
+
+                        {/* Product Type Chips (Small Category) - Show if types exist and not searching */}
+                        {productTypes.length > 0 && !searchQuery && (
+                            <div className="mb-4 flex flex-wrap gap-2">
+                                <span className="text-xs font-bold text-slate-400 py-1.5">タイプ:</span>
+                                <button
+                                    onClick={() => setSelectedProductType("すべて")}
+                                    className={`
+                                        px-3 py-1 rounded-full text-xs font-bold transition-colors border
+                                        ${selectedProductType === "すべて"
+                                            ? "bg-blue-600 text-white border-blue-600"
+                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
+                                    `}
+                                >
+                                    すべて
+                                </button>
+                                {productTypes.map(type => (
+                                    <button
+                                        key={type}
+                                        onClick={() => setSelectedProductType(type)}
+                                        className={`
+                                            px-3 py-1 rounded-full text-xs font-bold transition-colors border
+                                            ${selectedProductType === type
+                                                ? "bg-blue-600 text-white border-blue-600"
+                                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
+                                        `}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Manual Input Row (Mobile Optimized in Grid?) No, keep separate or first card? 
+                            Keeping separate for now, but maybe styling it as a Card in grid?
+                            Let's keep the dedicated mobile row for visibility in phone, 
+                            but for tablet grid, maybe add a "Manual Add" card?
+                            For now, keeping the mobile list row wrapper for 'md:hidden'
+                        */}
+                        <div className="md:hidden mb-4">
                             <ManualProductSheet trigger={
-                                <div className="p-4 border-b bg-slate-50 hover:bg-slate-100 cursor-pointer flex items-center gap-4 text-slate-600 transition-colors group">
+                                <div className="p-4 border rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer flex items-center gap-4 text-slate-600 transition-colors group shadow-sm">
                                     <div className="w-12 h-12 rounded-full bg-white border border-dashed border-slate-300 flex items-center justify-center group-hover:border-slate-500 group-hover:bg-slate-50">
                                         <Plus className="w-6 h-6 text-slate-400 group-hover:text-slate-600" />
                                     </div>
@@ -241,19 +393,22 @@ export function ShopInterface({ products, isInventoryActive }: ShopInterfaceProp
 
                         {filteredProducts.length === 0 ? (
                             <div className="text-center py-20 text-slate-500">
-                                {selectedCategory === "すべて" ? "カテゴリーを選択してください" : "該当する商品はありません"}
+                                {searchQuery ? `「${searchQuery}」に一致する商品は見つかりませんでした` :
+                                    selectedCategory === "すべて" ? "カテゴリーを選択してください" : "該当する商品はありません"}
                             </div>
                         ) : (
-                            filteredProducts.map((product) => (
-                                <ProductListItem key={product.id} product={product} />
-                            ))
+                            <div className="flex flex-col">
+                                {filteredProducts.map((product) => (
+                                    <ProductListItem key={product.id} product={product} />
+                                ))}
+                            </div>
                         )}
                     </div>
                 </main>
-            </div>
+            </div >
 
             {/* Footer Cart Summary */}
-            <CartSummary />
-        </div>
+            < CartSummary />
+        </div >
     );
 }

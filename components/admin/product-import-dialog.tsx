@@ -62,11 +62,11 @@ export function ProductImportDialog() {
     };
 
     const COLORS = [
-        { name: "アイボリー", suffix: "-IV" },
-        { name: "ブラウン", suffix: "-BN" },
-        { name: "ブラック", suffix: "-BK" },
-        { name: "ホワイト", suffix: "-WH" },
-        { name: "グレー", suffix: "-GY" },
+        { name: "アイボリー", suffix: "-I" },
+        { name: "ブラウン", suffix: "-BR" },
+        { name: "ブラック", suffix: "-B" },
+        { name: "ホワイト", suffix: "-W" },
+        { name: "グレー", suffix: "-G" },
     ];
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
