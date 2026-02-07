@@ -1637,7 +1637,6 @@ export async function searchProducts(query: string) {
         take: 10
     });
 }
-
 // 価格修正機能
 export async function correctTransactionPrice(
     transactionId: number,
