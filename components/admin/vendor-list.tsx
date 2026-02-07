@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -227,9 +227,8 @@ export function VendorList({ vendors }: VendorListProps) {
                     </TableHeader>
                     <TableBody>
                         {filteredVendors.map((vendor) => (
-                            <>
+                            <Fragment key={vendor.id}>
                                 <TableRow
-                                    key={vendor.id}
                                     className={`cursor-pointer hover:bg-slate-50 group ${vendor.isActive === false ? 'opacity-70 bg-slate-50' : ''}`}
                                     onClick={() => toggleExpand(vendor.id)}
                                 >
@@ -336,7 +335,7 @@ export function VendorList({ vendors }: VendorListProps) {
                                         </TableCell>
                                     </TableRow>
                                 )}
-                            </>
+                            </Fragment>
                         ))}
                         {vendors.length === 0 && (
                             <TableRow>
