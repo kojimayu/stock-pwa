@@ -4,12 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, FileText, Users, History, Menu,
-  ClipboardList, Fan, Boxes, Settings, ChevronRight
+  ClipboardList, Fan, Boxes, Settings, ChevronRight, User, LogOut
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { LogoutButton } from "@/components/admin/logout-button";
+
+interface SidebarProps {
+  user?: {
+    name?: string | null;
+    email?: string | null;
+  };
+}
 
 // カテゴリ分けされたナビゲーション
 const navigationGroups = [
@@ -48,7 +56,7 @@ const navigationGroups = [
   },
 ];
 
-function SidebarContent({ onClose }: { onClose?: () => void }) {
+function SidebarContent({ onClose, user }: { onClose?: () => void; user?: SidebarProps['user'] }) {
   const pathname = usePathname();
 
   return (
@@ -94,23 +102,37 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           </div>
         ))}
       </nav>
-      <div className="p-4 border-t border-slate-800">
-        <Link href="/" className="text-xs text-slate-500 hover:text-slate-300 block">
-          ← Kiosk画面へ戻る
-        </Link>
+
+      {/* User Info & Logout */}
+      <div className="p-4 border-t border-slate-800 bg-slate-950">
+        {user && (
+          <div className="mb-4 px-2 flex items-center gap-3 text-sm text-slate-300">
+            <User className="w-8 h-8 p-1.5 bg-slate-800 rounded-full text-slate-400" />
+            <div className="flex-1 min-w-0">
+              <div className="truncate font-medium">{user.name || "User"}</div>
+              <div className="truncate text-xs text-slate-500">{user.email}</div>
+            </div>
+          </div>
+        )}
+        <LogoutButton />
+        <div className="mt-4 pt-4 border-t border-slate-800">
+          <Link href="/" className="text-xs text-slate-500 hover:text-slate-300 block text-center">
+            ← Kiosk画面へ戻る
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
 
-export function AdminSidebar() {
+export function AdminSidebar({ user }: SidebarProps) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       {/* Desktop Sidebar */}
       <div className="hidden md:flex h-full w-64">
-        <SidebarContent />
+        <SidebarContent user={user} />
       </div>
 
       {/* Mobile Sidebar Trigger */}
@@ -125,7 +147,7 @@ export function AdminSidebar() {
             <div className="sr-only">
               <SheetTitle>Admin Menu</SheetTitle>
             </div>
-            <SidebarContent onClose={() => setOpen(false)} />
+            <SidebarContent onClose={() => setOpen(false)} user={user} />
           </SheetContent>
         </Sheet>
       </div>

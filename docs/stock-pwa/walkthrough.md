@@ -42,6 +42,14 @@
 - `SystemSetting`: システム全体の設定値（初期サフィックス等）用に追加。
 - `AirConditionerLog`: `isReturned`, `returnedAt`, `airconProductId` を追加し、在庫連動を実現。
 
+### Conflict Resolution & Feature Sync
+Merge conflicts in `order-detail.tsx`, `order-list.tsx` were resolved.
+Key features retained:
+- **Receipt Cancellation**: Implemented in `actions.ts` (cancelReceipt) and UI.
+- **Azure AD Authentication**: Configuration files (`auth.ts`, `middleware.ts`) and implementation plan preserved.
+- **Conflict Fixes**: Syntax errors in `order-detail.tsx` were corrected.
+- **Git Push Error**: Resolved by removing accidentally committed secret file (`config/env_*.txt`) from history using `git rebase` and adding it to `.gitignore`.
+
 ### API / Server Actions
 - `lib/aircon-actions.ts`: 在庫操作、発注処理、サフィックス更新等のロジックを集約。
 - `lib/actions.ts`: 一般部材用の `returnTransaction` を追加。

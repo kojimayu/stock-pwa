@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 入荷訂正・取消機能の実装
 
 ## 実装の目的
@@ -72,3 +73,52 @@
 2.  **Kioskカテゴリ小**: 商品リストコンポーネントに `productType` フィルターを追加。
 3.  **返品モード**: `app/mode-select` 画面の作成と、カートストア（状態管理）への `isReturnMode` フラグ追加。
 4.  **完了画面**: 結果表示コンポーネントで `isReturnMode` なら在庫数を強調表示するロジック追加。
+
+# 実装計画: 管理画面のAzure AD認証 (Admin Authentication)
+
+## 概要
+管理画面 (`/admin`) へのアクセスに Microsoft 365 アカウント (Azure Entra ID) による認証を導入します。
+これにより、セキュリティを強化し、操作ログに「誰が実行したか」を正確に記録できるようにします。
+
+## ユーザーレビューが必要な事項
+> [!IMPORTANT]
+> **.envの設定**
+> 作成した `STOCK-PWA-Auth` アプリの情報を `.env` に設定してください。
+> ```env
+> AZURE_AD_CLIENT_ID="..."
+> AZURE_AD_CLIENT_SECRET="..."
+> AZURE_AD_TENANT_ID="..."
+> NEXTAUTH_URL="http://localhost:3000"
+> NEXTAUTH_SECRET="..." (ランダムな文字列)
+> ```
+
+## 変更内容
+
+### 1. 認証基盤の実装
+#### [NEW] [lib/auth.ts](file:///f:/Antigravity/stock-pwa/lib/auth.ts)
+- NextAuthの設定（v5 beta or v4 compatible configuration for Next.js 14/15）。
+- `AzureADProvider` を使用。
+- セッションコールバックで `user.id` や `email` を保持。
+
+#### [NEW] [app/api/auth/[...nextauth]/route.ts](file:///f:/Antigravity/stock-pwa/app/api/auth/[...nextauth]/route.ts)
+- 認証ハンドラのエンドポイント。
+
+#### [NEW] [middleware.ts](file:///f:/Antigravity/stock-pwa/middleware.ts)
+- `/admin` 以下のルートを保護。
+- 未認証なら `/login` またはMicrosoftログインへリダイレクト。
+
+### 2. UI/UXの変更
+#### [MODIFY] [app/(admin)/layout.tsx](file:///f:/Antigravity/stock-pwa/app/(admin)/layout.tsx)
+- サイドバー下部に「ログアウト」ボタンと「ログイン中のユーザー名」を表示。
+
+#### [NEW] [app/login/page.tsx](file:///f:/Antigravity/stock-pwa/app/login/page.tsx)
+- (Option) カスタムログイン画面を作るか、NextAuth標準画面を使用。まずは標準画面またはダイレクトログインで進める。
+
+### 3. 操作ログへの記録
+#### [MODIFY] [lib/actions.ts](file:///f:/Antigravity/stock-pwa/lib/actions.ts)
+- `logOperation` 関数内で `getServerSession` を呼び出し、現在のユーザーメールアドレスを取得して `details` に追記（またはカラム追加）。
+
+## 検証計画
+1.  `.env` 設定後、`/admin` にアクセスしてログイン画面が出るか。
+2.  Microsoftアカウントでログインした後、管理画面に入れるか。
+3.  操作（商品更新など）を行った際、ログにメールアドレスが残るか。

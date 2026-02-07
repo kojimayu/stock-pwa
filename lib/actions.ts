@@ -9,13 +9,19 @@ export type LoginState = {
 };
 
 // Helper for Logging
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
 async function logOperation(action: string, target: string, details?: string) {
     try {
+        const session = await getServerSession(authOptions);
+        const executor = session?.user?.email || "System/Guest";
+
         await prisma.operationLog.create({
             data: {
                 action,
                 target,
-                details,
+                details: `${details || ''} [By: ${executor}]`, // Append executor to details
             },
         });
     } catch (e) {

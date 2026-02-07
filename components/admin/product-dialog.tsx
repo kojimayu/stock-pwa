@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -98,11 +98,26 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
     const [currentPriceA, setCurrentPriceA] = useState(initialValues?.priceA || product?.priceA || 0);
     const [currentPriceB, setCurrentPriceB] = useState(product?.priceB || 0);
 
+    // 【重要】ダイアログが開かれた時、または商品が変わった時にstateを同期する
+    // useStateはマウント時のみ初期化されるため、propが変わっても自動では更新されない
+    useEffect(() => {
+        if (open) {
+            // ダイアログが開かれたタイミングで、productから値を再設定
+            setCurrentCost(product?.cost || 0);
+            setCurrentPriceA(initialValues?.priceA || product?.priceA || 0);
+            setCurrentPriceB(product?.priceB || 0);
+        }
+    }, [open, product, initialValues?.priceA]);
+
     const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const costValue = Number(e.target.value);
-        if (!isNaN(costValue)) {
-            setCurrentCost(costValue);
-            // Auto-calculate prices based on cost
+        const val = e.target.value;
+        const costValue = Number(val);
+
+        // Update input storage
+        setCurrentCost(isNaN(costValue) ? 0 : costValue);
+
+        if (!isNaN(costValue) && costValue > 0) {
+            // Auto-calculate prices based on cost ONLY if cost is valid and > 0
             const priceA = Math.ceil(costValue * 1.20);
             const priceB = Math.ceil(costValue * 1.15);
 
