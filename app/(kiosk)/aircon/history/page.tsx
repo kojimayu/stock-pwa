@@ -133,17 +133,20 @@ export default function AirconHistoryPage() {
                 ) : (
                     <div className="space-y-3">
                         {logs.map((log) => (
-                            <Card key={log.id} className={`relative ${log.isReturned ? 'bg-slate-100 opacity-70' : ''}`}>
+                            <Card key={log.id} className={`relative border-2 ${log.isReturned ? 'bg-red-50 border-red-200' : 'border-slate-100'}`}>
                                 <CardHeader className="py-3 px-4 pb-2">
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <div className="text-sm text-slate-500 mb-1 flex items-center gap-2">
                                                 {format(new Date(log.createdAt), "yyyy/MM/dd HH:mm", { locale: ja })}
                                                 {log.isReturned && (
-                                                    <span className="bg-slate-500 text-white text-[10px] px-1.5 py-0.5 rounded">戻し済</span>
+                                                    <span className="bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                                        差戻・返却済
+                                                    </span>
                                                 )}
                                             </div>
-                                            <CardTitle className={`text-base font-bold ${log.isReturned ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                                            <CardTitle className={`text-base font-bold ${log.isReturned ? 'text-slate-400 line-through decoration-red-400 decoration-2' : 'text-slate-900'}`}>
                                                 No. {log.managementNo}
                                             </CardTitle>
                                         </div>

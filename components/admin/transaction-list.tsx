@@ -26,7 +26,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 type Transaction = {
     id: number;
     date: Date;
-    vendor: { name: string };
+    vendor: { id: number; name: string };
     vendorUser?: { name: string } | null;
     totalAmount: number;
     items: string; // JSON string
@@ -120,7 +120,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
 
     // CSVエクスポート
     const exportCsv = () => {
-        const headers = ["日時", "業者名", "商品", "数量", "単価", "合計金額"];
+        const headers = ["取引ID", "日時", "業者コード", "業者名", "担当者", "商品コード", "商品名", "数量", "単価", "小計", "取引合計", "ステータス", "代理入力"];
         const rows: string[][] = [];
 
         filteredTransactions.forEach((tx) => {
@@ -131,12 +131,19 @@ export function TransactionList({ transactions }: TransactionListProps) {
 
             items.forEach((item, idx) => {
                 rows.push([
-                    idx === 0 ? formatDate(tx.date) : "",
-                    idx === 0 ? tx.vendor.name : "",
-                    item.name || `商品ID:${item.productId}`,
+                    String(tx.id),
+                    formatDate(tx.date),
+                    String(tx.vendor.id),
+                    tx.vendor.name,
+                    tx.vendorUser?.name || "",
+                    item.code || `ID:${item.productId}`, // add code
+                    item.name,
                     String(item.quantity),
                     item.isManual ? "-" : String(item.price),
-                    idx === 0 ? String(tx.totalAmount) : "",
+                    item.isManual ? "0" : String(item.price * item.quantity),
+                    idx === 0 ? String(tx.totalAmount) : "", // Total amount only on first line? Or repeat? User asked for 1 record per line, usually total is redundant on line items or repeated. Let's repeat it or keep distinct column. If flat data, maybe we don't need "Total Transaction Amount" on every line if we have subtotal. But let's keep it for reference.
+                    tx.isReturned ? "返品済" : "正常",
+                    tx.isProxyInput ? "○" : ""
                 ]);
             });
         });
@@ -308,6 +315,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                                     <span>
                                                         {tx.isProxyInput && <span className="text-xs bg-purple-100 text-purple-700 px-1 rounded mr-1">代</span>}
                                                         {item.isManual && <span className="text-xs bg-amber-200 text-amber-800 px-1 rounded mr-1">手入力</span>}
+                                                        {item.code && <span className="font-mono text-xs text-slate-500 mr-1">[{item.code}]</span>}
                                                         {item.name || `商品ID:${item.productId}`} × {item.quantity}
                                                         <span className="text-slate-400 text-xs ml-2">
                                                             (@{item.isManual ? "-" : formatCurrency(item.price)})

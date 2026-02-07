@@ -832,7 +832,7 @@ import { sendTransactionEmail } from './mail';
 export async function createTransaction(
     vendorId: number,
     vendorUserId: number | null,  // 担当者ID追加
-    items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[],
+    items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean; code?: string }[],
     totalAmountParam?: number,
     isProxyInput: boolean = false,
     transactionDate?: Date  // 代理入力用：引取日を指定
@@ -878,6 +878,9 @@ export async function createTransaction(
                 if (!product || product.stock < item.quantity) {
                     throw new Error(`商品ID ${item.productId} の在庫が不足しています`);
                 }
+
+                // Add code to item for storage
+                item.code = product.code;
 
                 // Decrease Stock
                 await tx.product.update({

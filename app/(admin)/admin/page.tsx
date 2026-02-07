@@ -306,14 +306,27 @@ export default async function AdminDashboardPage() {
                                     <TableHead>品番</TableHead>
                                 </TableRow>
                             </TableHeader>
-                            <TableBody>
-                                {airconStats.recentAirconLogs.map((log: any) => (
-                                    <TableRow key={log.id}>
-                                        <TableCell className="text-sm">{formatDate(log.createdAt)}</TableCell>
-                                        <TableCell>{log.vendor.name}</TableCell>
-                                        <TableCell className="font-mono text-sm">{log.modelNumber}</TableCell>
-                                    </TableRow>
-                                ))}
+                            < TableBody >
+                                {
+                                    airconStats.recentAirconLogs.map((log: any) => (
+                                        <TableRow key={log.id} className={log.isReturned ? "bg-red-50 hover:bg-red-100" : ""}>
+                                            <TableCell className="text-sm">
+                                                {formatDate(log.createdAt)}
+                                                {log.isReturned && (
+                                                    <span className="ml-2 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded inline-block">
+                                                        返却済
+                                                    </span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className={log.isReturned ? "text-slate-400 line-through" : ""}>
+                                                {log.vendor.name}
+                                            </TableCell>
+                                            <TableCell className={`font-mono text-sm ${log.isReturned ? "text-slate-400 line-through" : ""}`}>
+                                                {log.modelNumber}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                }
                             </TableBody>
                         </Table>
                     )}
