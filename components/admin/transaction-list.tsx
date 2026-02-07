@@ -27,6 +27,7 @@ type Transaction = {
     id: number;
     date: Date;
     vendor: { name: string };
+    vendorUser?: { name: string } | null;
     totalAmount: number;
     items: string; // JSON string
     hasUnregisteredItems?: boolean;
@@ -271,6 +272,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                         <TableRow>
                             <TableHead className="w-[180px]">日時</TableHead>
                             <TableHead className="w-[150px]">業者名</TableHead>
+                            <TableHead className="w-[120px]">担当者</TableHead>
                             <TableHead>購入内容 (商品名 × 数量 / 単価)</TableHead>
                             <TableHead className="text-right w-[120px]">合計金額</TableHead>
                             <TableHead className="w-[80px] text-center">操作</TableHead>
@@ -298,6 +300,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                         )}
                                     </TableCell>
                                     <TableCell className="font-medium">{tx.vendor.name}</TableCell>
+                                    <TableCell>{tx.vendorUser?.name || "-"}</TableCell>
                                     <TableCell>
                                         <div className="space-y-1">
                                             {parsedItems.map((item, idx) => (

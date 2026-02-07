@@ -5,9 +5,11 @@ import { useState, useEffect, useCallback } from "react";
 export function useOnlineStatus() {
     const [isOnline, setIsOnline] = useState(true);
 
+    // 連続失敗カウント
+    const [failureCount, setFailureCount] = useState(0);
+
     const checkServerConnection = useCallback(async () => {
         try {
-            // タイムアウトを短めに設定して確認
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 3000);
 
@@ -21,13 +23,27 @@ export function useOnlineStatus() {
 
             if (res.ok) {
                 setIsOnline(true);
+                setFailureCount(0); // 成功したらリセット
             } else {
-                setIsOnline(false);
+                // サーバーエラー等は失敗とみなす
+                handleFailure();
             }
         } catch (e) {
-            setIsOnline(false);
+            // ネットワークエラーやタイムアウト
+            handleFailure();
         }
-    }, []);
+    }, [failureCount]); // failureCountへの依存は避けたほうがいいが、setFailureCount(prev => ...)を使うのでOK
+
+    const handleFailure = () => {
+        setFailureCount((prev) => {
+            const newCount = prev + 1;
+            // 2回連続失敗でオフライン判定
+            if (newCount >= 2) {
+                setIsOnline(false);
+            }
+            return newCount;
+        });
+    };
 
     useEffect(() => {
         if (typeof window !== "undefined") {

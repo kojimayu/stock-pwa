@@ -11,7 +11,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Edit, Plus, Trash2, RotateCcw, Download, Loader2, Search, ChevronDown, ChevronUp, UserPlus, X, User } from "lucide-react";
+import { Edit, Plus, Trash2, RotateCcw, Download, Loader2, Search, ChevronDown, ChevronUp, UserPlus, X, User, Info } from "lucide-react";
 import { VendorDialog } from "./vendor-dialog";
 import { deleteVendor, resetPin, toggleVendorActive, importVendorsFromAccess, deleteVendorUser, createVendorUser } from "@/lib/actions";
 import { toast } from "sonner";
@@ -179,6 +179,15 @@ export function VendorList({ vendors }: VendorListProps) {
                 </Button>
             </div>
 
+            {/* 操作ガイド */}
+            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md flex items-start gap-3 text-sm">
+                <Info className="w-5 h-5 shrink-0 my-0.5" />
+                <div>
+                    <p className="font-bold">担当者の追加・PINリセットについて</p>
+                    <p>各業者の行をクリックすると詳細画面が展開され、担当者の管理（追加・削除・PINリセット）が行えます。</p>
+                </div>
+            </div>
+
             {/* 検索バー */}
             <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -221,7 +230,7 @@ export function VendorList({ vendors }: VendorListProps) {
                             <>
                                 <TableRow
                                     key={vendor.id}
-                                    className={`cursor-pointer hover:bg-slate-50 ${vendor.isActive === false ? 'opacity-70 bg-slate-50' : ''}`}
+                                    className={`cursor-pointer hover:bg-slate-50 group ${vendor.isActive === false ? 'opacity-70 bg-slate-50' : ''}`}
                                     onClick={() => toggleExpand(vendor.id)}
                                 >
                                     <TableCell>
@@ -243,9 +252,14 @@ export function VendorList({ vendors }: VendorListProps) {
                                     <TableCell>{vendor.id}</TableCell>
                                     <TableCell className="font-bold">{vendor.name}</TableCell>
                                     <TableCell>
-                                        <Badge variant="secondary" className="font-normal">
-                                            {vendor.users.length} 名
-                                        </Badge>
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="secondary" className="font-normal">
+                                                {vendor.users.length} 名
+                                            </Badge>
+                                            <span className="text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                                詳細・PIN管理
+                                            </span>
+                                        </div>
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">{vendor.email || '-'}</TableCell>
                                     <TableCell className="text-right space-x-1">

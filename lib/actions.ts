@@ -765,6 +765,7 @@ export async function getTransactions(limit = 100) {
         orderBy: { date: 'desc' },
         include: {
             vendor: true,
+            vendorUser: true,
         },
     });
     return transactions;
