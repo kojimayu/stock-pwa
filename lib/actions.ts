@@ -134,14 +134,22 @@ export async function importVendorsFromAccess() {
                 continue;
             }
 
-            // 新規作成（isActive: false, 初期PIN: 1234）
-            await prisma.vendor.create({
+            // 新規作成（isActive: false）
+            const newVendor = await prisma.vendor.create({
                 data: {
                     name: av.name,
-                    pinCode: '1234',
-                    pinChanged: false,
                     isActive: false,  // 初期は無効（管理者が有効化）
                     accessCompanyName: av.name
+                }
+            });
+
+            // デフォルト担当者を作成
+            await prisma.vendorUser.create({
+                data: {
+                    vendorId: newVendor.id,
+                    name: '代表',
+                    pinCode: '1234',
+                    pinChanged: false
                 }
             });
             imported++;
@@ -195,14 +203,13 @@ export async function getUniqueProductAttributes() {
     };
 }
 
-export async function upsertVendor(data: { id?: number; name: string; pinCode?: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean }) {
+export async function upsertVendor(data: { id?: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean }) {
     if (data.id) {
         // Update
         await prisma.vendor.update({
             where: { id: data.id },
             data: {
                 name: data.name,
-                // pinCode is not updated anymore
                 email: data.email,
                 accessCompanyName: data.accessCompanyName,
                 showPriceInEmail: data.showPriceInEmail ?? true,
@@ -214,7 +221,6 @@ export async function upsertVendor(data: { id?: number; name: string; pinCode?: 
         const newVendor = await prisma.vendor.create({
             data: {
                 name: data.name,
-                pinCode: '1234', // Legacy filler
                 email: data.email,
                 accessCompanyName: data.accessCompanyName,
                 showPriceInEmail: data.showPriceInEmail ?? true,
@@ -263,16 +269,21 @@ export async function verifyPin(vendorId: string | number, vendorUserId: string 
     });
 
     if (!vendorUser) {
+        await logOperation("KIOSK_LOGIN_FAILED", `UserId: ${vendorUserId}`, "担当者が存在しません");
         return { success: false, message: '担当者が存在しません' };
     }
 
     if (vendorUser.vendorId !== Number(vendorId)) {
+        await logOperation("KIOSK_LOGIN_FAILED", vendorUser.name, "所属業者の不一致");
         return { success: false, message: '担当者の所属が一致しません' };
     }
 
     if (vendorUser.pinCode !== pin) {
+        await logOperation("KIOSK_LOGIN_FAILED", vendorUser.name, "PIN不一致");
         return { success: false, message: 'PINコードが正しくありません' };
     }
+
+    await logOperation("KIOSK_LOGIN_SUCCESS", vendorUser.name, `Vendor: ${vendorUser.vendor.name}`);
 
     return {
         success: true,
