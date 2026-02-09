@@ -17,6 +17,9 @@ interface Vendor {
     id: number;
     name: string;
     accessCompanyName?: string | null;
+    _count?: {
+        transactions: number;
+    };
 }
 
 interface Product {
@@ -30,8 +33,8 @@ interface Product {
     priceB: number;
     stock: number;
     minStock: number;
-    createdAt: string;
-    updatedAt: string;
+    createdAt: Date | string;
+    updatedAt: Date | string;
 }
 
 interface ProxyInputClientProps {

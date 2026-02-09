@@ -190,7 +190,7 @@ export function ProductImportDialog() {
                     cost: p.cost,
                     supplier: p.supplier,
                     color: p.color,
-                    color: p.color,
+
                     unit: p.unit,
                     orderUnit: p.orderUnit,
                     manufacturer: p.manufacturer,

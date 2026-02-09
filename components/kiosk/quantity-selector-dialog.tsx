@@ -13,6 +13,7 @@ interface Product {
     priceA: number;
     quantityPerBox?: number;
     pricePerBox?: number;
+    unit?: string;
 }
 
 interface QuantitySelectorDialogProps {
@@ -27,7 +28,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
     const [isBox, setIsBox] = useState(false);
 
     // Check if box mode is available
-    const canBuyBox = (product.quantityPerBox || 0) > 1 && (product.pricePerBox || 0) > 0;
+    const canBuyBox = (product.quantityPerBox || 0) > 1;
 
     // Reset state when dialog opens
     useEffect(() => {
@@ -72,29 +73,38 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
 
                 <div className="py-6 flex flex-col items-center justify-center space-y-6">
                     {canBuyBox && (
-                        <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-[200px]">
-                            <button
-                                className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${!isBox ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-                                onClick={() => { setIsBox(false); setQuantity(1); }}
-                            >
-                                バラ
-                            </button>
-                            <button
-                                className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${isBox ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-                                onClick={() => { setIsBox(true); setQuantity(1); }}
-                            >
-                                箱 ({product.quantityPerBox}個)
-                            </button>
+                        <div className="w-full flex justify-center mb-2">
+                            <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-[260px]">
+                                <button
+                                    className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${!isBox ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                    onClick={() => { setIsBox(false); setQuantity(1); }}
+                                >
+                                    バラ ({product.unit || '個'})
+                                </button>
+                                <button
+                                    className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${isBox ? 'bg-white shadow text-slate-900 border-2 border-blue-500' : 'text-slate-500 hover:text-slate-700'}`}
+                                    onClick={() => { setIsBox(true); setQuantity(1); }}
+                                >
+                                    {product.quantityPerBox}{product.unit || '個'}セット
+                                </button>
+                            </div>
                         </div>
                     )}
 
                     <div className="text-center">
-                        <div className="text-2xl font-bold text-slate-900">
-                            <span className="text-sm font-normal text-slate-500 ml-1">{isBox ? '箱' : '個'}</span>
+                        <div className="text-3xl font-bold text-slate-900 flex items-end justify-center">
+                            {quantity}
+                            <span className="text-lg font-normal text-slate-500 ml-1 mb-1">
+                                {isBox ? 'セット' : (product.unit || '個')}
+                            </span>
                         </div>
-                        <div className="text-sm text-slate-500 mt-1">
-                            現在の在庫: {product.stock}個
-                            {isBox && ` (${Math.floor(product.stock / (product.quantityPerBox || 1))}箱)`}
+                        {isBox && (
+                            <div className="text-blue-600 font-bold mt-1 bg-blue-50 px-3 py-1 rounded-full inline-block">
+                                合計: {quantity * (product.quantityPerBox || 1)}{product.unit || '個'}
+                            </div>
+                        )}
+                        <div className="text-sm text-slate-500 mt-2">
+                            現在の在庫: {product.stock}{product.unit || '個'}
                         </div>
                     </div>
 
@@ -110,7 +120,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                         </Button>
 
                         <div className="w-24 text-center">
-                            <span className="text-4xl font-bold text-slate-900">{quantity}</span>
+                            {/* Number displayed above */}
                         </div>
 
                         <Button
@@ -124,11 +134,13 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                         </Button>
                     </div>
 
+                    {/* Quick Select Buttons */}
                     <div className="grid grid-cols-4 gap-2 w-full px-4">
-                        {[5, 10, 20].map((num) => (
-                            (!isBox || num * (product.quantityPerBox || 1) <= product.stock) &&
-                            // Only show larger numbers if stock allows. For Box, check if we have enough boxes.
-                            num <= maxQuantity && (
+                        {[1, 2, 3, 5, 10].map((num) => {
+                            const totalQty = num * (isBox ? (product.quantityPerBox || 1) : 1);
+                            if (totalQty > product.stock) return null;
+
+                            return (
                                 <Button
                                     key={num}
                                     variant="outline"
@@ -136,30 +148,37 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                     className="font-bold"
                                     onClick={() => setQuantity(num)}
                                 >
-                                    {num}個
+                                    {num}{isBox ? 'セット' : (product.unit || '個')}
                                 </Button>
-                            )
-                        ))}
+                            );
+                        })}
                         <Button
                             variant="destructive"
                             size="sm"
                             className="font-bold"
                             onClick={() => setQuantity(1)}
                         >
-                            クリア
+                            リセット
                         </Button>
                     </div>
                 </div>
 
                 <DialogFooter>
-                    <Button
-                        size="lg"
-                        className="w-full h-14 text-lg font-bold"
-                        onClick={handleConfirm}
-                    >
-                        <ShoppingCart className="w-5 h-5 mr-2" />
-                        カートに入れる
-                    </Button>
+                    <div className="w-full space-y-2">
+                        {isBox && (
+                            <div className="text-center text-xs text-muted-foreground bg-slate-100 p-2 rounded">
+                                ※在庫から <strong>{quantity * (product.quantityPerBox || 1)}{product.unit || '個'}</strong> 減算されます
+                            </div>
+                        )}
+                        <Button
+                            size="lg"
+                            className="w-full h-14 text-lg font-bold"
+                            onClick={handleConfirm}
+                        >
+                            <ShoppingCart className="w-5 h-5 mr-2" />
+                            カートに入れる
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>

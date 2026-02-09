@@ -695,6 +695,7 @@ export async function importProducts(products: {
     manufacturer?: string | null;
     quantityPerBox?: number;
     pricePerBox?: number;
+    orderUnit?: number;
 }[]) {
     // 0. Check for active inventory
     if (await checkActiveInventory()) {

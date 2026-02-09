@@ -14,10 +14,15 @@ async function main() {
     const vendor = await prisma.vendor.create({
         data: {
             name: 'Test Vendor',
-            pinCode: '1111',
+            users: {
+                create: {
+                    name: 'Test User',
+                    pinCode: '1111',
+                }
+            }
         },
     })
-    console.log(`Created vendor: ${vendor.name} (PIN: ${vendor.pinCode})`)
+    console.log(`Created vendor: ${vendor.name} (User PIN: 1111)`)
 
     // Create Products
     const products = await prisma.product.createMany({

@@ -125,10 +125,10 @@ try {
             let stdout = '';
             let stderr = '';
 
-            ps.stdout.on('data', (data) => { stdout += data.toString(); });
-            ps.stderr.on('data', (data) => { stderr += data.toString(); });
+            ps.stdout.on('data', (data: any) => { stdout += data.toString(); });
+            ps.stderr.on('data', (data: any) => { stderr += data.toString(); });
 
-            ps.on('close', (code) => {
+            ps.on('close', (code: number) => {
                 if (code !== 0 && !stdout) { // Only reject if no stdout (PowerShell might write errors to stderr but still output valid JSON)
                     reject(new Error(stderr || 'Unknown PowerShell Error'));
                 } else {
