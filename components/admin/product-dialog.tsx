@@ -111,24 +111,42 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
 
     const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
-        const costValue = Number(val);
+        const newCost = Number(val);
 
         // Update input storage
-        setCurrentCost(isNaN(costValue) ? 0 : costValue);
+        // Pre-calculation checks to decide whether to update Price A/B automatically
+        // If current Price A matches the "Old Calculated Price A" (based on currentCost), then update it.
+        // Otherwise, it's manually set, so leave it alone.
 
-        if (!isNaN(costValue) && costValue > 0) {
-            // Auto-calculate prices based on cost ONLY if cost is valid and > 0
-            const priceA = Math.ceil(costValue * 1.20);
-            const priceB = Math.ceil(costValue * 1.15);
+        const oldCalculatedA = Math.ceil(currentCost * 1.20);
+        const oldCalculatedB = Math.ceil(currentCost * 1.15);
 
-            // Reflect in state and UI
-            setCurrentPriceA(priceA);
-            setCurrentPriceB(priceB);
+        // Check if currently auto-calculated (before this change)
+        // If product is new (currentCost=0), always auto-calc unless user typed price first
+        const isAutoA = currentPriceA === oldCalculatedA || currentCost === 0;
+        const isAutoB = currentPriceB === oldCalculatedB || currentCost === 0;
+
+        setCurrentCost(isNaN(newCost) ? 0 : newCost);
+
+        if (!isNaN(newCost) && newCost > 0) {
+            // Only update if it was previously auto-calculated
+            if (isAutoA) {
+                setCurrentPriceA(Math.ceil(newCost * 1.20));
+            }
+            if (isAutoB) {
+                setCurrentPriceB(Math.ceil(newCost * 1.15));
+            }
         }
     };
 
-    const isManualPriceA = currentPriceA !== Math.ceil(currentCost * 1.20) && currentCost > 0;
-    const isManualPriceB = currentPriceB !== Math.ceil(currentCost * 1.15) && currentCost > 0;
+    // Calculate manual status based on CURRENT cost (newCost)
+    // If currentPrice doesn't match Math.ceil(currentCost * rate), it's manual.
+    const expectedPriceA = Math.ceil(currentCost * 1.20);
+    const expectedPriceB = Math.ceil(currentCost * 1.15);
+
+    // Only show "Manual" if cost is > 0
+    const isManualPriceA = currentCost > 0 && currentPriceA !== expectedPriceA;
+    const isManualPriceB = currentCost > 0 && currentPriceB !== expectedPriceB;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

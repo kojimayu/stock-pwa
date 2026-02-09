@@ -23,9 +23,16 @@ export async function POST(request: Request) {
             const logs = [];
 
             for (const modelNumber of items) {
-                // 品番からエアコン商品を検索（末尾アルファベットを除去してベースコードで検索）
-                // 例: RAS-AJ22N → RAS-AJ22
-                const baseCode = modelNumber.replace(/[A-Z]$/i, '');
+                // 品番からエアコン商品を検索
+                // パターン1: RAS-AJ2225S -> RAS-AJ22 (標準的なパターン)
+                // パターン2: RAS-AJ22N -> RAS-AJ22 (サフィックス1文字)
+                let baseCode = modelNumber.replace(/[A-Z]$/i, '');
+
+                // より強力なマッチング (RAS-AJ + 2桁数字)
+                const ajMatch = modelNumber.match(/^(RAS-AJ\d{2})/);
+                if (ajMatch) {
+                    baseCode = ajMatch[1];
+                }
 
                 const airconProduct = await tx.airconProduct.findFirst({
                     where: { code: baseCode }

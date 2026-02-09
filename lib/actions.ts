@@ -524,38 +524,57 @@ export async function upsertProduct(data: {
 
     if (data.id) {
         // Update
-        // 在庫数の変更を許可する
-        // 原価(cost)が0の場合は更新しない（消失防止）
+        // Use transaction to ensure log consistency
+        await prisma.$transaction(async (tx) => {
+            const currentProduct = await tx.product.findUnique({ where: { id: data.id } });
+            if (!currentProduct) throw new Error("Product not found");
 
-        const updateData: any = {
-            code: normalizedCode,
-            name: data.name,
-            category: data.category,
-            subCategory: data.subCategory,
-            productType: data.productType,
-            priceA: data.priceA,
-            priceB: data.priceB,
-            priceC: data.priceC,
-            minStock: data.minStock,
-            supplier: data.supplier,
-            color: data.color,
-            unit: data.unit ?? "個",
-            stock: data.stock !== undefined ? data.stock : undefined, // stockがundefinedなら更新しない
-        };
+            const updateData: any = {
+                code: normalizedCode,
+                name: data.name,
+                category: data.category,
+                subCategory: data.subCategory,
+                productType: data.productType,
+                priceA: data.priceA,
+                priceB: data.priceB,
+                priceC: data.priceC,
+                minStock: data.minStock,
+                supplier: data.supplier,
+                color: data.color,
+                unit: data.unit ?? "個",
+                // stock is handled below if changed
+            };
 
-        // costが0より大きい場合のみ更新
-        if (data.cost > 0) {
-            updateData.cost = data.cost;
-        }
+            // costが0より大きい場合のみ更新
+            if (data.cost > 0) {
+                updateData.cost = data.cost;
+            }
 
-        await prisma.product.update({
-            where: { id: data.id },
-            data: updateData,
+            // Handle Stock Change & Logging
+            if (data.stock !== undefined && data.stock !== currentProduct.stock) {
+                const diff = data.stock - currentProduct.stock;
+                updateData.stock = data.stock;
+
+                // Create Inventory Log for manual adjustment
+                await tx.inventoryLog.create({
+                    data: {
+                        productId: currentProduct.id,
+                        type: 'INVENTORY_ADJUSTMENT',
+                        quantity: diff,
+                        reason: `Manual Edit (Stock: ${currentProduct.stock} -> ${data.stock})`,
+                    }
+                });
+            }
+
+            await tx.product.update({
+                where: { id: data.id },
+                data: updateData,
+            });
+
+            // ログ: 原価と在庫の変更を記録 (OperationLog)
+            const logDetail = `PriceA: ${data.priceA}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Stock: ${data.stock !== undefined ? data.stock : '(unchanged)'}`;
+            await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, logDetail);
         });
-
-        // ログ: 原価と在庫の変更を記録
-        const logDetail = `PriceA: ${data.priceA}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Stock: ${data.stock ?? '(unchanged)'}`;
-        await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, logDetail);
     } else {
         // Create
         // Check if code exists (for manual creation safety)
