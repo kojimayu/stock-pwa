@@ -398,6 +398,20 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     required
                                 />
                             </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <label htmlFor="orderUnit" className="text-right text-sm font-medium">
+                                    発注単位
+                                </label>
+                                <Input
+                                    id="orderUnit"
+                                    name="orderUnit"
+                                    type="number"
+                                    defaultValue={product?.orderUnit ?? 1}
+                                    className="col-span-3"
+                                    required
+                                    min="1"
+                                />
+                            </div>
                         </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">

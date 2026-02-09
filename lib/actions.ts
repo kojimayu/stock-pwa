@@ -513,6 +513,7 @@ export async function upsertProduct(data: {
     supplier?: string | null;
     color?: string | null;
     unit?: string;
+    orderUnit?: number;
 }) {
     // Validation
     // Skip profit check if price is 0 (e.g. initial registration without price)
@@ -542,6 +543,7 @@ export async function upsertProduct(data: {
                 supplier: data.supplier,
                 color: data.color,
                 unit: data.unit ?? "個",
+                orderUnit: data.orderUnit ?? 1,
                 // stock is handled below if changed
             };
 
@@ -572,7 +574,7 @@ export async function upsertProduct(data: {
             });
 
             // ログ: 原価と在庫の変更を記録 (OperationLog)
-            const logDetail = `PriceA: ${data.priceA}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Stock: ${data.stock !== undefined ? data.stock : '(unchanged)'}`;
+            const logDetail = `PriceA: ${data.priceA}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Stock: ${data.stock !== undefined ? data.stock : '(unchanged)'}, OrderUnit: ${data.orderUnit ?? 1}`;
             await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, logDetail);
         });
     } else {
@@ -599,6 +601,7 @@ export async function upsertProduct(data: {
                 supplier: data.supplier,
                 color: data.color,
                 unit: data.unit ?? "個",
+                orderUnit: data.orderUnit ?? 1,
             },
         });
         await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created new product`);
@@ -618,6 +621,7 @@ export async function checkActiveInventory() {
 }
 
 export async function importProducts(products: {
+    id?: number;
     code: string;
     name: string;
     category: string;
@@ -709,6 +713,7 @@ export async function importProducts(products: {
                             supplier: p.supplier,
                             color: p.color,
                             unit: p.unit ?? "個",
+                            orderUnit: p.orderUnit ?? 1,
                         },
                     });
                 } else {
@@ -728,6 +733,7 @@ export async function importProducts(products: {
                             supplier: p.supplier,
                             color: p.color,
                             unit: p.unit ?? "個",
+                            orderUnit: p.orderUnit ?? 1,
                         },
                     });
                 }
@@ -1453,11 +1459,17 @@ export async function generateDraftOrders() {
                 supplier,
                 status: 'DRAFT',
                 items: {
-                    create: products.map(p => ({
-                        productId: p.id,
-                        quantity: Math.max(0, p.minStock - p.stock + 1), // Default: refill to minStock + 1
-                        cost: p.cost,
-                    }))
+                    create: products.map(p => {
+                        const deficit = Math.max(0, p.minStock - p.stock + 1);
+                        const unit = p.orderUnit || 1;
+                        const quantity = Math.ceil(deficit / unit) * unit;
+
+                        return {
+                            productId: p.id,
+                            quantity: quantity,
+                            cost: p.cost,
+                        };
+                    })
                 }
             }
         });

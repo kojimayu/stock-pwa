@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
 interface Product {
+    id: number;
     code: string;
     name: string;
     category: string;
@@ -19,6 +20,7 @@ interface Product {
     cost: number;
     supplier?: string | null;
     color?: string | null;
+    orderUnit?: number;
 }
 
 interface ProductExportButtonProps {
@@ -29,6 +31,7 @@ export function ProductExportButton({ products }: ProductExportButtonProps) {
     const handleExport = () => {
         try {
             const data = products.map((p) => ({
+                id: p.id,
                 code: p.code,
                 name: p.name,
                 category: p.category,
@@ -41,6 +44,7 @@ export function ProductExportButton({ products }: ProductExportButtonProps) {
                 cost: p.cost,
                 supplier: p.supplier,
                 color: p.color,
+                orderUnit: p.orderUnit || 1, // Added
                 stock: p.stock // Export current stock too
             }));
 

@@ -27,6 +27,7 @@ import { Loader2, Upload } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ProductImportRow {
+    id?: number;
     code: string;
     name: string;
     category: string;
@@ -40,6 +41,7 @@ interface ProductImportRow {
     supplier?: string;
     color?: string;
     unit?: string;
+    orderUnit?: number;
     // For expansion logic
     isColor?: string | boolean;
     ISCOLOR?: string | boolean;
@@ -88,6 +90,7 @@ export function ProductImportDialog() {
                 const rawCode = String(row.code || row.CODE || row.型番 || row["商品コード"] || row["品番"] || "");
                 const baseName = String(row.name || row.NAME || row.品名 || row.商品名 || "");
                 const baseCode = normalizeCode(rawCode);
+                const id = row.id || row.ID || row.Id ? Number(row.id || row.ID || row.Id) : undefined;
 
                 const commonProps = {
                     category: String(row.category || row.CATEGORY || row.カテゴリ || row.カテゴリー大 || ""),
@@ -100,6 +103,7 @@ export function ProductImportDialog() {
                     cost: Number(row.cost || row.COST || row.原価 || row.仕入単価 || row.仕入れ値 || 0),
                     supplier: row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー ? String(row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー) : undefined,
                     unit: row.unit || row.UNIT || row.単位 ? String(row.unit || row.UNIT || row.単位) : undefined,
+                    orderUnit: row.orderUnit || row.ORDERUNIT || row.発注単位 || row.ロット ? Number(row.orderUnit || row.ORDERUNIT || row.発注単位 || row.ロット) : undefined,
                 };
 
                 // Check for True/1/'〇' (loose check)
@@ -109,6 +113,19 @@ export function ProductImportDialog() {
                     // Expand to 5 colors
                     COLORS.forEach((color) => {
                         expandedData.push({
+                            id: undefined, // Expanded rows are new/variant, don't use original ID? Or should we? 
+                            // If we allow expansion, usually it's for creating new variants. 
+                            // If updating, we probably shouldn't use expansion logic on existing rows with IDs unless we know which ID maps to which color.
+                            // For safety, let's keep ID undefined for expanded rows, or strict check.
+                            // The user said "if ID exists, update". Expansion creates multiple rows from one. 
+                            // If the Excel row has an ID, it refers to ONE product. Expansion would imply creating others.
+                            // So, if expansion happens (`isColor` is true), we probably shouldn't set ID for ALL of them.
+                            // Detailed logic: if `isColor` is True, it generates 5 rows. The original row might have an ID, but that ID belongs to *one* of them (or the base one if it existed?).
+                            // Actually, auto-expansion is typically for *new* registration.
+                            // If modifying existing 5-color products, one would export them (getting 5 rows with 5 IDs) and edit them individually.
+                            // So, if `isColor` flag is used, it's likely a convenience for creation. 
+                            // If `isColor` is active, I should NOT pass the ID to all generated rows.
+                            // I will deliberately set `id: undefined` for expanded rows to avoid ID conflict or overwriting the same ID 5 times.
                             code: baseCode + color.suffix,
                             name: baseName + ` (${color.name})`,
                             color: color.name,
@@ -117,7 +134,9 @@ export function ProductImportDialog() {
                     });
                 } else {
                     // Normal row
+                    // Normal row
                     expandedData.push({
+                        id: id,
                         code: baseCode,
                         name: baseName,
                         color: row.color || row.COLOR || row.色 ? String(row.color || row.COLOR || row.色) : undefined,
@@ -152,6 +171,7 @@ export function ProductImportDialog() {
                 }
 
                 return {
+                    id: p.id,
                     code: p.code,
                     name: p.name,
                     category: p.category,
@@ -164,7 +184,9 @@ export function ProductImportDialog() {
                     cost: p.cost,
                     supplier: p.supplier,
                     color: p.color,
-                    unit: p.unit
+                    color: p.color,
+                    unit: p.unit,
+                    orderUnit: p.orderUnit
                 };
             }));
 
@@ -239,6 +261,7 @@ export function ProductImportDialog() {
                                         <TableHead className="text-right">売価B</TableHead>
                                         <TableHead className="text-right">売価C</TableHead>
                                         <TableHead className="text-right">仕入</TableHead>
+                                        <TableHead className="text-right">発注単位</TableHead>
                                         <TableHead>メーカー</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -255,6 +278,7 @@ export function ProductImportDialog() {
                                             <TableCell className="text-right">{row.priceB}</TableCell>
                                             <TableCell className="text-right">{row.priceC}</TableCell>
                                             <TableCell className="text-right">{row.cost}</TableCell>
+                                            <TableCell className="text-right">{row.orderUnit || 1}</TableCell>
                                             <TableCell>{row.supplier || "-"}</TableCell>
                                         </TableRow>
                                     ))}

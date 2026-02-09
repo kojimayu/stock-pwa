@@ -49,6 +49,7 @@ model Product {
   cost          Int                  @default(0)
   supplier      String?
   unit          String               @default("個")
+  orderUnit     Int                  @default(1)
   stock         Int                  @default(0)
   minStock      Int                  @default(0)
   createdAt     DateTime             @default(now())
