@@ -90,8 +90,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
 
                     <div className="text-center">
                         <div className="text-2xl font-bold text-slate-900">
-                            {formatCurrency(currentPrice)}
-                            <span className="text-sm font-normal text-slate-500 ml-1">/ {isBox ? '箱' : '個'}</span>
+                            <span className="text-sm font-normal text-slate-500 ml-1">{isBox ? '箱' : '個'}</span>
                         </div>
                         <div className="text-sm text-slate-500 mt-1">
                             現在の在庫: {product.stock}個

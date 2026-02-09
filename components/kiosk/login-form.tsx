@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useCartStore } from '@/lib/store';
 import { ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
-import { verifyPin } from '@/lib/actions';
+import { verifyPin, verifyVendorPin } from '@/lib/actions';
 import { PinPad } from './pin-pad';
 import { toast } from 'sonner';
 
@@ -32,12 +33,17 @@ export default function LoginForm({ vendors }: { vendors: Vendor[] }) {
     const handlePinComplete = async (pin: string) => {
         setLoading(true);
         try {
-            const result = await verifyPin(selectedVendorId, pin);
+            const result = await verifyVendorPin(selectedVendorId, pin);
             if (result.success && result.vendor) {
                 toast.success(`ログインしました: ${result.vendor.name}`);
+
+                // ZustandのStateを更新（これが重要）
+                // これがないと、次のページで useCartStore から vendor が取れずにリダイレクトされる可能性がある
+                useCartStore.getState().setVendor(result.vendor);
+
                 localStorage.setItem('vendorId', result.vendor.id.toString());
                 localStorage.setItem('vendorName', result.vendor.name);
-                router.push('/shop');
+                router.push('/mode-select'); // Changed from /shop to /mode-select based on user flow
             } else {
                 toast.error(result.message || '認証に失敗しました');
                 // PinPad側のリセットは再レンダリングやRefでやるのが正攻法だが
@@ -113,25 +119,32 @@ export default function LoginForm({ vendors }: { vendors: Vendor[] }) {
 // Let's modify PinPad to take props. But first I'll write a wrapper to reuse logic.
 import { Delete } from 'lucide-react';
 
-function PinPadWrapper({ onVerify, loading }: { onVerify: (pin: string) => void, loading: boolean }) {
+// Simplified PinPad for internal use
+function PinPadWrapper({ onVerify, loading }: { onVerify: (pin: string) => Promise<void>, loading: boolean }) {
     const [pin, setPin] = useState('');
 
-    const handlePress = (num: string) => {
+    const handlePress = async (num: string) => {
+        if (loading) return;
         if (pin.length < 4) {
             const newPin = pin + num;
             setPin(newPin);
+
             if (newPin.length === 4) {
-                // Defer execution slightly to show the last dot
-                setTimeout(() => {
-                    onVerify(newPin);
-                    setPin(''); // Reset internal state after attempt
+                // Determine if we should clear pin based on result
+                // We await the verification to see if we should clear
+                // But for security/UX, usually clear on failure. 
+                // Parent handles routing on success.
+                // Minimal delay for UX
+                setTimeout(async () => {
+                    await onVerify(newPin);
+                    setPin(''); // Always reset PIN after attempt
                 }, 300);
             }
         }
     };
 
-    const handleClear = () => setPin('');
-    const handleBackspace = () => setPin((prev) => prev.slice(0, -1));
+    const handleClear = () => { if (!loading) setPin(''); };
+    const handleBackspace = () => { if (!loading) setPin((prev) => prev.slice(0, -1)); };
     const numBtnClass = "h-20 text-3xl font-bold rounded-full";
 
     return (
@@ -156,7 +169,11 @@ function PinPadWrapper({ onVerify, loading }: { onVerify: (pin: string) => void,
                     <Button variant="outline" className={numBtnClass} onClick={() => handlePress('0')} disabled={loading}>0</Button>
                     <Button variant="ghost" className="h-20 justify-center" onClick={handleBackspace} disabled={loading}><Delete className="w-8 h-8" /></Button>
                 </div>
-                {loading && <div className="mt-4 text-center animate-pulse"><Loader2 className="animate-spin inline mr-2" />認証中...</div>}
+                {loading && (
+                    <div className="mt-4 flex justify-center items-center text-lg animate-pulse">
+                        <Loader2 className="animate-spin mr-2 h-6 w-6" /> 認証中...
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

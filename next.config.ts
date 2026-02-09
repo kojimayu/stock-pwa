@@ -13,7 +13,15 @@ const pwaConfig = withPWA({
 });
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: ["**/node_modules/**", "**/.git/**", "**/*.db", "**/*.db-journal"],
+      };
+    }
+    return config;
+  },
 };
 
 export default pwaConfig(nextConfig);

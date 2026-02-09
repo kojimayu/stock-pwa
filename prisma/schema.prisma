@@ -24,7 +24,7 @@ model Vendor {
 
 model VendorUser {
   id                 Int                 @id @default(autoincrement())
-  name               String              // 担当者名
+  name               String // 担当者名
   pinCode            String              @default("1234")
   pinChanged         Boolean             @default(false)
   vendorId           Int
@@ -36,31 +36,31 @@ model VendorUser {
 }
 
 model Product {
-  id            Int                  @id @default(autoincrement())
-  code          String               @unique
-  name          String
-  color         String?
-  category      String
-  subCategory   String?
-  productType   String?
-  priceA        Int
-  priceB        Int
-  priceC        Int                  @default(0)
-  cost          Int                  @default(0)
-  supplier      String?
-  manufacturer  String?              // メーカー
-  quantityPerBox Int                 @default(1) // 箱入数
-  pricePerBox   Int                  @default(0) // 箱単価
-  unit          String               @default("個")
-  orderUnit     Int                  @default(1)
-  stock         Int                  @default(0)
-  minStock      Int                  @default(0)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  usageCount    Int                  @default(0)
-  countItems    InventoryCountItem[]
-  inventoryLogs InventoryLog[]
-  orderItems    OrderItem[]
+  id             Int                  @id @default(autoincrement())
+  code           String               @unique
+  name           String
+  color          String?
+  category       String
+  subCategory    String?
+  productType    String?
+  priceA         Int
+  priceB         Int
+  priceC         Int                  @default(0)
+  cost           Int                  @default(0)
+  supplier       String?
+  manufacturer   String? // メーカー
+  quantityPerBox Int                  @default(1) // 箱入数
+  pricePerBox    Int                  @default(0) // 箱単価
+  unit           String               @default("個")
+  orderUnit      Int                  @default(1)
+  stock          Int                  @default(0)
+  minStock       Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  usageCount     Int                  @default(0)
+  countItems     InventoryCountItem[]
+  inventoryLogs  InventoryLog[]
+  orderItems     OrderItem[]
 }
 
 model InventoryLog {
@@ -199,11 +199,11 @@ model SystemSetting {
 
 // 管理者ユーザー
 model AdminUser {
-  id              Int      @id @default(autoincrement())
-  email           String   @unique
-  name            String
-  password        String   // ハッシュ化されたパスワード
-  mustChangePassword Boolean @default(true) // 初回ログイン時にパスワード変更必須
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
+  name               String
+  password           String // ハッシュ化されたパスワード
+  mustChangePassword Boolean  @default(true) // 初回ログイン時にパスワード変更必須
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }

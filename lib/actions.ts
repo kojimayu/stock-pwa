@@ -13,21 +13,35 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 async function logOperation(action: string, target: string, details?: string) {
-    try {
-        const session = await getServerSession(authOptions);
-        const executor = session?.user?.email || "System/Guest";
+    // Fire and forget logging to avoid blocking the UI
+    (async () => {
+        try {
+            let executor = "System/Guest";
 
-        await prisma.operationLog.create({
-            data: {
-                action,
-                target,
-                details: `${details || ''} [By: ${executor}]`, // Append executor to details
-            },
-        });
-    } catch (e) {
-        console.error("Failed to create operation log:", e);
-        // Logging failure should not block the main action
-    }
+            // Only check session if it's NOT a Kiosk login action (which doesn't have a session)
+            // or if we suspect we might have an admin session.
+            if (!action.startsWith("KIOSK_")) {
+                const session: any = await Promise.race([
+                    getServerSession(authOptions),
+                    new Promise(resolve => setTimeout(() => resolve(null), 500))
+                ]).catch(() => null);
+
+                if (session?.user?.email) {
+                    executor = session.user.email;
+                }
+            }
+
+            await prisma.operationLog.create({
+                data: {
+                    action,
+                    target,
+                    details: `${details || ''} [By: ${executor}]`,
+                },
+            });
+        } catch (e) {
+            console.error("Failed to create operation log:", e);
+        }
+    })();
 }
 
 // Vendor Actions - Kiosk用（有効な業者のみ）
@@ -290,6 +304,37 @@ export async function verifyPin(vendorId: string | number, vendorUserId: string 
         vendor: vendorUser.vendor,
         vendorUser,
         pinChanged: vendorUser.pinChanged
+    };
+}
+
+export async function verifyVendorPin(vendorId: string | number, pin: string) {
+    // 1. Find all users for this vendor
+    const vendorUsers = await prisma.vendorUser.findMany({
+        where: { vendorId: Number(vendorId) },
+        include: { vendor: true }
+    });
+
+    if (!vendorUsers || vendorUsers.length === 0) {
+        logOperation("KIOSK_LOGIN_FAILED", `VendorId: ${vendorId}`, "担当者が未登録の業者");
+        return { success: false, message: 'この業者には担当者が登録されていません' };
+    }
+
+    // 2. Check if ANY user matches the PIN
+    const matchedUser = vendorUsers.find(u => u.pinCode === pin);
+
+    if (!matchedUser) {
+        logOperation("KIOSK_LOGIN_FAILED", `VendorId: ${vendorId}`, "PIN不一致 (Vendor match attempt)");
+        return { success: false, message: 'PINコードが正しくありません' };
+    }
+
+    // 3. Success
+    logOperation("KIOSK_LOGIN_SUCCESS", matchedUser.name, `Vendor: ${matchedUser.vendor.name} (via VendorPIN)`);
+
+    return {
+        success: true,
+        vendor: matchedUser.vendor,
+        vendorUser: matchedUser,
+        pinChanged: matchedUser.pinChanged
     };
 }
 
@@ -576,7 +621,7 @@ export async function upsertProduct(data: {
 
             const updatedProduct = await tx.product.update({
                 where: { id: data.id },
-                data: updateData,
+                data: updateData as any,
             });
 
             // ログ: 原価と在庫の変更を記録 (OperationLog)
@@ -614,7 +659,7 @@ export async function upsertProduct(data: {
                 manufacturer: data.manufacturer,
                 quantityPerBox: data.quantityPerBox ?? 1,
                 pricePerBox: data.pricePerBox ?? 0,
-            },
+            } as any,
         });
         await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created new product`);
     }
@@ -737,7 +782,7 @@ export async function importProducts(products: {
                             manufacturer: p.manufacturer ?? existing.manufacturer,
                             quantityPerBox: p.quantityPerBox ?? existing.quantityPerBox,
                             pricePerBox: p.pricePerBox ?? existing.pricePerBox,
-                        },
+                        } as any,
                     });
                 } else {
                     await tx.product.create({
@@ -760,7 +805,7 @@ export async function importProducts(products: {
                             manufacturer: p.manufacturer,
                             quantityPerBox: p.quantityPerBox ?? 1,
                             pricePerBox: p.pricePerBox ?? 0,
-                        },
+                        } as any,
                     });
                 }
             }
