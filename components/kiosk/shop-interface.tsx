@@ -31,6 +31,9 @@ interface Product {
     createdAt: string;
     updatedAt: string;
     productType?: string | null;
+    quantityPerBox?: number;
+    pricePerBox?: number;
+    manufacturer?: string | null;
 }
 
 interface ShopInterfaceProps {

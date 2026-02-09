@@ -4,32 +4,50 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, ShoppingCart } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 interface Product {
     id: number;
     name: string;
     stock: number;
+    priceA: number;
+    quantityPerBox?: number;
+    pricePerBox?: number;
 }
 
 interface QuantitySelectorDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     product: Product;
-    onConfirm: (quantity: number) => void;
+    onConfirm: (quantity: number, isBox?: boolean) => void;
 }
 
 export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm }: QuantitySelectorDialogProps) {
     const [quantity, setQuantity] = useState(1);
+    const [isBox, setIsBox] = useState(false);
 
-    // Reset quantity when dialog opens
+    // Check if box mode is available
+    const canBuyBox = (product.quantityPerBox || 0) > 1 && (product.pricePerBox || 0) > 0;
+
+    // Reset state when dialog opens
     useEffect(() => {
         if (open) {
             setQuantity(1);
+            setIsBox(false);
         }
     }, [open]);
 
+    // Calculate effective stock based on mode
+    const maxQuantity = isBox
+        ? Math.floor(product.stock / (product.quantityPerBox || 1))
+        : product.stock;
+
+    const currentPrice = isBox
+        ? (product.pricePerBox || 0)
+        : product.priceA;
+
     const handleIncrement = () => {
-        if (quantity < product.stock) {
+        if (quantity < maxQuantity) {
             setQuantity((prev) => prev + 1);
         }
     };
@@ -41,7 +59,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
     };
 
     const handleConfirm = () => {
-        onConfirm(quantity);
+        onConfirm(quantity, isBox);
         onOpenChange(false);
     };
 
@@ -53,8 +71,32 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                 </DialogHeader>
 
                 <div className="py-6 flex flex-col items-center justify-center space-y-6">
-                    <div className="text-sm text-slate-500">
-                        現在の在庫: {product.stock}
+                    {canBuyBox && (
+                        <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-[200px]">
+                            <button
+                                className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${!isBox ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { setIsBox(false); setQuantity(1); }}
+                            >
+                                バラ
+                            </button>
+                            <button
+                                className={`flex-1 py-1.5 text-sm font-bold rounded-md transition-all ${isBox ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => { setIsBox(true); setQuantity(1); }}
+                            >
+                                箱 ({product.quantityPerBox}個)
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="text-center">
+                        <div className="text-2xl font-bold text-slate-900">
+                            {formatCurrency(currentPrice)}
+                            <span className="text-sm font-normal text-slate-500 ml-1">/ {isBox ? '箱' : '個'}</span>
+                        </div>
+                        <div className="text-sm text-slate-500 mt-1">
+                            現在の在庫: {product.stock}個
+                            {isBox && ` (${Math.floor(product.stock / (product.quantityPerBox || 1))}箱)`}
+                        </div>
                     </div>
 
                     <div className="flex items-center space-x-6">
@@ -77,15 +119,17 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                             size="icon"
                             className="h-16 w-16 rounded-full border-2"
                             onClick={handleIncrement}
-                            disabled={quantity >= product.stock}
+                            disabled={quantity >= maxQuantity}
                         >
                             <Plus className="h-8 w-8" />
                         </Button>
                     </div>
 
                     <div className="grid grid-cols-4 gap-2 w-full px-4">
-                        {[10, 20, 30].map((num) => (
-                            num <= product.stock && (
+                        {[5, 10, 20].map((num) => (
+                            (!isBox || num * (product.quantityPerBox || 1) <= product.stock) &&
+                            // Only show larger numbers if stock allows. For Box, check if we have enough boxes.
+                            num <= maxQuantity && (
                                 <Button
                                     key={num}
                                     variant="outline"

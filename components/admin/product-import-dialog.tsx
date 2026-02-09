@@ -42,6 +42,9 @@ interface ProductImportRow {
     color?: string;
     unit?: string;
     orderUnit?: number;
+    manufacturer?: string;
+    quantityPerBox?: number;
+    pricePerBox?: number;
     // For expansion logic
     isColor?: string | boolean;
     ISCOLOR?: string | boolean;
@@ -104,6 +107,9 @@ export function ProductImportDialog() {
                     supplier: row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー ? String(row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー) : undefined,
                     unit: row.unit || row.UNIT || row.単位 ? String(row.unit || row.UNIT || row.単位) : undefined,
                     orderUnit: row.orderUnit || row.ORDERUNIT || row.発注単位 || row.ロット ? Number(row.orderUnit || row.ORDERUNIT || row.発注単位 || row.ロット) : undefined,
+                    manufacturer: row.manufacturer || row.MANUFACTURER || row.メーカー ? String(row.manufacturer || row.MANUFACTURER || row.メーカー) : undefined,
+                    quantityPerBox: row.quantityPerBox || row.QUANTITYPERBOX || row.箱入数 ? Number(row.quantityPerBox || row.QUANTITYPERBOX || row.箱入数) : undefined,
+                    pricePerBox: row.pricePerBox || row.PRICEPERBOX || row.箱単価 ? Number(row.pricePerBox || row.PRICEPERBOX || row.箱単価) : undefined,
                 };
 
                 // Check for True/1/'〇' (loose check)
@@ -186,7 +192,10 @@ export function ProductImportDialog() {
                     color: p.color,
                     color: p.color,
                     unit: p.unit,
-                    orderUnit: p.orderUnit
+                    orderUnit: p.orderUnit,
+                    manufacturer: p.manufacturer,
+                    quantityPerBox: p.quantityPerBox,
+                    pricePerBox: p.pricePerBox
                 };
             }));
 
@@ -263,6 +272,8 @@ export function ProductImportDialog() {
                                         <TableHead className="text-right">仕入</TableHead>
                                         <TableHead className="text-right">発注単位</TableHead>
                                         <TableHead>メーカー</TableHead>
+                                        <TableHead className="text-right">箱入数</TableHead>
+                                        <TableHead className="text-right">箱単価</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -279,7 +290,9 @@ export function ProductImportDialog() {
                                             <TableCell className="text-right">{row.priceC}</TableCell>
                                             <TableCell className="text-right">{row.cost}</TableCell>
                                             <TableCell className="text-right">{row.orderUnit || 1}</TableCell>
-                                            <TableCell>{row.supplier || "-"}</TableCell>
+                                            <TableCell>{row.manufacturer || "-"}</TableCell>
+                                            <TableCell className="text-right">{row.quantityPerBox || "-"}</TableCell>
+                                            <TableCell className="text-right">{row.pricePerBox || "-"}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>

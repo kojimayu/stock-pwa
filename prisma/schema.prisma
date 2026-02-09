@@ -48,6 +48,9 @@ model Product {
   priceC        Int                  @default(0)
   cost          Int                  @default(0)
   supplier      String?
+  manufacturer  String?              // メーカー
+  quantityPerBox Int                 @default(1) // 箱入数
+  pricePerBox   Int                  @default(0) // 箱単価
   unit          String               @default("個")
   orderUnit     Int                  @default(1)
   stock         Int                  @default(0)

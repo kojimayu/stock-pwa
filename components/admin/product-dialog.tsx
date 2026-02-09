@@ -39,8 +39,12 @@ interface ProductDialogProps {
         minStock: number;
         cost: number;
         unit: string;
+        orderUnit?: number;
         supplier?: string | null;
         color?: string | null;
+        manufacturer?: string | null;
+        quantityPerBox?: number;
+        pricePerBox?: number;
     } | null;
     initialValues?: {
         name?: string;
@@ -81,6 +85,9 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                 cost: Number(formData.get("cost")),
                 supplier: formData.get("supplier") as string || null,
                 unit: formData.get("unit") as string || "個",
+                manufacturer: formData.get("manufacturer") as string || null,
+                quantityPerBox: Number(formData.get("quantityPerBox")) || 1,
+                pricePerBox: Number(formData.get("pricePerBox")) || 0,
             });
 
             toast.success(product ? "商品を更新しました" : "商品を登録しました");
@@ -279,6 +286,18 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     ))}
                                 </datalist>
                             </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <label htmlFor="manufacturer" className="text-right text-sm font-medium">
+                                    メーカー
+                                </label>
+                                <Input
+                                    id="manufacturer"
+                                    name="manufacturer"
+                                    defaultValue={product?.manufacturer || ""}
+                                    className="col-span-3"
+                                    placeholder="メーカー名"
+                                />
+                            </div>
 
                             <div className="col-span-2 border-t my-2"></div>
 
@@ -410,6 +429,32 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     className="col-span-3"
                                     required
                                     min="1"
+                                />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <label htmlFor="quantityPerBox" className="text-right text-sm font-medium">
+                                    箱入数
+                                </label>
+                                <Input
+                                    id="quantityPerBox"
+                                    name="quantityPerBox"
+                                    type="number"
+                                    min="1"
+                                    defaultValue={product?.quantityPerBox || 1}
+                                    className="col-span-3"
+                                />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <label htmlFor="pricePerBox" className="text-right text-sm font-medium">
+                                    箱単価
+                                </label>
+                                <Input
+                                    id="pricePerBox"
+                                    name="pricePerBox"
+                                    type="number"
+                                    min="0"
+                                    defaultValue={product?.pricePerBox || 0}
+                                    className="col-span-3"
                                 />
                             </div>
                         </div>

@@ -21,6 +21,9 @@ interface Product {
     supplier?: string | null;
     color?: string | null;
     orderUnit?: number;
+    manufacturer?: string | null;
+    quantityPerBox?: number;
+    pricePerBox?: number;
 }
 
 interface ProductExportButtonProps {
@@ -44,7 +47,10 @@ export function ProductExportButton({ products }: ProductExportButtonProps) {
                 cost: p.cost,
                 supplier: p.supplier,
                 color: p.color,
-                orderUnit: p.orderUnit || 1, // Added
+                orderUnit: p.orderUnit || 1,
+                manufacturer: p.manufacturer || '',
+                quantityPerBox: p.quantityPerBox || 1,
+                pricePerBox: p.pricePerBox || 0,
                 stock: p.stock // Export current stock too
             }));
 

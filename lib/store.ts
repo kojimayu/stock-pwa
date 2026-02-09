@@ -7,6 +7,8 @@ export type CartItem = {
     price: number;
     quantity: number;
     isManual?: boolean;
+    isBox?: boolean;
+    quantityPerBox?: number;
 };
 
 export type Vendor = {
@@ -31,8 +33,8 @@ type CartState = {
     setProxyMode: (isProxy: boolean) => void;
     setTransactionDate: (date: Date | null) => void;
     addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number }) => void;
-    removeItem: (productId: number) => void;
-    updateQuantity: (productId: number, quantity: number) => void;
+    removeItem: (productId: number, isBox?: boolean) => void;
+    updateQuantity: (productId: number, quantity: number, isBox?: boolean) => void;
     clearCart: () => void;
     clearSession: () => void;
 };
@@ -55,7 +57,7 @@ export const useCartStore = create<CartState>()(
                         if (newItem.isManual && i.isManual) {
                             return i.name === newItem.name && i.price === newItem.price;
                         }
-                        return i.productId === newItem.productId;
+                        return i.productId === newItem.productId && i.isBox === newItem.isBox;
                     });
 
                     if (existing) {
@@ -63,7 +65,7 @@ export const useCartStore = create<CartState>()(
                             items: state.items.map((i) => {
                                 const isMatch = newItem.isManual && i.isManual
                                     ? i.name === newItem.name && i.price === newItem.price
-                                    : i.productId === newItem.productId;
+                                    : i.productId === newItem.productId && i.isBox === newItem.isBox;
 
                                 return isMatch
                                     ? { ...i, quantity: i.quantity + (newItem.quantity || 1) }
@@ -73,18 +75,18 @@ export const useCartStore = create<CartState>()(
                     }
                     return { items: [...state.items, { ...newItem, quantity: newItem.quantity || 1 }] };
                 }),
-            removeItem: (productId) =>
+            removeItem: (productId, isBox) =>
                 set((state) => ({
-                    items: state.items.filter((i) => i.productId !== productId),
+                    items: state.items.filter((i) => !(i.productId === productId && i.isBox === isBox)),
                 })),
-            updateQuantity: (productId, quantity) =>
+            updateQuantity: (productId, quantity, isBox) =>
                 set((state) => {
                     if (quantity <= 0) {
-                        return { items: state.items.filter((i) => i.productId !== productId) };
+                        return { items: state.items.filter((i) => !(i.productId === productId && i.isBox === isBox)) };
                     }
                     return {
                         items: state.items.map((i) =>
-                            i.productId === productId ? { ...i, quantity } : i
+                            i.productId === productId && i.isBox === isBox ? { ...i, quantity } : i
                         ),
                     };
                 }),

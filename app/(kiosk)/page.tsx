@@ -289,7 +289,8 @@ export default function KioskLoginPage() {
         <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-right-4 duration-300">
           <button
             onClick={handleBack}
-            className="flex items-center text-slate-500 hover:text-slate-900"
+            disabled={loading}
+            className="flex items-center text-slate-500 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-5 h-5" />
             戻る
@@ -351,7 +352,8 @@ export default function KioskLoginPage() {
         <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-right-4 duration-300">
           <button
             onClick={handleBack}
-            className="flex items-center text-slate-500 hover:text-slate-900"
+            disabled={loading}
+            className="flex items-center text-slate-500 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-5 h-5" />
             戻る
@@ -374,11 +376,12 @@ export default function KioskLoginPage() {
               onChange={(e) => setNewUserName(e.target.value)}
               className="h-20 !text-4xl md:!text-4xl font-bold text-center"
               autoFocus
+              disabled={loading}
             />
 
             <Button
               className="w-full h-14 text-lg font-bold"
-              disabled={!newUserName.trim()}
+              disabled={!newUserName.trim() || loading}
               onClick={handleAddSelfNext}
             >
               次へ（PIN設定）
@@ -392,7 +395,8 @@ export default function KioskLoginPage() {
         <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100 animate-in fade-in slide-in-from-right-4 duration-300">
           <button
             onClick={handleBack}
-            className="flex items-center text-slate-500 hover:text-slate-900"
+            disabled={loading}
+            className="flex items-center text-slate-500 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-5 h-5" />
             戻る

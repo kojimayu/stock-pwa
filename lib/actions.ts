@@ -514,6 +514,9 @@ export async function upsertProduct(data: {
     color?: string | null;
     unit?: string;
     orderUnit?: number;
+    manufacturer?: string | null;
+    quantityPerBox?: number;
+    pricePerBox?: number;
 }) {
     // Validation
     // Skip profit check if price is 0 (e.g. initial registration without price)
@@ -526,7 +529,7 @@ export async function upsertProduct(data: {
     if (data.id) {
         // Update
         // Use transaction to ensure log consistency
-        await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             const currentProduct = await tx.product.findUnique({ where: { id: data.id } });
             if (!currentProduct) throw new Error("Product not found");
 
@@ -544,6 +547,9 @@ export async function upsertProduct(data: {
                 color: data.color,
                 unit: data.unit ?? "個",
                 orderUnit: data.orderUnit ?? 1,
+                manufacturer: data.manufacturer,
+                quantityPerBox: data.quantityPerBox ?? 1,
+                pricePerBox: data.pricePerBox ?? 0,
                 // stock is handled below if changed
             };
 
@@ -568,15 +574,18 @@ export async function upsertProduct(data: {
                 });
             }
 
-            await tx.product.update({
+            const updatedProduct = await tx.product.update({
                 where: { id: data.id },
                 data: updateData,
             });
 
             // ログ: 原価と在庫の変更を記録 (OperationLog)
             const logDetail = `PriceA: ${data.priceA}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Stock: ${data.stock !== undefined ? data.stock : '(unchanged)'}, OrderUnit: ${data.orderUnit ?? 1}`;
-            await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, logDetail);
+            return { product: updatedProduct, logDetail };
         });
+
+        // Log operation outside transaction to avoid deadlock
+        await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, result.logDetail);
     } else {
         // Create
         // Check if code exists (for manual creation safety)
@@ -602,6 +611,9 @@ export async function upsertProduct(data: {
                 color: data.color,
                 unit: data.unit ?? "個",
                 orderUnit: data.orderUnit ?? 1,
+                manufacturer: data.manufacturer,
+                quantityPerBox: data.quantityPerBox ?? 1,
+                pricePerBox: data.pricePerBox ?? 0,
             },
         });
         await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created new product`);
@@ -635,6 +647,9 @@ export async function importProducts(products: {
     supplier?: string | null;
     color?: string | null;
     unit?: string | null;
+    manufacturer?: string | null;
+    quantityPerBox?: number;
+    pricePerBox?: number;
 }[]) {
     // 0. Check for active inventory
     if (await checkActiveInventory()) {
@@ -692,18 +707,23 @@ export async function importProducts(products: {
             for (const p of products) {
                 const normalizedCode = normalizeCode(p.code);
 
-                // Allow bulk update of prices
-                const existing = await tx.product.findUnique({
-                    where: { code: normalizedCode },
-                });
+                // Try to find by ID first (to allow code change), then by Code
+                let existing = null;
+                if (p.id) {
+                    existing = await tx.product.findUnique({ where: { id: p.id } });
+                }
+                if (!existing) {
+                    existing = await tx.product.findUnique({ where: { code: normalizedCode } });
+                }
 
                 if (existing) {
                     await tx.product.update({
-                        where: { code: normalizedCode },
+                        where: { id: existing.id }, // Update by ID
                         data: {
+                            code: normalizedCode, // Update code if changed
                             name: p.name,
                             category: p.category,
-                            subCategory: p.subCategory || "その他", // Default value
+                            subCategory: p.subCategory || "その他",
                             productType: p.productType || null,
                             priceA: p.priceA,
                             priceB: p.priceB,
@@ -712,8 +732,11 @@ export async function importProducts(products: {
                             cost: p.cost,
                             supplier: p.supplier,
                             color: p.color,
-                            unit: p.unit ?? "個",
-                            orderUnit: p.orderUnit ?? 1,
+                            unit: p.unit ?? existing.unit,
+                            orderUnit: p.orderUnit ?? existing.orderUnit,
+                            manufacturer: p.manufacturer ?? existing.manufacturer,
+                            quantityPerBox: p.quantityPerBox ?? existing.quantityPerBox,
+                            pricePerBox: p.pricePerBox ?? existing.pricePerBox,
                         },
                     });
                 } else {
@@ -722,7 +745,7 @@ export async function importProducts(products: {
                             code: normalizedCode,
                             name: p.name,
                             category: p.category,
-                            subCategory: p.subCategory || "その他", // Default value
+                            subCategory: p.subCategory || "その他",
                             productType: p.productType || null,
                             priceA: p.priceA,
                             priceB: p.priceB,
@@ -734,6 +757,9 @@ export async function importProducts(products: {
                             color: p.color,
                             unit: p.unit ?? "個",
                             orderUnit: p.orderUnit ?? 1,
+                            manufacturer: p.manufacturer,
+                            quantityPerBox: p.quantityPerBox ?? 1,
+                            pricePerBox: p.pricePerBox ?? 0,
                         },
                     });
                 }
@@ -868,7 +894,7 @@ import { sendTransactionEmail } from './mail';
 export async function createTransaction(
     vendorId: number,
     vendorUserId: number | null,  // 担当者ID追加
-    items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean; code?: string }[],
+    items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean; code?: string; isBox?: boolean; quantityPerBox?: number }[],
     totalAmountParam?: number,
     isProxyInput: boolean = false,
     transactionDate?: Date  // 代理入力用：引取日を指定
@@ -918,12 +944,17 @@ export async function createTransaction(
                 // Add code to item for storage
                 item.code = product.code;
 
+                // Calculate actual stock deduction (Units)
+                const quantityToDeduct = (item.isBox && item.quantityPerBox)
+                    ? item.quantity * item.quantityPerBox
+                    : item.quantity;
+
                 // Decrease Stock
                 await tx.product.update({
                     where: { id: item.productId },
                     data: {
-                        stock: { decrement: item.quantity },
-                        usageCount: { increment: item.quantity }
+                        stock: { decrement: quantityToDeduct },
+                        usageCount: { increment: quantityToDeduct }
                     },
                 });
 
@@ -932,8 +963,8 @@ export async function createTransaction(
                     data: {
                         productId: item.productId,
                         type: '出庫',
-                        quantity: -item.quantity, // Negative for outflow
-                        reason: `Transaction #${transaction.id}`,
+                        quantity: -quantityToDeduct, // Negative for outflow
+                        reason: `Transaction #${transaction.id}${item.isBox ? ' (Box)' : ''}`,
                     },
                 });
             }
@@ -1065,16 +1096,22 @@ export async function returnTransaction(transactionId: number) {
             if (transaction.isReturned) throw new Error("既に戻し処理済みです");
 
             // 2. Parse Items
-            const items = JSON.parse(transaction.items) as { productId: number; quantity: number; isManual?: boolean }[];
+            const items = JSON.parse(transaction.items) as { productId: number; quantity: number; isManual?: boolean; isBox?: boolean; quantityPerBox?: number }[];
 
             // 3. Loop items and restore stock
             for (const item of items) {
                 if (item.isManual) continue; // Skip manual items
 
+                // Calculate actual stock restoration (Units)
+                // Note: items here comes from JSON, so need to check if isBox exists
+                const quantityToRestore = (item.isBox && item.quantityPerBox)
+                    ? item.quantity * item.quantityPerBox
+                    : item.quantity;
+
                 // Restore stock
                 await tx.product.update({
                     where: { id: item.productId },
-                    data: { stock: { increment: item.quantity } }
+                    data: { stock: { increment: quantityToRestore } }
                 });
 
                 // Create Inventory Log
@@ -1082,8 +1119,8 @@ export async function returnTransaction(transactionId: number) {
                     data: {
                         productId: item.productId,
                         type: '返品',
-                        quantity: item.quantity, // Positive for inflow
-                        reason: `Transaction #${transaction.id} Return`,
+                        quantity: quantityToRestore, // Positive for inflow
+                        reason: `Transaction #${transaction.id} Return${item.isBox ? ' (Box)' : ''}`,
                     }
                 });
             }
@@ -1123,7 +1160,7 @@ export async function returnPartialTransaction(transactionId: number, returnItem
             if (!transaction) throw new Error("取引が見つかりません");
             if (transaction.isReturned) throw new Error("既に戻し処理済みです");
 
-            let items = JSON.parse(transaction.items) as { productId: number; quantity: number; price: number; name: string; isManual?: boolean }[];
+            let items = JSON.parse(transaction.items) as { productId: number; quantity: number; price: number; name: string; isManual?: boolean; isBox?: boolean; quantityPerBox?: number }[];
             let totalAmount = transaction.totalAmount;
             let returnedAny = false;
 
@@ -1141,9 +1178,12 @@ export async function returnPartialTransaction(transactionId: number, returnItem
                 }
 
                 // 1. Restore Stock
+                const itemQuantityPerBox = (item.isBox && item.quantityPerBox) ? item.quantityPerBox : 1;
+                const quantityToRestore = returnItem.returnQuantity * itemQuantityPerBox;
+
                 await tx.product.update({
                     where: { id: item.productId },
-                    data: { stock: { increment: returnItem.returnQuantity } }
+                    data: { stock: { increment: quantityToRestore } }
                 });
 
                 // 2. Log
@@ -1151,8 +1191,8 @@ export async function returnPartialTransaction(transactionId: number, returnItem
                     data: {
                         productId: item.productId,
                         type: '返品',
-                        quantity: returnItem.returnQuantity,
-                        reason: `Tx #${transactionId} Partial Return`,
+                        quantity: quantityToRestore,
+                        reason: `Tx #${transactionId} Partial Return${item.isBox ? ' (Box)' : ''}`,
                     }
                 });
 

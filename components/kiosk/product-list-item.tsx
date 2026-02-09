@@ -16,6 +16,8 @@ interface Product {
     subCategory?: string | null;
     priceA: number;
     stock: number;
+    quantityPerBox?: number;
+    pricePerBox?: number;
 }
 
 interface ProductListItemProps {
@@ -34,12 +36,14 @@ export function ProductListItem({ product }: ProductListItemProps) {
         setIsDialogOpen(true);
     };
 
-    const handleConfirmQuantity = (quantity: number) => {
+    const handleConfirmQuantity = (quantity: number, isBox: boolean = false) => {
         addItem({
             productId: product.id,
             name: product.name,
-            price: product.priceA,
+            price: isBox ? (product.pricePerBox || product.priceA * (product.quantityPerBox || 1)) : product.priceA,
             quantity: quantity,
+            isBox: isBox,
+            quantityPerBox: isBox ? product.quantityPerBox : undefined
         });
         toast.success(`${product.name} を ${quantity}個 カートに追加しました`);
         setIsDialogOpen(false);
