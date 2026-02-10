@@ -828,6 +828,60 @@ export async function checkActiveInventory() {
     return !!activeInventory;
 }
 
+export async function getImportDiff(products: any[]) {
+    const diffs: any[] = [];
+
+    // Normalize code helper
+    const normalizeCode = (code: string) => {
+        if (!code) return "";
+        return code.replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0)).replace(/[-\s]/g, "").toUpperCase();
+    };
+
+    for (const p of products) {
+        const normalizedCode = normalizeCode(p.code);
+        let existing = null;
+
+        if (p.id) {
+            existing = await prisma.product.findUnique({ where: { id: p.id } });
+        }
+        if (!existing) {
+            existing = await prisma.product.findUnique({ where: { code: normalizedCode } });
+        }
+
+        // Calculate defaults for comparison (same logic as import)
+        let priceA = p.priceA;
+        let priceB = p.priceB;
+        if ((priceA === 0 || !priceA) && p.cost > 0) priceA = Math.ceil(p.cost * 1.20);
+        if ((priceB === 0 || !priceB) && p.cost > 0) priceB = Math.ceil(p.cost * 1.15);
+
+        if (!existing) {
+            diffs.push({ code: normalizedCode, name: p.name, type: 'NEW', changes: [] });
+        } else {
+            const changes = [];
+            if (existing.name !== p.name) changes.push({ field: '商品名', old: existing.name, new: p.name });
+            if (existing.category !== p.category) changes.push({ field: 'カテゴリ', old: existing.category, new: p.category });
+            if (existing.subCategory !== (p.subCategory || "その他")) changes.push({ field: 'サブカテゴリ', old: existing.subCategory, new: p.subCategory || "その他" });
+            if (existing.productType !== (p.productType || null)) changes.push({ field: '種類', old: existing.productType, new: p.productType });
+
+            if (existing.priceA !== priceA) changes.push({ field: '売価A', old: existing.priceA, new: priceA });
+            if (existing.priceB !== priceB) changes.push({ field: '売価B', old: existing.priceB, new: priceB });
+            if (existing.priceC !== p.priceC) changes.push({ field: '売価C', old: existing.priceC, new: p.priceC });
+
+            if (existing.cost !== p.cost) changes.push({ field: '原価', old: existing.cost, new: p.cost });
+            if (existing.minStock !== (p.minStock || 0)) changes.push({ field: '最低在庫', old: existing.minStock, new: p.minStock || 0 });
+            // Supplier, Manufacturer etc.
+            if (existing.supplier !== (p.supplier || null)) changes.push({ field: '仕入先', old: existing.supplier, new: p.supplier });
+
+            if (changes.length > 0) {
+                diffs.push({ code: normalizedCode, name: existing.name, type: 'UPDATE', changes });
+            } else {
+                diffs.push({ code: normalizedCode, name: existing.name, type: 'UNCHANGED', changes: [] });
+            }
+        }
+    }
+    return diffs;
+}
+
 export async function importProducts(products: {
     id?: number;
     code: string;
@@ -1792,6 +1846,22 @@ export async function receiveOrderItem(orderItemId: number, quantity: number) {
     revalidatePath('/admin/orders');
     revalidatePath(`/admin/orders/${item.orderId}`);
     revalidatePath('/admin/products');
+}
+
+export async function cancelOrder(id: number) {
+    const order = await prisma.order.findUnique({ where: { id } });
+    if (!order) throw new Error("Order not found");
+    if (order.status === 'RECEIVED') throw new Error("完了済みの発注は取り消せません");
+    if (order.status === 'CANCELLED') throw new Error("既に取り消されています");
+
+    await prisma.order.update({
+        where: { id },
+        data: { status: 'CANCELLED' }
+    });
+
+    await logOperation("ORDER_CANCEL", `Order #${id}`, "Status changed to CANCELLED");
+    revalidatePath('/admin/orders');
+    revalidatePath(`/admin/orders/${id}`);
 }
 
 export async function deleteOrder(id: number) {

@@ -22,7 +22,7 @@ import {
     Package
 } from "lucide-react";
 import Link from "next/link";
-import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, cancelReceipt } from "@/lib/actions";
+import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, cancelReceipt, cancelOrder } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -83,10 +83,37 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
         }
     };
 
-    const handleQtyChange = async (itemId: number, newQty: number) => {
-        if (newQty < 1) return;
+    const handleCancelOrder = async () => {
+        if (!confirm("本当にこの発注を取り消しますか？\nステータスが「キャンセル」に変更されます。")) return;
+
+        setIsUpdating(true);
         try {
-            await updateOrderItemQty(itemId, newQty);
+            await cancelOrder(order.id);
+            toast.success("発注を取り消しました");
+            router.refresh();
+        } catch (e: any) {
+            toast.error(e.message || "取り消しに失敗しました");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleQtyChange = async (item: any, newQty: number) => {
+        if (newQty < 1) {
+            toast.error("数量は1以上にしてください");
+            return;
+        }
+        if (newQty < item.receivedQuantity) {
+            toast.error(`入荷済数(${item.receivedQuantity})未満には変更できません`);
+            // UIのリセットが必要だが、router.refreshで戻るか？
+            // 簡易的にリロード
+            router.refresh();
+            return;
+        }
+        try {
+            await updateOrderItemQty(item.id, newQty);
+            toast.success("数量を変更しました");
+            router.refresh();
         } catch (e) {
             toast.error("数量の更新に失敗しました");
         }
@@ -140,6 +167,11 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                     <Button variant="outline" size="icon" onClick={handleCopy} title="注文内容をコピー">
                         <Copy className="h-4 w-4" />
                     </Button>
+                    {(order.status === 'ORDERED' || order.status === 'PARTIAL') && (
+                        <Button variant="destructive" size="sm" onClick={handleCancelOrder} disabled={isUpdating}>
+                            取り消し
+                        </Button>
+                    )}
                     {order.status === 'DRAFT' && (
                         <Button onClick={handleConfirm} disabled={isUpdating} className="flex-1 sm:flex-none">
                             {isUpdating ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}
@@ -216,13 +248,13 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                                     <div className="text-xs text-muted-foreground">{item.product.code}</div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    {order.status === 'DRAFT' ? (
+                                    {['DRAFT', 'ORDERED', 'PARTIAL'].includes(order.status) ? (
                                         <div className="flex justify-end gap-2 items-center">
                                             <Input
                                                 type="number"
                                                 className="w-20 h-8 text-right"
                                                 defaultValue={item.quantity}
-                                                onBlur={(e) => handleQtyChange(item.id, parseInt(e.target.value))}
+                                                onBlur={(e) => handleQtyChange(item, parseInt(e.target.value))}
                                             />
                                             <span className="text-xs">{item.product.unit}</span>
                                         </div>
@@ -293,13 +325,13 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                             <div className="grid grid-cols-2 gap-3 text-sm mb-3">
                                 <div>
                                     <span className="text-muted-foreground">発注数:</span>
-                                    {order.status === 'DRAFT' ? (
+                                    {['DRAFT', 'ORDERED', 'PARTIAL'].includes(order.status) ? (
                                         <div className="flex items-center gap-1 mt-1">
                                             <Input
                                                 type="number"
                                                 className="w-20 h-8 text-right"
                                                 defaultValue={item.quantity}
-                                                onBlur={(e) => handleQtyChange(item.id, parseInt(e.target.value))}
+                                                onBlur={(e) => handleQtyChange(item, parseInt(e.target.value))}
                                             />
                                             <span className="text-xs">{item.product.unit}</span>
                                         </div>

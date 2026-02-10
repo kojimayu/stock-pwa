@@ -13,6 +13,15 @@ const pwaConfig = withPWA({
 });
 
 const nextConfig: NextConfig = {
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
+    // @ts-ignore - incomingRequests is a valid option in Next.js 15+ but might not be in types yet
+    incomingRequests: {
+      ignore: [/\/api\/health/],
+    },
+  },
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {

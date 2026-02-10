@@ -21,9 +21,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { importProducts } from "@/lib/actions";
+import { importProducts, getImportDiff } from "@/lib/actions";
 import { toast } from "sonner";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, AlertCircle, ArrowRight } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ProductImportRow {
@@ -56,6 +56,8 @@ export function ProductImportDialog() {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [previewData, setPreviewData] = useState<ProductImportRow[]>([]);
+    const [diffs, setDiffs] = useState<any[] | null>(null);
+    const [step, setStep] = useState<'UPLOAD' | 'PREVIEW'>('UPLOAD');
 
     // Helper to normalize product code (remove hyphens, spaces, convert full-width to half-width)
     const normalizeCode = (code: string) => {
@@ -98,12 +100,12 @@ export function ProductImportDialog() {
                 const commonProps = {
                     category: String(row.category || row.CATEGORY || row.カテゴリ || row.カテゴリー大 || ""),
                     subCategory: String(row.subCategory || row.SUBCATEGORY || row.サブカテゴリ || row.カテゴリー中 || ""),
-                    productType: row.productType || row.PRODUCTTYPE || row.カテゴリー小 || row.カテゴリ小 ? String(row.productType || row.PRODUCTTYPE || row.カテゴリー小 || row.カテゴリ小) : undefined,
-                    priceA: Number(row.priceA || row.PRICEA || row.売価A || row.売値A || row.定価 || 0),
-                    priceB: Number(row.priceB || row.PRICEB || row.売価B || row.売値B || row.特価 || 0),
-                    priceC: Number(row.priceC || row.PRICEC || row.売価C || row.売値C || 0),
-                    minStock: row.minStock || row.MINSTOCK || row.下限在庫 ? Number(row.minStock || row.MINSTOCK || row.下限在庫) : 0,
-                    cost: Number(row.cost || row.COST || row.原価 || row.仕入単価 || row.仕入れ値 || 0),
+                    productType: row.productType || row.PRODUCTTYPE || row.カテゴリー小 || row.カテゴリ小 || row["種類"] ? String(row.productType || row.PRODUCTTYPE || row.カテゴリー小 || row.カテゴリ小 || row["種類"]) : undefined,
+                    priceA: Number(row.priceA || row.PRICEA || row.売価A || row.売値A || row["販売単価A"] || row.定価 || 0),
+                    priceB: Number(row.priceB || row.PRICEB || row.売価B || row.売値B || row["販売単価B"] || row.特価 || 0),
+                    priceC: Number(row.priceC || row.PRICEC || row.売価C || row.売値C || row["販売単価C"] || 0),
+                    minStock: row.minStock || row.MINSTOCK || row.下限在庫 || row["最低在庫"] ? Number(row.minStock || row.MINSTOCK || row.下限在庫 || row["最低在庫"]) : 0,
+                    cost: Number(row.cost || row.COST || row.原価 || row.仕入単価 || row.仕入れ値 || row["仕入原価"] || 0),
                     supplier: row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー ? String(row.supplier || row.SUPPLIER || row.仕入先 || row.メーカー) : undefined,
                     unit: row.unit || row.UNIT || row.単位 ? String(row.unit || row.UNIT || row.単位) : undefined,
                     orderUnit: row.orderUnit || row.ORDERUNIT || row.発注単位 || row.ロット ? Number(row.orderUnit || row.ORDERUNIT || row.発注単位 || row.ロット) : undefined,
@@ -155,8 +157,46 @@ export function ProductImportDialog() {
             const validData = expandedData.filter(row => row.code && row.name);
 
             setPreviewData(validData);
+            setStep('UPLOAD'); // Reset step if new file
+            setDiffs(null);
         };
         reader.readAsBinaryString(file);
+    };
+
+    const handleCheckDiff = async () => {
+        if (previewData.length === 0) return;
+        setLoading(true);
+        try {
+            // Map to the shape expected by server
+            const payload = previewData.map(p => ({
+                id: p.id,
+                code: p.code,
+                name: p.name,
+                category: p.category,
+                subCategory: p.subCategory,
+                productType: p.productType,
+                priceA: p.priceA || 0, // Ensure not undefined for diff
+                priceB: p.priceB || 0,
+                priceC: p.priceC || 0,
+                minStock: p.minStock || 0,
+                cost: p.cost || 0,
+                supplier: p.supplier,
+                color: p.color,
+                unit: p.unit,
+                orderUnit: p.orderUnit,
+                manufacturer: p.manufacturer,
+                quantityPerBox: p.quantityPerBox,
+                pricePerBox: p.pricePerBox
+            }));
+
+            const results = await getImportDiff(payload);
+            setDiffs(results);
+            setStep('PREVIEW');
+        } catch (e) {
+            toast.error("差分チェックに失敗しました");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleImport = async () => {
@@ -222,8 +262,14 @@ export function ProductImportDialog() {
         if (!newOpen) {
             // Clear data when closed
             setPreviewData([]);
+            setDiffs(null);
+            setStep('UPLOAD');
         }
     };
+
+    const newCount = diffs?.filter(d => d.type === 'NEW').length || 0;
+    const updateCount = diffs?.filter(d => d.type === 'UPDATE').length || 0;
+    const unchangedCount = diffs?.filter(d => d.type === 'UNCHANGED').length || 0;
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -254,7 +300,69 @@ export function ProductImportDialog() {
                     />
                 </div>
 
-                {previewData.length > 0 && (
+                {/* Diff View */}
+                {step === 'PREVIEW' && diffs && (
+                    <div className="flex-1 overflow-hidden flex flex-col gap-4">
+                        <div className="flex gap-4 text-sm bg-slate-50 p-3 rounded-md border">
+                            <div className="font-bold">確認サマリ:</div>
+                            <div className="text-green-600">新規: {newCount}件</div>
+                            <div className="text-orange-600">更新: {updateCount}件</div>
+                            <div className="text-slate-500">変更なし: {unchangedCount}件</div>
+                        </div>
+
+                        <div className="flex-1 overflow-hidden border rounded-md">
+                            <ScrollArea className="h-full">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[100px]">状態</TableHead>
+                                            <TableHead>品番</TableHead>
+                                            <TableHead>商品名</TableHead>
+                                            <TableHead>変更内容</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {diffs.filter(d => d.type !== 'UNCHANGED').map((row) => (
+                                            <TableRow key={row.code}>
+                                                <TableCell>
+                                                    {row.type === 'NEW' && <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">新規</span>}
+                                                    {row.type === 'UPDATE' && <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs">更新</span>}
+                                                </TableCell>
+                                                <TableCell className="font-medium">{row.code}</TableCell>
+                                                <TableCell>{row.name}</TableCell>
+                                                <TableCell className="text-xs">
+                                                    {row.type === 'NEW' ? '新規登録' : (
+                                                        <div className="space-y-1">
+                                                            {row.changes.map((c: any, i: number) => (
+                                                                <div key={i} className="flex items-center gap-1">
+                                                                    <span className="font-semibold">{c.field}:</span>
+                                                                    <span className="text-red-500 line-through">{c.old}</span>
+                                                                    <ArrowRight className="w-3 h-3" />
+                                                                    <span className="text-green-600 font-bold">{c.new}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {updateCount === 0 && newCount === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                                    変更のある項目はありません
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </ScrollArea>
+                        </div>
+                    </div>
+                )}
+
+
+                {/* Raw Preview (Only when UPLOAD step) */}
+                {step === 'UPLOAD' && previewData.length > 0 && (
                     <div className="flex-1 overflow-hidden border rounded-md">
                         <ScrollArea className="h-full">
                             <Table>
@@ -307,13 +415,28 @@ export function ProductImportDialog() {
                 )}
 
                 <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                        キャンセル
+                    <Button variant="outline" onClick={() => {
+                        if (step === 'PREVIEW') {
+                            setStep('UPLOAD');
+                            setDiffs(null);
+                        } else {
+                            handleOpenChange(false);
+                        }
+                    }}>
+                        {step === 'PREVIEW' ? '戻る' : 'キャンセル'}
                     </Button>
-                    <Button onClick={handleImport} disabled={loading || previewData.length === 0}>
-                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {previewData.length > 0 ? `${previewData.length}件を登録` : "登録"}
-                    </Button>
+
+                    {step === 'UPLOAD' ? (
+                        <Button onClick={handleCheckDiff} disabled={loading || previewData.length === 0}>
+                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            変更内容を確認
+                        </Button>
+                    ) : (
+                        <Button onClick={handleImport} disabled={loading}>
+                            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            実行 ({newCount + updateCount}件)
+                        </Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>

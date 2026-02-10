@@ -34,24 +34,24 @@ export function ProductExportButton({ products }: ProductExportButtonProps) {
     const handleExport = () => {
         try {
             const data = products.map((p) => ({
-                id: p.id,
-                code: p.code,
-                name: p.name,
-                category: p.category,
-                subCategory: p.subCategory,
-                productType: p.productType, // Added
-                priceA: p.priceA,
-                priceB: p.priceB,
-                priceC: p.priceC,
-                minStock: p.minStock,
-                cost: p.cost,
-                supplier: p.supplier,
-                color: p.color,
-                orderUnit: p.orderUnit || 1,
-                manufacturer: p.manufacturer || '',
-                quantityPerBox: p.quantityPerBox || 1,
-                pricePerBox: p.pricePerBox || 0,
-                stock: p.stock // Export current stock too
+                "ID": p.id,
+                "商品コード": p.code,
+                "商品名": p.name,
+                "カテゴリ": p.category,
+                "サブカテゴリ": p.subCategory,
+                "種類": p.productType,
+                "販売単価A": p.priceA,
+                "販売単価B": p.priceB,
+                "販売単価C": p.priceC,
+                "最低在庫": p.minStock,
+                "現在在庫": p.stock,
+                "仕入原価": p.cost,
+                "仕入先": p.supplier,
+                "色": p.color,
+                "発注単位": p.orderUnit || 1,
+                "メーカー": p.manufacturer || '',
+                "箱入数": p.quantityPerBox || 1,
+                "箱単価": p.pricePerBox || 0,
             }));
 
             const wb = XLSX.utils.book_new();
