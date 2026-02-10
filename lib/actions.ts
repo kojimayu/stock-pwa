@@ -308,22 +308,24 @@ export async function verifyPin(vendorId: string | number, vendorUserId: string 
 }
 
 export async function verifyVendorPin(vendorId: string | number, pin: string) {
-    // 1. Find all users for this vendor
-    const vendorUsers = await prisma.vendorUser.findMany({
-        where: { vendorId: Number(vendorId) },
+    const start = performance.now();
+    // 1. Direct DB Query
+    const matchedUser = await prisma.vendorUser.findFirst({
+        where: {
+            vendorId: Number(vendorId),
+            pinCode: pin
+        },
         include: { vendor: true }
     });
 
-    if (!vendorUsers || vendorUsers.length === 0) {
-        logOperation("KIOSK_LOGIN_FAILED", `VendorId: ${vendorId}`, "担当者が未登録の業者");
-        return { success: false, message: 'この業者には担当者が登録されていません' };
-    }
-
-    // 2. Check if ANY user matches the PIN
-    const matchedUser = vendorUsers.find(u => u.pinCode === pin);
+    const dbTime = performance.now();
+    console.log(`[verifyVendorPin] DB Query took ${dbTime - start}ms`);
 
     if (!matchedUser) {
-        logOperation("KIOSK_LOGIN_FAILED", `VendorId: ${vendorId}`, "PIN不一致 (Vendor match attempt)");
+        // 詳細なエラー理由（PIN間違いか、ユーザーが存在しないか）を区別したければ
+        // 別途クエリが必要だが、セキュリティ上は「違います」だけで良い。
+        // デバッグ用にログには残す。
+        logOperation("KIOSK_LOGIN_FAILED", `VendorId: ${vendorId}`, "PIN不一致または未登録");
         return { success: false, message: 'PINコードが正しくありません' };
     }
 
