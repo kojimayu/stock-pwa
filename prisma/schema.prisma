@@ -108,6 +108,7 @@ model Transaction {
   isReturned           Boolean     @default(false)
   returnedAt           DateTime?
   isProxyInput         Boolean     @default(false)
+  lastModifiedAt       DateTime?
   vendor               Vendor      @relation(fields: [vendorId], references: [id])
   vendorUser           VendorUser? @relation(fields: [vendorUserId], references: [id])
 }

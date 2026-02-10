@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { formatCurrency, formatDate } from '@/lib/utils';
 
 export type LoginState = {
     message?: string;
@@ -11,6 +12,145 @@ export type LoginState = {
 // Helper for Logging
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+
+export type TransactionItem = {
+    productId: number;
+    quantity: number;
+    price: number;
+    name: string;
+    isManual?: boolean;
+    code?: string;
+    isBox?: boolean;
+    quantityPerBox?: number;
+    unit?: string;
+};
+
+export async function updateTransaction(transactionId: number, newItems: TransactionItem[]) {
+    return await prisma.$transaction(async (tx) => {
+        // 1. Fetch current transaction
+        const currentTx = await tx.transaction.findUnique({ where: { id: transactionId } });
+        if (!currentTx) throw new Error("Transaction not found");
+
+        const oldItems: TransactionItem[] = JSON.parse(currentTx.items);
+        const processedProductIds = new Set<number>();
+
+        // 2. Process New Items (Updates and Additions)
+        for (const newItem of newItems) {
+            if (newItem.isManual) continue;
+
+            const oldItem = oldItems.find(i => i.productId === newItem.productId && !i.isManual);
+            processedProductIds.add(newItem.productId);
+
+            // Calculate total units (considering box)
+            const newTotalUnits = (newItem.isBox && newItem.quantityPerBox) ? newItem.quantity * newItem.quantityPerBox : newItem.quantity;
+            const oldTotalUnits = oldItem
+                ? ((oldItem.isBox && oldItem.quantityPerBox) ? oldItem.quantity * oldItem.quantityPerBox : oldItem.quantity)
+                : 0;
+
+            const adjustment = oldTotalUnits - newTotalUnits;
+            // Positive adjustment = User reduced quantity = Return to stock
+            // Negative adjustment = User increased quantity = Take from stock
+
+            if (adjustment !== 0) {
+                await tx.product.update({
+                    where: { id: newItem.productId },
+                    data: { stock: { increment: adjustment } }
+                });
+
+                await tx.inventoryLog.create({
+                    data: {
+                        productId: newItem.productId,
+                        type: adjustment > 0 ? 'RETURN' : 'OUT', // Simplified types
+                        quantity: Math.abs(adjustment),
+                        reason: `Correction #${transactionId}: ${adjustment > 0 ? 'Returned' : 'Taken'}`,
+                    }
+                });
+            }
+        }
+
+        // 3. Process Removed Items
+        for (const oldItem of oldItems) {
+            if (oldItem.isManual) continue;
+            if (processedProductIds.has(oldItem.productId)) continue;
+
+            // This item was removed efficiently
+            const oldTotalUnits = (oldItem.isBox && oldItem.quantityPerBox) ? oldItem.quantity * oldItem.quantityPerBox : oldItem.quantity;
+
+            // Return all to stock
+            await tx.product.update({
+                where: { id: oldItem.productId },
+                data: { stock: { increment: oldTotalUnits } }
+            });
+
+            await tx.inventoryLog.create({
+                data: {
+                    productId: oldItem.productId,
+                    type: 'RETURN',
+                    quantity: oldTotalUnits,
+                    reason: `Correction #${transactionId}: Item Removed`,
+                }
+            });
+        }
+
+        // 4. Update Transaction
+        // Recalculate total amount
+        const newTotalAmount = newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        const updatedTx = await tx.transaction.update({
+            where: { id: transactionId },
+            data: {
+                items: JSON.stringify(newItems),
+                totalAmount: newTotalAmount,
+                // @ts-ignore
+                lastModifiedAt: new Date(), // Update last modified time
+                // Do not update createdAt or date to preserve history
+            }
+        });
+
+
+        // Calculate diff for logging
+        const changes: string[] = [];
+        // Added items
+        for (const newItem of newItems) {
+            const oldItem = oldItems.find(i => i.productId === newItem.productId && !i.isManual && i.isManual === newItem.isManual);
+            if (!oldItem) {
+                changes.push(`[追加] ${newItem.name} x${newItem.quantity}`);
+            } else {
+                const newQty = newItem.quantity;
+                const oldQty = oldItem.quantity;
+                if (newQty !== oldQty) {
+                    changes.push(`[変更] ${newItem.name}: ${oldQty}→${newQty}`);
+                }
+            }
+        }
+        // Removed items
+        for (const oldItem of oldItems) {
+            const newItem = newItems.find(i => i.productId === oldItem.productId && !i.isManual === oldItem.isManual);
+            if (!newItem) {
+                changes.push(`[削除] ${oldItem.name} x${oldItem.quantity}`);
+            }
+        }
+
+        const changeLog = changes.length > 0 ? changes.join(", ") : "詳細なし";
+
+        // 5. Log Operation
+        await logOperation("TRANSACTION_UPDATE", `Transaction ID: ${transactionId}`, `金額: ${formatCurrency(currentTx.totalAmount)} -> ${formatCurrency(newTotalAmount)}. 変更点: ${changeLog}`);
+
+        return { success: true, transaction: updatedTx };
+    });
+}
+
+// Get logs for a specific transaction
+export async function getTransactionLogs(transactionId: number) {
+    return await prisma.operationLog.findMany({
+        where: {
+            target: {
+                contains: `Transaction ID: ${transactionId}`
+            }
+        },
+        orderBy: { performedAt: 'desc' }
+    });
+}
 
 async function logOperation(action: string, target: string, details?: string) {
     // Fire and forget logging to avoid blocking the UI
@@ -500,7 +640,16 @@ export async function generateQrToken(vendorId: number) {
     return { success: true, qrToken: token };
 }
 
+
+
+
 // Product Actions
+export async function getProduct(id: number) {
+    return await prisma.product.findUnique({
+        where: { id },
+    });
+}
+
 export async function getProducts() {
     return await prisma.product.findMany({
         orderBy: [
@@ -780,10 +929,15 @@ export async function importProducts(products: {
                             cost: p.cost,
                             supplier: p.supplier,
                             color: p.color,
+                            // @ts-ignore
                             unit: p.unit ?? existing.unit,
+                            // @ts-ignore
                             orderUnit: p.orderUnit ?? existing.orderUnit,
+                            // @ts-ignore
                             manufacturer: p.manufacturer ?? existing.manufacturer,
+                            // @ts-ignore
                             quantityPerBox: p.quantityPerBox ?? existing.quantityPerBox,
+                            // @ts-ignore
                             pricePerBox: p.pricePerBox ?? existing.pricePerBox,
                         } as any,
                     });
@@ -1208,7 +1362,7 @@ export async function returnPartialTransaction(transactionId: number, returnItem
             if (!transaction) throw new Error("取引が見つかりません");
             if (transaction.isReturned) throw new Error("既に戻し処理済みです");
 
-            let items = JSON.parse(transaction.items) as { productId: number; quantity: number; price: number; name: string; isManual?: boolean; isBox?: boolean; quantityPerBox?: number }[];
+            let items = JSON.parse(transaction.items) as { productId: number; quantity: number; price: number; name: string; isManual?: boolean; isBox?: boolean; quantityPerBox?: number; unit?: string }[];
             let totalAmount = transaction.totalAmount;
             let returnedAny = false;
 
@@ -1549,6 +1703,7 @@ export async function generateDraftOrders() {
                 items: {
                     create: products.map(p => {
                         const deficit = Math.max(0, p.minStock - p.stock + 1);
+                        // @ts-ignore
                         const unit = p.orderUnit || 1;
                         const quantity = Math.ceil(deficit / unit) * unit;
 

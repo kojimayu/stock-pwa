@@ -5,11 +5,13 @@ import { ProductDialog } from "./product-dialog";
 import { ProductSearchDialog } from "./product-search-dialog";
 import { TransactionReturnDialog } from "./transaction-return-dialog";
 import { PriceCorrectionDialog } from "./price-correction-dialog";
+import { TransactionEditDialog } from "./transaction-edit-dialog";
+import { TransactionHistoryDialog } from "./transaction-history-dialog";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FilePlus, Link as LinkIcon, Loader2, Search, X, Download, Undo2, Edit2 } from "lucide-react";
+import { FilePlus, Link as LinkIcon, Loader2, Search, X, Download, Undo2, Edit2, History } from "lucide-react";
 import { reconcileTransactionItem, getUniqueProductAttributes, returnTransaction } from "@/lib/actions";
 import { toast } from "sonner";
 import {
@@ -33,6 +35,7 @@ type Transaction = {
     hasUnregisteredItems?: boolean;
     isReturned?: boolean;
     isProxyInput?: boolean;
+    lastModifiedAt?: Date | null;
 };
 
 interface TransactionListProps {
@@ -58,6 +61,14 @@ export function TransactionList({ transactions }: TransactionListProps) {
         itemName: string;
         currentPrice: number;
     } | null>(null);
+
+    // Edit Transaction Dialog
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [editTargetTx, setEditTargetTx] = useState<Transaction | null>(null);
+
+    // History Dialog
+    const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+    const [historyTargetId, setHistoryTargetId] = useState<number | null>(null);
 
     // 検索フィルター
     const [vendorFilter, setVendorFilter] = useState("");
@@ -202,6 +213,11 @@ export function TransactionList({ transactions }: TransactionListProps) {
         setReturnDialogOpen(true);
     };
 
+    const handleEditClick = (tx: Transaction) => {
+        setEditTargetTx(tx);
+        setEditDialogOpen(true);
+    };
+
     return (
         <div className="space-y-4">
             {/* 検索フィルター */}
@@ -300,7 +316,10 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                     <TableCell>
                                         {formatDate(tx.date)}
                                         {tx.isProxyInput && (
-                                            <div className="text-xs bg-purple-100 text-purple-700 font-bold mt-1 inline-block px-1.5 rounded">代理入力</div>
+                                            <div className="text-xs bg-purple-100 text-purple-700 font-bold mt-1 inline-block px-1.5 rounded mr-1">代理入力</div>
+                                        )}
+                                        {tx.lastModifiedAt && !tx.isReturned && (
+                                            <div className="text-xs bg-blue-100 text-blue-700 font-bold mt-1 inline-block px-1.5 rounded mr-1" title={`修正: ${formatDate(tx.lastModifiedAt)}`}>修正済</div>
                                         )}
                                         {tx.hasUnregisteredItems && (
                                             <div className="text-xs text-amber-600 font-bold mt-1">手入力あり</div>
@@ -370,28 +389,41 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                         {formatCurrency(tx.totalAmount)}
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        {tx.isReturned ? (
-                                            <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold whitespace-nowrap">
-                                                戻し済
-                                            </span>
-                                        ) : (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 w-8 p-0"
-                                                onClick={() => handleReturnClick(tx)}
-                                                title="在庫に戻す"
-                                            >
-                                                <Undo2 className="w-4 h-4 text-slate-500 hover:text-red-600" />
-                                            </Button>
-                                        )}
+                                        <div className="flex justify-center items-center gap-1">
+                                            {!tx.isReturned && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 p-0"
+                                                    onClick={() => handleEditClick(tx)}
+                                                    title="取引内容を修正"
+                                                >
+                                                    <Edit2 className="w-4 h-4 text-slate-500 hover:text-blue-600" />
+                                                </Button>
+                                            )}
+                                            {tx.isReturned ? (
+                                                <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold whitespace-nowrap">
+                                                    戻し済
+                                                </span>
+                                            ) : (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 p-0"
+                                                    onClick={() => handleReturnClick(tx)}
+                                                    title="在庫に戻す"
+                                                >
+                                                    <Undo2 className="w-4 h-4 text-slate-500 hover:text-red-600" />
+                                                </Button>
+                                            )}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             );
                         })}
                         {filteredTransactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={6} className="text-center py-10 text-slate-500">
                                     {hasActiveFilters ? "検索条件に一致する取引がありません" : "取引データがありません"}
                                 </TableCell>
                             </TableRow>
@@ -436,6 +468,21 @@ export function TransactionList({ transactions }: TransactionListProps) {
                     currentPrice={priceEditTarget.currentPrice}
                 />
             )}
+
+            <TransactionEditDialog
+                open={editDialogOpen}
+                onOpenChange={setEditDialogOpen}
+                transaction={editTargetTx}
+                onSuccess={() => {
+                    router.refresh();
+                }}
+            />
+
+            <TransactionHistoryDialog
+                open={historyDialogOpen}
+                onOpenChange={setHistoryDialogOpen}
+                transactionId={historyTargetId}
+            />
         </div>
     );
 }

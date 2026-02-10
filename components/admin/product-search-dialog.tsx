@@ -57,8 +57,18 @@ export function ProductSearchDialog({ open, onOpenChange, onSelect }: ProductSea
             const allProducts = await getProducts();
             // In a real large app this is bad, but for v1 it's fine.
 
+            // Normalize full-width to half-width and lower case
+            const normalize = (str: string) => {
+                return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => {
+                    return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+                }).toLowerCase();
+            };
+
+            const normalizedQuery = normalize(query);
+
             const filtered = allProducts.filter(p =>
-                p.name.includes(query) || p.code.includes(query)
+                normalize(p.name).includes(normalizedQuery) ||
+                normalize(p.code).includes(normalizedQuery)
             );
             setResults(filtered.map(p => ({
                 id: p.id,

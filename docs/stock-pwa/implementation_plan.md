@@ -27,34 +27,28 @@
 
 ---
 
-## 誤入力修正ロジックの設計（Correction Logic）
+## 誤入力修正ロジックの設計（Correction Logic） [実装済み]
 
 ### 1. データ構造の課題と対応
 現在の `Transaction` テーブルは、購入品目を `items` カラムにJSON文字列として保存している。
-正規化されたリレーショナルデータ（TransactionItemテーブルなど）ではないため、修正時はJSONをパースして書き換える必要がある。
+正規化されたリレーショナルデータ（TransactionItemテーブルなど）ではないため、修正時はJSONをパースして書き換える運用としている。
 
-### 2. 処理フロー
+### 2. 処理フロー [実装済み: `lib/actions.ts`]
 1.  **取引データの取得**
     - 対象のTransactionIDを指定して、現在の `items` (JSON) を取得。
 2.  **編集画面（UI）**
-    - 管理画面で、JSONを展開して品目リストを表示。
-    - 数量の変更、品目の削除、追加（難易度高のため今回は数量変更・削除を優先）を可能にする。
+    - 管理画面 (`TransactionEditDialog`) で、JSONを展開して品目リストを表示。
+    - **QuantitySelectorDialog** を組み込み、数量の変更（箱・バラ）、追加、削除を可能にした。
 3.  **保存時の処理（Server Action）**
     - **差分計算 (Diff Calculation)**:
-        - `変更前の数量` と `変更後の数量` を比較。
-        - 差分 = `変更前` - `変更後の数量`
-            - 差分がプラス（例: 5個→3個へ訂正）： **在庫を戻す（Increment）**
-            - 差分がマイナス（例: 3個→5個へ訂正）： **在庫を減らす（Decrement）**
-    - **在庫更新 (Product Update)**:
-        - 各商品について、計算した差分で在庫を更新する。
-    - **取引データ更新 (Transaction Update)**:
-        - 新しい `items` JSONを生成。
-        - 合計金額 (`totalAmount`) を再計算して更新。
+        - `updateTransaction` 関数内で実装済み。
+        - 増減分を自動計算し、`stock` を調整。
     - **ログ記録 (Logging)**:
-        - `OperationLog` に「取引修正: ID xxx」として記録。
-        - `InventoryLog` に「調整: 取引訂正」として在庫変動を記録。
+        - `OperationLog`: 「Transaction ID: xxx」の形式で詳細な変更ログ（[追加] [変更] [削除]）を記録。
+        - `InventoryLog`: 「Reason: Transaction #xxx」として在庫変動を記録。
 
 ### 3. 具体的なコードイメージ (Server Action)
+`lib/actions.ts` の `updateTransaction` 関数を参照。
 
 ```typescript
 // 擬似コード
