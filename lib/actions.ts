@@ -1119,7 +1119,20 @@ export async function createTransaction(
     // 2. Transactional update (Create Transaction + Decrease Stock + Create Log)
     try {
         const transactionResult = await prisma.$transaction(async (tx) => {
-            // Create Transaction Record
+            // First, process items to fetch codes and check stock
+            // This ensures 'items' has 'code' populated BEFORE we stringify it for the transaction record
+            for (const item of items) {
+                if (item.isManual) continue;
+
+                const product = await tx.product.findUnique({ where: { id: item.productId } });
+                if (!product || product.stock < item.quantity) {
+                    throw new Error(`商品ID ${item.productId} の在庫が不足しています`);
+                }
+                // Add code to item for storage
+                item.code = product.code;
+            }
+
+            // Create Transaction Record (Now items contains codes)
             const transaction = await tx.transaction.create({
                 data: {
                     vendorId,
@@ -1132,19 +1145,10 @@ export async function createTransaction(
                 },
             });
 
-            // Update Stock for each item
+            // Update Stock for each item and create logs
             for (const item of items) {
                 // Skip stock management for manual items
                 if (item.isManual) continue;
-
-                // Check current stock first (optional, but good for safety)
-                const product = await tx.product.findUnique({ where: { id: item.productId } });
-                if (!product || product.stock < item.quantity) {
-                    throw new Error(`商品ID ${item.productId} の在庫が不足しています`);
-                }
-
-                // Add code to item for storage
-                item.code = product.code;
 
                 // Calculate actual stock deduction (Units)
                 const quantityToDeduct = (item.isBox && item.quantityPerBox)
