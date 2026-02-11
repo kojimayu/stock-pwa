@@ -417,10 +417,13 @@ export async function deleteVendor(id: number) {
 }
 
 export async function verifyPin(vendorId: string | number, vendorUserId: string | number, pin: string) {
+    const start = performance.now();
     const vendorUser = await prisma.vendorUser.findUnique({
         where: { id: Number(vendorUserId) },
         include: { vendor: true }
     });
+    const dbTime = performance.now();
+    console.log(`[verifyPin] DB Query took ${dbTime - start}ms`);
 
     if (!vendorUser) {
         await logOperation("KIOSK_LOGIN_FAILED", `UserId: ${vendorUserId}`, "担当者が存在しません");
@@ -435,6 +438,13 @@ export async function verifyPin(vendorId: string | number, vendorUserId: string 
     if (vendorUser.pinCode !== pin) {
         await logOperation("KIOSK_LOGIN_FAILED", vendorUser.name, "PIN不一致");
         return { success: false, message: 'PINコードが正しくありません' };
+    }
+
+    const totalTime = performance.now() - start;
+    console.log(`[verifyPin] Total execution took ${totalTime}ms`);
+
+    if (totalTime > 1000) {
+        await logOperation("PERFORMANCE_WARNING", `Login: ${vendorUser.name}`, `Slow Execution: ${Math.round(totalTime)}ms (DB: ${Math.round(dbTime - start)}ms)`);
     }
 
     await logOperation("KIOSK_LOGIN_SUCCESS", vendorUser.name, `Vendor: ${vendorUser.vendor.name}`);
@@ -555,10 +565,12 @@ export async function getVendorUsers(vendorId: number) {
 
 // 担当者を作成
 export async function createVendorUser(vendorId: number, name: string, pin?: string) {
+    const start = performance.now();
     // 名前の重複チェック
     const existing = await prisma.vendorUser.findFirst({
         where: { vendorId, name }
     });
+    console.log(`[createVendorUser] Name check took ${performance.now() - start}ms`);
     if (existing) {
         return { success: false, message: 'この名前は既に登録されています' };
     }
@@ -567,6 +579,7 @@ export async function createVendorUser(vendorId: number, name: string, pin?: str
     const pinCode = pin || '1234';
     const pinChanged = !!pin && pin !== '1234';
 
+    const createStart = performance.now();
     const vendorUser = await prisma.vendorUser.create({
         data: {
             name,
@@ -575,6 +588,7 @@ export async function createVendorUser(vendorId: number, name: string, pin?: str
             pinChanged
         }
     });
+    console.log(`[createVendorUser] Creation took ${performance.now() - createStart}ms`);
 
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
     await logOperation("VENDOR_USER_CREATE", `${vendor?.name} / ${name}`, `担当者を追加${pin ? '（自己登録）' : ''}`);
