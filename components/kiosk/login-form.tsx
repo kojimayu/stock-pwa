@@ -38,24 +38,34 @@ export default function LoginForm({ vendors }: { vendors: Vendor[] }) {
                 toast.success(`ログインしました: ${result.vendor.name}`);
 
                 // ZustandのStateを更新（これが重要）
-                // これがないと、次のページで useCartStore から vendor が取れずにリダイレクトされる可能性がある
                 useCartStore.getState().setVendor(result.vendor);
 
                 localStorage.setItem('vendorId', result.vendor.id.toString());
                 localStorage.setItem('vendorName', result.vendor.name);
-                router.push('/mode-select'); // Changed from /shop to /mode-select based on user flow
+
+                // router.pushが遷移しない場合のフォールバック
+                // Next.js App Routerのrouter.pushは非同期だが完了を待てないため、
+                // 5秒後にまだ同じページにいる場合はwindow.locationで強制遷移
+                const fallbackTimer = setTimeout(() => {
+                    console.warn('[Login] router.push did not navigate within 5s, using fallback');
+                    window.location.href = '/mode-select';
+                }, 5000);
+
+                router.push('/mode-select');
+
+                // 成功時はsetLoading(false)を呼ばない
+                // コンポーネントがアンマウントされるため不要
+                // fallbackTimerもページ遷移後に自動的にクリアされる
+                return;
             } else {
                 toast.error(result.message || '認証に失敗しました');
-                // PinPad側のリセットは再レンダリングやRefでやるのが正攻法だが
-                // 今回はPinPadコンポーネントが内部State持ってるので、簡易的にエラー通知のみ。
-                // PinPadを制御コンポーネントにするのが理想だが工数削減のため現状維持。
             }
         } catch (e) {
             console.error(e)
             toast.error('エラーが発生しました');
-        } finally {
-            setLoading(false);
         }
+        // 失敗時のみsetLoading(false)を呼ぶ
+        setLoading(false);
     };
 
     const selectedVendorName = vendors.find(v => v.id.toString() === selectedVendorId)?.name;
@@ -130,15 +140,10 @@ function PinPadWrapper({ onVerify, loading }: { onVerify: (pin: string) => Promi
             setPin(newPin);
 
             if (newPin.length === 4) {
-                // Determine if we should clear pin based on result
-                // We await the verification to see if we should clear
-                // But for security/UX, usually clear on failure. 
-                // Parent handles routing on success.
-                // Minimal delay for UX
-                setTimeout(async () => {
-                    await onVerify(newPin);
-                    setPin(''); // Always reset PIN after attempt
-                }, 300);
+                // 少し遅延させてPINドット表示を完了させてから認証開始
+                await new Promise(resolve => setTimeout(resolve, 200));
+                await onVerify(newPin);
+                setPin(''); // 失敗時のみここに到達（成功時はページ遷移でアンマウント）
             }
         }
     };
