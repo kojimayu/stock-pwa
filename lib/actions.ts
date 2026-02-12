@@ -1741,7 +1741,19 @@ export async function getOrderById(id: number) {
 }
 
 export async function generateDraftOrders() {
-    // 1. Get products low on stock (stock < minStock)
+    // 0. 既存の未完了注文（DRAFT/ORDERED/PARTIAL）に含まれる商品IDを取得
+    // これらの商品は既に発注済みなので候補から除外する
+    const pendingOrderItems = await prisma.orderItem.findMany({
+        where: {
+            order: {
+                status: { in: ['DRAFT', 'ORDERED', 'PARTIAL'] }
+            }
+        },
+        select: { productId: true }
+    });
+    const pendingProductIds = new Set(pendingOrderItems.map(i => i.productId));
+
+    // 1. Get products low on stock (stock < minStock) で、未発注のもの
     const lowStockProducts = await prisma.product.findMany({
         where: {
             stock: {
@@ -1753,17 +1765,23 @@ export async function generateDraftOrders() {
         }
     });
 
-    if (lowStockProducts.length === 0) {
+    // 既に発注済みの商品を除外
+    const targetProducts = lowStockProducts.filter(p => !pendingProductIds.has(p.id));
+
+    if (targetProducts.length === 0) {
+        if (lowStockProducts.length > 0) {
+            return { success: false, message: `基準在庫を下回っている商品(${lowStockProducts.length}件)は全て発注済み/入荷待ちです。` };
+        }
         return { success: false, message: "基準在庫を下回っている商品はありません。" };
     }
 
     // 2. Group by supplier
-    const groupedBySupplier = lowStockProducts.reduce((acc, p) => {
+    const groupedBySupplier = targetProducts.reduce((acc, p) => {
         const supplier = p.supplier || "未指定";
         if (!acc[supplier]) acc[supplier] = [];
         acc[supplier].push(p);
         return acc;
-    }, {} as Record<string, typeof lowStockProducts>);
+    }, {} as Record<string, typeof targetProducts>);
 
     // 3. Create Draft Orders
     let createdCount = 0;
@@ -1791,9 +1809,11 @@ export async function generateDraftOrders() {
         createdCount++;
     }
 
-    await logOperation("ORDER_DRAFT_GENERATE", `Generated ${createdCount} draft orders`, `Target products: ${lowStockProducts.length}`);
+    const skippedCount = lowStockProducts.length - targetProducts.length;
+    const skippedMsg = skippedCount > 0 ? `（${skippedCount}件は発注済みのためスキップ）` : "";
+    await logOperation("ORDER_DRAFT_GENERATE", `Generated ${createdCount} draft orders`, `Target products: ${targetProducts.length}, Skipped: ${skippedCount}`);
     revalidatePath('/admin/orders');
-    return { success: true, message: `${createdCount}件の発注候補を作成しました。` };
+    return { success: true, message: `${createdCount}件の発注候補を作成しました。${skippedMsg}` };
 }
 
 export async function confirmOrder(id: number) {

@@ -278,6 +278,7 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                     <TableHeader>
                         <TableRow className="bg-slate-50">
                             <TableHead>商品名</TableHead>
+                            <TableHead className="text-right">現在庫</TableHead>
                             <TableHead className="text-right">発注数</TableHead>
                             <TableHead className="text-right">入荷済数</TableHead>
                             <TableHead className="text-center w-[200px]">入荷操作</TableHead>
@@ -290,6 +291,12 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                                 <TableCell>
                                     <div className="font-medium">{item.product.name}</div>
                                     <div className="text-xs text-muted-foreground">{item.product.code}</div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <span className={item.product.stock <= (item.product.minStock || 0) ? "text-red-600 font-bold" : ""}>
+                                        {item.product.stock}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground ml-1">{item.product.unit}</span>
                                 </TableCell>
                                 <TableCell className="text-right">
                                     {['DRAFT', 'ORDERED', 'PARTIAL'].includes(order.status) ? (
@@ -378,6 +385,12 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                             <div className="mb-3">
                                 <div className="font-medium">{item.product.name}</div>
                                 <div className="text-xs text-muted-foreground">{item.product.code}</div>
+                                <div className="text-xs mt-1">
+                                    <span className="text-muted-foreground">現在庫: </span>
+                                    <span className={item.product.stock <= (item.product.minStock || 0) ? "text-red-600 font-bold" : "font-medium"}>
+                                        {item.product.stock} {item.product.unit}
+                                    </span>
+                                </div>
                                 {order.status === 'DRAFT' && (
                                     <Button
                                         variant="ghost"
