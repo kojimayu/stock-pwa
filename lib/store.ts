@@ -3,17 +3,21 @@ import { persist } from 'zustand/middleware';
 
 export type CartItem = {
     productId: number;
+    code?: string;
     name: string;
     price: number;
     quantity: number;
     isManual?: boolean;
     isBox?: boolean;
     quantityPerBox?: number;
+    manufacturer?: string;
+    unit?: string;
 };
 
 export type Vendor = {
     id: number;
     name: string;
+    accessCompanyName?: string | null;
 };
 
 export type VendorUser = {
@@ -26,8 +30,8 @@ type CartState = {
     vendor: Vendor | null;
     vendorUser: VendorUser | null;
     items: CartItem[];
-    isProxyMode: boolean; // 代理入力モードフラグ
-    transactionDate: Date | null; // 代理入力用：引取日
+    isProxyMode: boolean;
+    transactionDate: Date | null;
     setVendor: (vendor: Vendor | null) => void;
     setVendorUser: (vendorUser: VendorUser | null) => void;
     setProxyMode: (isProxy: boolean) => void;
@@ -37,11 +41,13 @@ type CartState = {
     updateQuantity: (productId: number, quantity: number, isBox?: boolean) => void;
     clearCart: () => void;
     clearSession: () => void;
+    getTotalPrice: () => number;
+    getTotalItems: () => number;
 };
 
 export const useCartStore = create<CartState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             vendor: null,
             vendorUser: null,
             items: [],
@@ -92,6 +98,8 @@ export const useCartStore = create<CartState>()(
                 }),
             clearCart: () => set({ items: [] }),
             clearSession: () => set({ vendor: null, vendorUser: null, items: [], isProxyMode: false, transactionDate: null }),
+            getTotalPrice: () => get().items.reduce((sum, item) => sum + item.price * item.quantity, 0),
+            getTotalItems: () => get().items.reduce((sum, item) => sum + item.quantity, 0),
         }),
         {
             name: 'kiosk-cart-storage',

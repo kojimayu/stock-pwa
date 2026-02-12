@@ -1,9 +1,8 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { CategoryTabs } from "./category-tabs";
-import { VerticalCategoryList } from "./vertical-category-list";
-import { VerticalSubCategoryList } from "./vertical-sub-category-list";
 import { ProductListItem } from "./product-list-item";
 import { ManualProductSheet } from "@/components/kiosk/manual-product-sheet";
 import { CartSummary } from "./cart-summary";
@@ -12,6 +11,9 @@ import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { normalizeForSearch } from "@/lib/utils";
+import { MergedCategoryList } from "./merged-category-list";
+import { CartSidebar } from "./cart-sidebar";
+import { Product } from "@/lib/types";
 
 // Add Web Speech API types
 interface IWindow extends Window {
@@ -19,23 +21,6 @@ interface IWindow extends Window {
     SpeechRecognition: any;
 }
 
-interface Product {
-    id: number;
-    code?: string;
-    name: string;
-    category: string;
-    subCategory?: string | null;
-    priceA: number;
-    priceB: number;
-    stock: number;
-    minStock: number;
-    createdAt: string;
-    updatedAt: string;
-    productType?: string | null;
-    quantityPerBox?: number;
-    pricePerBox?: number;
-    manufacturer?: string | null;
-}
 
 interface ShopInterfaceProps {
     products: Product[];
@@ -53,10 +38,10 @@ export function ShopInterface({
     vendorOverride,
     onProxyExit
 }: ShopInterfaceProps) {
-    const [selectedCategory, setSelectedCategory] = useState("すべて");
-    const [selectedSubCategory, setSelectedSubCategory] = useState("すべて");
-    const [selectedProductType, setSelectedProductType] = useState("すべて"); // New: Small Category
-    const [searchQuery, setSearchQuery] = useState(""); // New: Search
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
+    const [selectedProductType, setSelectedProductType] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
     const [isListening, setIsListening] = useState(false);
 
     const router = useRouter();
@@ -64,6 +49,7 @@ export function ShopInterface({
     const setVendor = useCartStore((state) => state.setVendor);
     const setProxyMode = useCartStore((state) => state.setProxyMode);
     const storeVendor = useCartStore((state) => state.vendor);
+    const vendorUser = useCartStore((state) => state.vendorUser);
 
     // 代理入力モードではvendorOverrideを使用
     const vendor = proxyMode ? vendorOverride : storeVendor;
@@ -112,61 +98,7 @@ export function ShopInterface({
         recognition.start();
     };
 
-    // Reset Filters when parent filter changes
-    useEffect(() => {
-        setSelectedSubCategory("すべて");
-    }, [selectedCategory]);
-
-    useEffect(() => {
-        setSelectedProductType("すべて");
-    }, [selectedCategory, selectedSubCategory]);
-
-    // Clear search when category changes? No, user might want to search anytime.
-    // Clear filters when search starts?
-    useEffect(() => {
-        if (searchQuery) {
-            // Optional: reset categories to show we are in search mode?
-            // keeping them as is might be confusing if UI shows "Aircon" but search shows "Cable".
-            // For now, let's leave them, but the list will be overridden.
-        }
-    }, [searchQuery]);
-
-
-    const categories = useMemo(() => {
-        const cats = new Set(products.map((p) => p.category));
-        return Array.from(cats).sort();
-    }, [products]);
-
-    const subCategories = useMemo(() => {
-        if (selectedCategory === "すべて") return [];
-        const subs = new Set(
-            products
-                .filter((p) => p.category === selectedCategory && p.subCategory)
-                .map((p) => p.subCategory!)
-        );
-        return Array.from(subs).sort();
-    }, [products, selectedCategory]);
-
-    // New: Product Types (Small Category)
-    const productTypes = useMemo(() => {
-        // Show product types only if SubCategory is selected (or Category if needed, but per plan "Under SubCategory")
-        // Plan says: "After selecting SubCategory, place filter chips"
-        if (selectedCategory === "すべて") return [];
-
-        let targetProducts = products.filter(p => p.category === selectedCategory);
-        if (selectedSubCategory !== "すべて") {
-            targetProducts = targetProducts.filter(p => p.subCategory === selectedSubCategory);
-        }
-
-        const types = new Set(
-            targetProducts
-                .filter(p => p.productType)
-                .map(p => p.productType!)
-        );
-        return Array.from(types).sort();
-    }, [products, selectedCategory, selectedSubCategory]);
-
-
+    // Filter Logic
     const filteredProducts = useMemo(() => {
         // 1. Search Mode Override
         if (searchQuery.trim().length > 0) {
@@ -177,20 +109,47 @@ export function ShopInterface({
             );
         }
 
-        // 2. Normal Category Filtering
+        // 2. Category Filtering
         let res = products;
-        if (selectedCategory !== "すべて") {
+        if (selectedCategory && selectedCategory !== "すべて") {
             res = res.filter((p) => p.category === selectedCategory);
-            if (selectedSubCategory !== "すべて") {
+            if (selectedSubCategory && selectedSubCategory !== "すべて") {
                 res = res.filter((p) => p.subCategory === selectedSubCategory);
             }
-            // 3. Product Type Filtering
-            if (selectedProductType !== "すべて") {
+            if (selectedProductType && selectedProductType !== "すべて") {
                 res = res.filter((p) => p.productType === selectedProductType);
             }
         }
         return res;
     }, [products, selectedCategory, selectedSubCategory, selectedProductType, searchQuery]);
+
+
+    // Computed Lists for Mobile (Desktop uses MergedCategoryList which computes internally)
+    const categories = useMemo(() => {
+        const cats = new Set(products.map((p) => p.category));
+        return Array.from(cats).sort();
+    }, [products]);
+
+    const subCategories = useMemo(() => {
+        if (!selectedCategory || selectedCategory === "すべて") return [];
+        const subs = new Set(
+            products
+                .filter((p) => p.category === selectedCategory && p.subCategory)
+                .map((p) => p.subCategory!)
+        );
+        return Array.from(subs).sort();
+    }, [products, selectedCategory]);
+
+    const productTypes = useMemo(() => {
+        if (!selectedCategory || selectedCategory === "すべて") return [];
+        let target = products.filter(p => p.category === selectedCategory);
+        if (selectedSubCategory && selectedSubCategory !== "すべて") {
+            target = target.filter(p => p.subCategory === selectedSubCategory);
+        }
+        const types = new Set(target.filter(p => p.productType).map(p => p.productType!));
+        return Array.from(types).sort();
+    }, [products, selectedCategory, selectedSubCategory]);
+
 
     const handleLogout = () => {
         if (proxyMode) {
@@ -253,8 +212,10 @@ export function ShopInterface({
                         </button>
                     </div>
                 </div>
+
+
                 <div className="mr-2 hidden lg:block text-sm text-slate-300">
-                    {vendor ? `${vendor.name} 様` : ""}
+                    {vendorUser && vendor ? `${vendor.name} ${vendorUser.name} 様` : (vendor ? `${vendor.name} 様` : "")}
                 </div>
                 <div className="flex items-center space-x-1">
                     <Button
@@ -281,28 +242,28 @@ export function ShopInterface({
             <div className="h-[60px] shrink-0" />
 
             {/* Main Layout */}
-            <div className="flex-1 flex flex-row relative">
+            <div className="flex-1 flex flex-row relative min-h-0">
+
                 {/* 
                    ===============================================
-                   COLUMN 1: Main Category Sidebar (Desktop Only)
-                   Fixed position to prevent scrolling with content
+                   Left Column: Category Tree (Desktop Only)
                    ===============================================
                 */}
-                <aside className="hidden md:flex flex-col w-56 bg-white border-r fixed left-0 top-[60px] bottom-0 z-30">
-                    <div className="p-3 border-b text-xs font-bold text-slate-400 bg-slate-50">カテゴリー</div>
-                    <div className="flex-1 overflow-y-auto">
-                        <VerticalCategoryList
-                            categories={categories}
-                            selectedCategory={selectedCategory}
-                            onSelectCategory={setSelectedCategory}
-                        />
-                    </div>
-                    {/* Manual Input Trigger (Sidebar Footer) */}
-                    <div className="p-3 pb-8 border-t bg-slate-50">
+                <aside className="hidden md:block w-72 bg-white border-r fixed left-0 top-[60px] bottom-0 z-30 overflow-y-auto">
+                    <MergedCategoryList
+                        products={products}
+                        selectedCategory={selectedCategory}
+                        selectedSubCategory={selectedSubCategory}
+                        selectedProductType={selectedProductType}
+                        onSelectCategory={setSelectedCategory}
+                        onSelectSubCategory={setSelectedSubCategory}
+                        onSelectProductType={setSelectedProductType}
+                    />
+                    <div className="p-4 border-t bg-slate-50 sticky bottom-0">
                         <ManualProductSheet trigger={
-                            <Button className="w-full h-14 bg-slate-800 text-white hover:bg-slate-700 font-bold text-base shadow-md" size="lg">
+                            <Button className="w-full h-12 bg-slate-800 text-white hover:bg-slate-700 font-bold shadow-sm">
                                 <Plus className="w-5 h-5 mr-2" />
-                                手入力商品を追加
+                                手入力商品
                             </Button>
                         } />
                     </div>
@@ -310,112 +271,43 @@ export function ShopInterface({
 
                 {/* 
                    ===============================================
-                   COLUMN 2: Sub Category Sidebar (Desktop Only)
-                   Fixed position to prevent scrolling with content
+                   Center Column: Product List
                    ===============================================
                 */}
-                <aside className="hidden md:flex flex-col w-56 bg-slate-50 border-r fixed left-56 top-[60px] bottom-0 z-30">
-                    <div className="p-3 border-b text-xs font-bold text-slate-400">サブカテゴリー</div>
-                    <div className="flex-1 overflow-y-auto">
-                        <VerticalSubCategoryList
-                            subCategories={subCategories}
-                            selectedSubCategory={selectedSubCategory}
-                            onSelectSubCategory={setSelectedSubCategory}
-                        />
-                    </div>
-                </aside>
+                <main className={`flex-1 flex flex-col md:ml-72 md:mr-[400px] min-w-0 ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
 
-                {/* 
-                   ===============================================
-                   COLUMN 3: Product List (Main Content)
-                   Uses margin-left to account for fixed sidebars
-                   ===============================================
-                */}
-                <main className={`flex-1 flex flex-col min-w-0 md:ml-[448px] ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-
-                    {/* Sticky Filters Area (Mobile Only: Category Tabs + SubCategory) */}
+                    {/* Mobile Filters */}
                     <div className="md:hidden sticky top-[60px] z-30 bg-slate-50 border-b shadow-sm">
                         <div className="overflow-x-auto">
                             <CategoryTabs
                                 categories={categories}
-                                selectedCategory={selectedCategory}
+                                selectedCategory={selectedCategory || "すべて"}
                                 onSelectCategory={setSelectedCategory}
                             />
                         </div>
-
                         {subCategories.length > 0 && (
                             <div className="flex overflow-x-auto px-2 py-2 gap-2 bg-white border-t border-slate-100 no-scrollbar items-center">
                                 <span className="text-xs text-slate-400 pl-2 whitespace-nowrap hidden sm:inline">絞り込み:</span>
-                                <button
-                                    onClick={() => setSelectedSubCategory("すべて")}
-                                    className={`
-                                        whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-bold transition-colors border shadow-sm
-                                        ${selectedSubCategory === "すべて"
-                                            ? "bg-slate-800 text-white border-slate-800"
-                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
-                                    `}
-                                >
-                                    すべて
-                                </button>
+                                <button onClick={() => setSelectedSubCategory("すべて")} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-bold transition-colors border shadow-sm ${(!selectedSubCategory || selectedSubCategory === "すべて") ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>すべて</button>
                                 {subCategories.map((sub) => (
-                                    <button
-                                        key={sub}
-                                        onClick={() => setSelectedSubCategory(sub)}
-                                        className={`
-                                            whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-bold transition-colors border shadow-sm
-                                            ${selectedSubCategory === sub
-                                                ? "bg-slate-800 text-white border-slate-800"
-                                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
-                                        `}
-                                    >
-                                        {sub}
-                                    </button>
+                                    <button key={sub} onClick={() => setSelectedSubCategory(sub)} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-bold transition-colors border shadow-sm ${(selectedSubCategory === sub) ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>{sub}</button>
+                                ))}
+                            </div>
+                        )}
+                        {/* Mobile Product Type (Optional) */}
+                        {productTypes.length > 0 && (
+                            <div className="flex overflow-x-auto px-2 pb-2 gap-2 bg-white no-scrollbar items-center">
+                                <span className="text-xs text-slate-400 pl-2 whitespace-nowrap">タイプ:</span>
+                                <button onClick={() => setSelectedProductType("すべて")} className={`whitespace-nowrap px-2 py-1 rounded-full text-xs transition-colors border ${(!selectedProductType || selectedProductType === "すべて") ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-500 border-slate-100 hover:bg-slate-50"}`}>All</button>
+                                {productTypes.map((typ) => (
+                                    <button key={typ} onClick={() => setSelectedProductType(typ)} className={`whitespace-nowrap px-2 py-1 rounded-full text-xs transition-colors border ${(selectedProductType === typ) ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-500 border-slate-100 hover:bg-slate-50"}`}>{typ}</button>
                                 ))}
                             </div>
                         )}
                     </div>
 
-                    {/* Product List Content */}
                     <div className="p-4 bg-white min-h-full">
-
-                        {/* Product Type Chips (Small Category) - Show if types exist and not searching */}
-                        {productTypes.length > 0 && !searchQuery && (
-                            <div className="mb-4 flex flex-wrap gap-2">
-                                <span className="text-xs font-bold text-slate-400 py-1.5">タイプ:</span>
-                                <button
-                                    onClick={() => setSelectedProductType("すべて")}
-                                    className={`
-                                        px-3 py-1 rounded-full text-xs font-bold transition-colors border
-                                        ${selectedProductType === "すべて"
-                                            ? "bg-blue-600 text-white border-blue-600"
-                                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
-                                    `}
-                                >
-                                    すべて
-                                </button>
-                                {productTypes.map(type => (
-                                    <button
-                                        key={type}
-                                        onClick={() => setSelectedProductType(type)}
-                                        className={`
-                                            px-3 py-1 rounded-full text-xs font-bold transition-colors border
-                                            ${selectedProductType === type
-                                                ? "bg-blue-600 text-white border-blue-600"
-                                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}
-                                        `}
-                                    >
-                                        {type}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Manual Input Row (Mobile Optimized in Grid?) No, keep separate or first card? 
-                            Keeping separate for now, but maybe styling it as a Card in grid?
-                            Let's keep the dedicated mobile row for visibility in phone, 
-                            but for tablet grid, maybe add a "Manual Add" card?
-                            For now, keeping the mobile list row wrapper for 'md:hidden'
-                        */}
+                        {/* Manual Input (Mobile) */}
                         <div className="md:hidden mb-4">
                             <ManualProductSheet trigger={
                                 <div className="p-4 border rounded-xl bg-slate-50 hover:bg-slate-100 cursor-pointer flex items-center gap-4 text-slate-600 transition-colors group shadow-sm">
@@ -424,7 +316,7 @@ export function ShopInterface({
                                     </div>
                                     <div className="flex-1">
                                         <div className="font-bold">手入力で追加する</div>
-                                        <div className="text-xs text-slate-400">一覧にない商品はこちらから登録</div>
+                                        <div className="text-xs text-slate-400">一覧にない商品</div>
                                     </div>
                                 </div>
                             } />
@@ -433,7 +325,7 @@ export function ShopInterface({
                         {filteredProducts.length === 0 ? (
                             <div className="text-center py-20 text-slate-500">
                                 {searchQuery ? `「${searchQuery}」に一致する商品は見つかりませんでした` :
-                                    selectedCategory === "すべて" ? "カテゴリーを選択してください" : "該当する商品はありません"}
+                                    (!selectedCategory || selectedCategory === "すべて") ? "カテゴリーを選択してください" : "商品がありません"}
                             </div>
                         ) : (
                             <div className="flex flex-col">
@@ -444,10 +336,22 @@ export function ShopInterface({
                         )}
                     </div>
                 </main>
-            </div >
 
-            {/* Footer Cart Summary */}
-            < CartSummary />
-        </div >
+                {/* 
+                   ===============================================
+                   Right Column: Persistent Cart (Desktop Only)
+                   ===============================================
+                */}
+                <aside className="hidden md:block w-[400px] bg-white border-l fixed right-0 top-[60px] bottom-0 z-30">
+                    <CartSidebar />
+                </aside>
+
+            </div>
+
+            {/* Mobile Footer Cart Summary */}
+            <div className="md:hidden">
+                <CartSummary />
+            </div>
+        </div>
     );
 }

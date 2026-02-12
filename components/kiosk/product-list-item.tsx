@@ -1,24 +1,13 @@
+
 "use client";
 
 import { useState } from "react";
 import { QuantitySelectorDialog } from "./quantity-selector-dialog";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/utils";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
 import { ShoppingCart } from "lucide-react";
-
-interface Product {
-    id: number;
-    code?: string;
-    name: string;
-    category: string;
-    subCategory?: string | null;
-    priceA: number;
-    stock: number;
-    quantityPerBox?: number;
-    pricePerBox?: number;
-}
+import { Product } from "@/lib/types";
 
 interface ProductListItemProps {
     product: Product;
@@ -39,11 +28,14 @@ export function ProductListItem({ product }: ProductListItemProps) {
     const handleConfirmQuantity = (quantity: number, isBox: boolean = false) => {
         addItem({
             productId: product.id,
+            code: product.code, // Add code
             name: product.name,
             price: isBox ? (product.pricePerBox || product.priceA * (product.quantityPerBox || 1)) : product.priceA,
             quantity: quantity,
             isBox: isBox,
-            quantityPerBox: isBox ? product.quantityPerBox : undefined
+            quantityPerBox: isBox ? product.quantityPerBox : undefined,
+            manufacturer: product.manufacturer || undefined,
+            unit: product.unit || '個',
         });
         toast.success(`${product.name} を ${quantity}個 カートに追加しました`);
         setIsDialogOpen(false);

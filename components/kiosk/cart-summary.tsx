@@ -18,7 +18,7 @@ export function CartSummary() {
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">
             <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
                 <div className="flex flex-col">
-                    <span className="text-xl font-bold text-slate-900">合計 {totalQuantity} 点</span>
+                    <span className="text-xl font-bold text-slate-900">商品数 {items.length} 種類</span>
                 </div>
                 <Button
                     size="lg"

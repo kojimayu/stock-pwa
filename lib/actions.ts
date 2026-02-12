@@ -872,6 +872,9 @@ export async function getImportDiff(products: any[]) {
             diffs.push({ code: normalizedCode, name: p.name, type: 'NEW', changes: [] });
         } else {
             const changes = [];
+            // 品番(code)の変更を検知
+            if (existing.code !== normalizedCode) changes.push({ field: '品番', old: existing.code, new: normalizedCode });
+
             if (existing.name !== p.name) changes.push({ field: '商品名', old: existing.name, new: p.name });
             if (existing.category !== p.category) changes.push({ field: 'カテゴリ', old: existing.category, new: p.category });
             if (existing.subCategory !== (p.subCategory || "その他")) changes.push({ field: 'サブカテゴリ', old: existing.subCategory, new: p.subCategory || "その他" });

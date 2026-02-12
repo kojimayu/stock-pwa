@@ -59,8 +59,8 @@ export default function CheckoutPage() {
                         <span className="font-bold text-lg">{vendor?.name || "未設定"}</span>
                     </div>
                     <div className="flex justify-between items-center border-t border-slate-100 pt-2">
-                        <span className="text-slate-500">合計点数</span>
-                        <span className="font-bold text-lg">{totalQuantity} 点</span>
+                        <span className="text-slate-500">商品種類</span>
+                        <span className="font-bold text-lg">{items.length} 種類</span>
                     </div>
                 </div>
 
