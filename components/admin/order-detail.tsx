@@ -139,9 +139,10 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     const [searchResults, setSearchResults] = useState<any[]>([]);
 
     const handleCopy = () => {
-        const text = order.items.map((item: any) =>
-            `${item.product.name} × ${item.quantity}${item.product.unit}`
-        ).join("\n");
+        const text = order.items.map((item: any) => {
+            const code = item.product.code ? `[${item.product.code}] ` : "";
+            return `${code}${item.product.name} × ${item.quantity}${item.product.unit}`;
+        }).join("\n");
 
         const content = `【発注依頼】\n${order.supplier} 御中\n\n${text}\n\n宜しくお願い致します。`;
 
