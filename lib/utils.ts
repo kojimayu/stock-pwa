@@ -32,7 +32,6 @@ export function normalizeForSearch(str: string): string {
   if (!str) return "";
   return str
     .replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-    .replace(/　/g, " ")  // 全角スペース → 半角スペース
-    .toLowerCase()
-    .trim();
+    .replace(/[-\s　]/g, "")  // Remove hyphens, half/full-width spaces
+    .toLowerCase();
 }

@@ -59,12 +59,12 @@ export function ProductImportDialog() {
     const [diffs, setDiffs] = useState<any[] | null>(null);
     const [step, setStep] = useState<'UPLOAD' | 'PREVIEW'>('UPLOAD');
 
-    // Helper to normalize product code (remove hyphens, spaces, convert full-width to half-width)
+    // Helper to normalize product code (remove spaces, convert full-width to half-width, KEEP hyphens)
     const normalizeCode = (code: string) => {
         if (!code) return "";
         return code
             .replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0)) // Full-width to Half-width
-            .replace(/[-\s]/g, "") // Remove hyphens and spaces
+            .replace(/[\s]/g, "") // Remove spaces only
             .toUpperCase();
     };
 

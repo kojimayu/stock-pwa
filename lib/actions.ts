@@ -846,20 +846,54 @@ export async function getImportDiff(products: any[]) {
     const diffs: any[] = [];
 
     // Normalize code helper
+    // Display Normalization (Storage): Keep hyphens, remove spaces, half-width
     const normalizeCode = (code: string) => {
         if (!code) return "";
-        return code.replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0)).replace(/[-\s]/g, "").toUpperCase();
+        return code.replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0)).replace(/[\s]/g, "").toUpperCase();
+    };
+
+    // Strict Normalization (Duplication Check): Remove hyphens too
+    const strictNormalizeCode = (code: string) => {
+        return normalizeCode(code).replace(/-/g, "");
     };
 
     for (const p of products) {
-        const normalizedCode = normalizeCode(p.code);
+        const displayCode = normalizeCode(p.code);
+        const strictCode = strictNormalizeCode(p.code);
+
         let existing = null;
 
         if (p.id) {
             existing = await prisma.product.findUnique({ where: { id: p.id } });
         }
         if (!existing) {
-            existing = await prisma.product.findUnique({ where: { code: normalizedCode } });
+            // Find by strict code (we need to fetch all candidates and check in memory OR trust that stored codes might vary)
+            // Best approach: Find by displayCode first. If not found, try to find strictly? 
+            // Prisma doesn't support custom transform in findUnique.
+            // We'll iterate or use findFirst. But checking ALL products is slow.
+            // Compromise: We search by displayCode (exact match).
+            // The user wants: "Check for duplicates by removing hyphens". 
+            // So if DB has "AP-200", and import is "AP200", it should match.
+            // This requires scanning or maintaining a normalized column.
+            // Without schema change: we can't efficiently find "AP-200" using "AP200" via DB query index.
+            // However, we can try to find by `displayCode` first.
+            existing = await prisma.product.findUnique({ where: { code: displayCode } });
+
+            // If not found, we really should check strict equality to avoid "AP-200" and "AP200" co-existing.
+            // But doing `findFirst` with a regex or raw query is complex here.
+            // For now, let's trust that the User will use consistent formatting if they want to avoid dupes, 
+            // OR we accept that "AP-200" and "AP200" might coexist if the system was loose before.
+            // WAIT, user said: "Check if it's the same product by removing hyphens".
+            // So we MUST check strictly.
+            if (!existing) {
+                // Fallback: Try to find un-hyphenated version if imported code has hyphens, or vice versa?
+                // Checking if "AP200" exists when "AP-200" is imported:
+                const allProducts = await prisma.product.findMany({ select: { id: true, code: true } });
+                const match = allProducts.find(prod => strictNormalizeCode(prod.code) === strictCode);
+                if (match) {
+                    existing = await prisma.product.findUnique({ where: { id: match.id } });
+                }
+            }
         }
 
         // Calculate defaults for comparison (same logic as import)
@@ -869,11 +903,11 @@ export async function getImportDiff(products: any[]) {
         if ((priceB === 0 || !priceB) && p.cost > 0) priceB = Math.ceil(p.cost * 1.15);
 
         if (!existing) {
-            diffs.push({ code: normalizedCode, name: p.name, type: 'NEW', changes: [] });
+            diffs.push({ code: displayCode, name: p.name, type: 'NEW', changes: [] });
         } else {
             const changes = [];
             // 品番(code)の変更を検知
-            if (existing.code !== normalizedCode) changes.push({ field: '品番', old: existing.code, new: normalizedCode });
+            if (existing.code !== displayCode) changes.push({ field: '品番', old: existing.code, new: displayCode });
 
             if (existing.name !== p.name) changes.push({ field: '商品名', old: existing.name, new: p.name });
             if (existing.category !== p.category) changes.push({ field: 'カテゴリ', old: existing.category, new: p.category });
@@ -890,9 +924,9 @@ export async function getImportDiff(products: any[]) {
             if (existing.supplier !== (p.supplier || null)) changes.push({ field: '仕入先', old: existing.supplier, new: p.supplier });
 
             if (changes.length > 0) {
-                diffs.push({ code: normalizedCode, name: existing.name, type: 'UPDATE', changes });
+                diffs.push({ code: displayCode, name: existing.name, type: 'UPDATE', changes });
             } else {
-                diffs.push({ code: normalizedCode, name: existing.name, type: 'UNCHANGED', changes: [] });
+                diffs.push({ code: displayCode, name: existing.name, type: 'UNCHANGED', changes: [] });
             }
         }
     }
@@ -970,25 +1004,45 @@ export async function importProducts(products: {
             return { success: false, message: finalMessage };
         }
 
+        // Display Normalization (Storage): Keep hyphens, remove spaces, half-width
+        const normalizeCode = (code: string) => {
+            if (!code) return "";
+            return code.replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0)).replace(/[\s]/g, "").toUpperCase();
+        };
+
+        // Strict Normalization (Duplication Check): Remove hyphens too
+        const strictNormalizeCode = (code: string) => {
+            return normalizeCode(code).replace(/-/g, "");
+        };
+
         // 2. Execution Phase
+        // Pre-fetch all product codes for strict checking (Optimization: could be heavy if thousands of products, but safer)
+        const allProductsSnapshot = await prisma.product.findMany({ select: { id: true, code: true } });
+
         await prisma.$transaction(async (tx) => {
             for (const p of products) {
-                const normalizedCode = normalizeCode(p.code);
+                const displayCode = normalizeCode(p.code);
+                const strictCode = strictNormalizeCode(p.code);
 
-                // Try to find by ID first (to allow code change), then by Code
+                // Try to find by ID first
                 let existing = null;
                 if (p.id) {
                     existing = await tx.product.findUnique({ where: { id: p.id } });
                 }
+
                 if (!existing) {
-                    existing = await tx.product.findUnique({ where: { code: normalizedCode } });
+                    // strict check against snapshot to find "AP-200" vs "AP200" match
+                    const match = allProductsSnapshot.find(prod => strictNormalizeCode(prod.code) === strictCode);
+                    if (match) {
+                        existing = await tx.product.findUnique({ where: { id: match.id } });
+                    }
                 }
 
                 if (existing) {
                     await tx.product.update({
                         where: { id: existing.id }, // Update by ID
                         data: {
-                            code: normalizedCode, // Update code if changed
+                            code: displayCode, // Update code if changed
                             name: p.name,
                             category: p.category,
                             subCategory: p.subCategory || "その他",
@@ -1015,7 +1069,7 @@ export async function importProducts(products: {
                 } else {
                     await tx.product.create({
                         data: {
-                            code: normalizedCode,
+                            code: displayCode,
                             name: p.name,
                             category: p.category,
                             subCategory: p.subCategory || "その他",
