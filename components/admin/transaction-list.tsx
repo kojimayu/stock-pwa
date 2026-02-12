@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { normalizeForSearch } from "@/lib/utils";
 import { ProductDialog } from "./product-dialog";
 import { ProductSearchDialog } from "./product-search-dialog";
 import { TransactionReturnDialog } from "./transaction-return-dialog";
@@ -85,7 +86,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
     const filteredTransactions = useMemo(() => {
         return transactions.filter((tx) => {
             // 業者名フィルター
-            if (vendorFilter && !tx.vendor.name.toLowerCase().includes(vendorFilter.toLowerCase())) {
+            if (vendorFilter && !normalizeForSearch(tx.vendor.name).includes(normalizeForSearch(vendorFilter))) {
                 return false;
             }
 
@@ -109,9 +110,9 @@ export function TransactionList({ transactions }: TransactionListProps) {
                     items = JSON.parse(tx.items);
                 } catch { }
                 const hasMatch = items.some((item: any) =>
-                    item.name?.toLowerCase().includes(textFilter.toLowerCase())
+                    item.name ? normalizeForSearch(item.name).includes(normalizeForSearch(textFilter)) : false
                 );
-                if (!hasMatch && !tx.vendor.name.toLowerCase().includes(textFilter.toLowerCase())) {
+                if (!hasMatch && !normalizeForSearch(tx.vendor.name).includes(normalizeForSearch(textFilter))) {
                     return false;
                 }
             }

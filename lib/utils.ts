@@ -21,3 +21,18 @@ export function formatDate(date: Date | string) {
     minute: "2-digit",
   }).format(new Date(date));
 }
+
+/**
+ * 検索用の文字列正規化（全画面共通）
+ * - 全角英数記号 → 半角英数記号
+ * - 大文字 → 小文字
+ * - 前後の空白を除去
+ */
+export function normalizeForSearch(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/[！-～]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+    .replace(/　/g, " ")  // 全角スペース → 半角スペース
+    .toLowerCase()
+    .trim();
+}

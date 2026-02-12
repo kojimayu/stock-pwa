@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { normalizeForSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -62,10 +63,10 @@ export function ProxyShopInterface({ products, vendor, onExit }: ProxyShopInterf
     // Filter products by search
     const filteredProducts = useMemo(() => {
         if (!searchQuery.trim()) return products.slice(0, 50); // Show first 50
-        const q = searchQuery.toLowerCase();
+        const q = normalizeForSearch(searchQuery);
         return products.filter(p =>
-            p.name.toLowerCase().includes(q) ||
-            (p.code && p.code.toLowerCase().includes(q))
+            normalizeForSearch(p.name).includes(q) ||
+            (p.code && normalizeForSearch(p.code).includes(q))
         );
     }, [products, searchQuery]);
 

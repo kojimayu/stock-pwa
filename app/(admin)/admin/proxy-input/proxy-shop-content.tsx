@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { normalizeForSearch } from "@/lib/utils";
 import { VerticalCategoryList } from "@/components/kiosk/vertical-category-list";
 import { VerticalSubCategoryList } from "@/components/kiosk/vertical-sub-category-list";
 import { ProductListItem } from "@/components/kiosk/product-list-item";
@@ -90,11 +91,11 @@ export function ProxyShopContent({ products, vendor }: ProxyShopContentProps) {
             res = res.filter((p) => (p.subCategory || "その他") === selectedSubCategory);
         }
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
+            const q = normalizeForSearch(searchQuery);
             res = res.filter(
                 (p) =>
-                    p.name.toLowerCase().includes(q) ||
-                    (p.code && p.code.toLowerCase().includes(q))
+                    normalizeForSearch(p.name).includes(q) ||
+                    (p.code && normalizeForSearch(p.code).includes(q))
             );
         }
         return res;

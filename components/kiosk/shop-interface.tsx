@@ -11,6 +11,7 @@ import { LogOut, Plus, ChevronLeft, Search, X, Mic } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { normalizeForSearch } from "@/lib/utils";
 
 // Add Web Speech API types
 interface IWindow extends Window {
@@ -169,10 +170,10 @@ export function ShopInterface({
     const filteredProducts = useMemo(() => {
         // 1. Search Mode Override
         if (searchQuery.trim().length > 0) {
-            const lowerQ = searchQuery.toLowerCase();
+            const lowerQ = normalizeForSearch(searchQuery);
             return products.filter(p =>
-                p.name.toLowerCase().includes(lowerQ) ||
-                (p.code && p.code.toLowerCase().includes(lowerQ))
+                normalizeForSearch(p.name).includes(lowerQ) ||
+                (p.code && normalizeForSearch(p.code).includes(lowerQ))
             );
         }
 

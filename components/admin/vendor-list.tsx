@@ -17,6 +17,7 @@ import { deleteVendor, resetPin, toggleVendorActive, importVendorsFromAccess, de
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { normalizeForSearch } from "@/lib/utils";
 
 type VendorUser = {
     id: number;
@@ -49,10 +50,10 @@ export function VendorList({ vendors }: VendorListProps) {
     // 検索フィルター
     const filteredVendors = useMemo(() => {
         if (!searchQuery.trim()) return vendors;
-        const q = searchQuery.toLowerCase();
+        const q = normalizeForSearch(searchQuery);
         return vendors.filter(v =>
-            v.name.toLowerCase().includes(q) ||
-            (v.email && v.email.toLowerCase().includes(q))
+            normalizeForSearch(v.name).includes(q) ||
+            (v.email && normalizeForSearch(v.email).includes(q))
         );
     }, [vendors, searchQuery]);
 

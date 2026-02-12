@@ -53,9 +53,14 @@
     - [ ] ログイン遅延の原因調査と解消
 
 # 2026-02-12 検索ロジック共通化
-- [ ] **検索ロジックの共通化 (Standardization)**
-    - [ ] `lib/utils.ts` に `normalizeForSearch` 関数を実装 (全角→半角, 大文字→小文字, 空白削除)
-    - [ ] `components/admin/product-search-dialog.tsx` のリファクタリング
-    - [ ] `components/kiosk/product-list.tsx` のリファクタリング
-    - [ ] `app/(admin)/admin/products/page.tsx` のリファクタリング
+- [x] **検索ロジックの共通化 (Standardization)**
+    - [x] `lib/utils.ts` に `normalizeForSearch` 関数を実装 (全角→半角, 大文字→小文字, 空白削除)
+    - [x] `components/admin/product-search-dialog.tsx` のリファクタリング
+    - [x] `components/kiosk/shop-interface.tsx` のリファクタリング (計画外追加)
+    - [x] `components/admin/vendor-list.tsx` のリファクタリング (計画外追加)
+    - [x] `components/admin/product-list.tsx` のリファクタリング
+    - [x] `components/admin/inventory-detail.tsx` のリファクタリング (計画外追加)
+    - [x] `components/admin/transaction-list.tsx` のリファクタリング (計画外追加)
+    - [x] `app/(admin)/admin/proxy-input/proxy-shop-interface.tsx` のリファクタリング (計画外追加)
+    - [x] `app/(admin)/admin/proxy-input/proxy-shop-content.tsx` のリファクタリング (計画外追加)
 

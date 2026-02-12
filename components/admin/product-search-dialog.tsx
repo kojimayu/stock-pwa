@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { normalizeForSearch } from "@/lib/utils";
 import {
     Dialog,
     DialogContent,
@@ -57,18 +58,12 @@ export function ProductSearchDialog({ open, onOpenChange, onSelect }: ProductSea
             const allProducts = await getProducts();
             // In a real large app this is bad, but for v1 it's fine.
 
-            // Normalize full-width to half-width and lower case
-            const normalize = (str: string) => {
-                return str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, (s) => {
-                    return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-                }).toLowerCase();
-            };
-
-            const normalizedQuery = normalize(query);
+            // 共通の正規化関数で検索（全角→半角、大文字→小文字）
+            const normalizedQuery = normalizeForSearch(query);
 
             const filtered = allProducts.filter(p =>
-                normalize(p.name).includes(normalizedQuery) ||
-                normalize(p.code).includes(normalizedQuery)
+                normalizeForSearch(p.name).includes(normalizedQuery) ||
+                normalizeForSearch(p.code).includes(normalizedQuery)
             );
             setResults(filtered.map(p => ({
                 id: p.id,

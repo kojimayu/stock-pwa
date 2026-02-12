@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { normalizeForSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -127,15 +128,15 @@ export function ProductList({ products }: ProductListProps) {
         if (selectedSubCategory !== "all" && product.subCategory !== selectedSubCategory) return false;
         if (selectedProductType !== "all" && product.productType !== selectedProductType) return false;
         if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
+        const query = normalizeForSearch(searchQuery);
         return (
-            product.name.toLowerCase().includes(query) ||
-            product.code.toLowerCase().includes(query) ||
-            (product.category && product.category.toLowerCase().includes(query)) ||
-            (product.subCategory && product.subCategory.toLowerCase().includes(query)) ||
-            (product.productType && product.productType.toLowerCase().includes(query)) ||
-            (product.supplier && product.supplier.toLowerCase().includes(query)) ||
-            (product.color && product.color.toLowerCase().includes(query))
+            normalizeForSearch(product.name).includes(query) ||
+            normalizeForSearch(product.code).includes(query) ||
+            (product.category && normalizeForSearch(product.category).includes(query)) ||
+            (product.subCategory && normalizeForSearch(product.subCategory).includes(query)) ||
+            (product.productType && normalizeForSearch(product.productType).includes(query)) ||
+            (product.supplier && normalizeForSearch(product.supplier).includes(query)) ||
+            (product.color && normalizeForSearch(product.color).includes(query))
         );
     });
 

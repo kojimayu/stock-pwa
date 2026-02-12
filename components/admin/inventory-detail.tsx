@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn, normalizeForSearch } from "@/lib/utils";
 
 interface InventoryDetailProps {
     id: number;
@@ -61,10 +61,10 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
 
         // 2. Search Query
         if (searchQuery) {
-            const query = searchQuery.toLowerCase();
+            const query = normalizeForSearch(searchQuery);
             items = items.filter((item: any) =>
-                item.product.name.toLowerCase().includes(query) ||
-                (item.product.code && item.product.code.toLowerCase().includes(query))
+                normalizeForSearch(item.product.name).includes(query) ||
+                (item.product.code && normalizeForSearch(item.product.code).includes(query))
             );
         }
 
