@@ -85,6 +85,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                 cost: Number(formData.get("cost")),
                 supplier: formData.get("supplier") as string || null,
                 unit: formData.get("unit") as string || "個",
+                orderUnit: Number(formData.get("orderUnit")) || 1,
                 manufacturer: formData.get("manufacturer") as string || null,
                 quantityPerBox: Number(formData.get("quantityPerBox")) || 1,
                 pricePerBox: Number(formData.get("pricePerBox")) || 0,
