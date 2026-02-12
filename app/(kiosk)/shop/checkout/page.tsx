@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { CartList } from "@/components/kiosk/cart-list";
 import { CheckoutButton } from "@/components/kiosk/checkout-button";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 
@@ -11,8 +12,35 @@ export default function CheckoutPage() {
     const router = useRouter();
     const vendor = useCartStore((state) => state.vendor);
     const items = useCartStore((state) => state.items);
+    const [hydrated, setHydrated] = useState(false);
+
+    // Zustand persist のハイドレーション完了を待つ
+    // localStorage からの復元が終わるまでローディング表示
+    useEffect(() => {
+        // useCartStore.persist.onFinishHydration は zustand/persist が提供するフック
+        const unsub = useCartStore.persist.onFinishHydration(() => {
+            setHydrated(true);
+        });
+        // すでにハイドレーション済みの場合（高速な場合）
+        if (useCartStore.persist.hasHydrated()) {
+            setHydrated(true);
+        }
+        return unsub;
+    }, []);
 
     const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
+
+    // ハイドレーション完了前はローディング表示
+    if (!hydrated) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3 text-slate-500">
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                    <span>読み込み中...</span>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
