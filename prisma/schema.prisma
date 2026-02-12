@@ -122,12 +122,13 @@ model OperationLog {
 }
 
 model Order {
-  id        Int         @id @default(autoincrement())
-  supplier  String?
-  status    String      @default("DRAFT")
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  items     OrderItem[]
+  id          Int         @id @default(autoincrement())
+  orderNumber Int?        @unique
+  supplier    String?
+  status      String      @default("DRAFT")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       OrderItem[]
 }
 
 model OrderItem {

@@ -1817,11 +1817,22 @@ export async function generateDraftOrders() {
 }
 
 export async function confirmOrder(id: number) {
+    // 最大の orderNumber を取得して次の番号を決定
+    const maxOrder = await prisma.order.findFirst({
+        where: { orderNumber: { not: null } },
+        orderBy: { orderNumber: 'desc' },
+        select: { orderNumber: true }
+    });
+    const nextNumber = (maxOrder?.orderNumber ?? 0) + 1;
+
     await prisma.order.update({
         where: { id },
-        data: { status: 'ORDERED' }
+        data: {
+            status: 'ORDERED',
+            orderNumber: nextNumber,
+        }
     });
-    await logOperation("ORDER_CONFIRM", `Order #${id}`, `Status changed to ORDERED`);
+    await logOperation("ORDER_CONFIRM", `Order #${nextNumber} (id:${id})`, `Status changed to ORDERED, orderNumber: ${nextNumber}`);
     revalidatePath('/admin/orders');
     revalidatePath(`/admin/orders/${id}`);
 }

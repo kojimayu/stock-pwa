@@ -144,7 +144,8 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
             return `${code}${item.product.name} × ${item.quantity}${item.product.unit}`;
         }).join("\n");
 
-        const content = `【発注依頼】\n${order.supplier} 御中\n\n${text}\n\n宜しくお願い致します。`;
+        const headerLabel = order.orderNumber ? `発注書 #${order.orderNumber}` : `発注書（下書き）`;
+        const content = `【発注依頼】\n${headerLabel} - ${order.supplier || '未指定'} 御中\n\n${text}\n\n宜しくお願い致します。`;
 
         // Modern Clipboard API (Only available in Secure Contexts / HTTPS)
         if (navigator.clipboard && window.isSecureContext) {
@@ -199,7 +200,9 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                         </Link>
                     </Button>
                     <div>
-                        <h2 className="text-xl md:text-2xl font-bold">発注書 #{order.id}</h2>
+                        <h2 className="text-xl md:text-2xl font-bold">
+                            {order.orderNumber ? `発注書 #${order.orderNumber}` : "発注書（下書き）"}
+                        </h2>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="text-muted-foreground text-sm">{order.supplier}</span>
                             {getStatusBadge(order.status)}
