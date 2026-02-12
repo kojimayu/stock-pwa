@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
+import { logAdminLogin } from "@/lib/actions";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -27,6 +28,11 @@ export default function LoginPage() {
             setError("メールアドレスまたはパスワードが正しくありません");
             setLoading(false);
         } else {
+            // Log successful admin login
+            // Note: Since this is client-side, we call server action. 
+            // Ideally logging happens inside auth provider but next-auth credential provider is obscure for side effects.
+            // Client-side logging is acceptable here.
+            await logAdminLogin(email).catch(console.error);
             window.location.href = "/admin";
         }
     };

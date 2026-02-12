@@ -4,14 +4,20 @@ import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { logLogout } from "@/lib/actions";
 
 export function LogoutButton() {
     const router = useRouter();
     const clearCart = useCartStore((state) => state.clearCart);
     const vendor = useCartStore((state) => state.vendor);
+    const vendorUser = useCartStore((state) => state.vendorUser);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         if (confirm("ログアウトしますか？")) {
+            if (vendor) {
+                // Fire and forget logging
+                logLogout(vendor.id, vendor.name, 'MANUAL', vendorUser?.name, vendorUser?.id).catch(console.error);
+            }
             clearCart();
             router.push("/");
         }

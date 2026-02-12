@@ -480,7 +480,7 @@ export async function verifyVendorPin(vendorId: string | number, pin: string) {
     }
 
     // 3. Success
-    logOperation("KIOSK_LOGIN_SUCCESS", matchedUser.name, `Vendor: ${matchedUser.vendor.name} (via VendorPIN)`);
+    await logOperation("LOGIN", `Vendor: ${matchedUser.vendor.name} (ID: ${matchedUser.vendor.id})`, `User: ${matchedUser.name}`);
 
     return {
         success: true,
@@ -2188,6 +2188,25 @@ export async function correctTransactionPrice(
         return { success: false, message: '価格修正に失敗しました' };
     }
 }
+
+// Client-sideからログアウトログを記録するためのアクション
+export async function logLogout(vendorId: number, vendorName: string, type: 'AUTO' | 'MANUAL', userName?: string, vendorUserId?: number) {
+    const action = type === 'AUTO' ? "AUTO_LOGOUT" : "LOGOUT";
+    const detailHeader = type === 'AUTO'
+        ? "System auto-logout due to inactivity (Client-side trigger)"
+        : "User clicked logout button";
+
+    const userDetail = userName ? `User: ${userName}` : "User: Unknown";
+    const detail = `${detailHeader}. ${userDetail}`;
+
+    await logOperation(action, `Vendor: ${vendorName} (ID: ${vendorId})`, detail);
+}
+
+// Admin Login Logger
+export async function logAdminLogin(email: string) {
+    await logOperation("ADMIN_LOGIN", `Admin: ${email}`, "Admin user logged in via credentials");
+}
+
 
 // 価格修正通知メール送信
 async function sendPriceCorrectionNotification(
