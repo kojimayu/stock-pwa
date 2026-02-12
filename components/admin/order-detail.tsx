@@ -19,10 +19,11 @@ import {
     Loader2,
     Copy,
     RotateCcw,
-    Package
+    Package,
+    Trash2
 } from "lucide-react";
 import Link from "next/link";
-import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, cancelReceipt, cancelOrder } from "@/lib/actions";
+import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, deleteOrderItem, cancelReceipt, cancelOrder } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -119,6 +120,20 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
         }
     };
 
+    const handleDeleteItem = async (item: any) => {
+        if (!confirm(`「${item.product.name}」を発注リストから削除しますか？`)) return;
+        try {
+            setIsUpdating(true);
+            await deleteOrderItem(item.id);
+            toast.success("削除しました");
+            router.refresh();
+        } catch (e: any) {
+            toast.error(e.message || "削除に失敗しました");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     // Product Search State
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -130,8 +145,35 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
 
         const content = `【発注依頼】\n${order.supplier} 御中\n\n${text}\n\n宜しくお願い致します。`;
 
-        navigator.clipboard.writeText(content);
-        toast.success("注文内容をコピーしました");
+        // Modern Clipboard API (Only available in Secure Contexts / HTTPS)
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(content).then(() => {
+                toast.success("注文内容をコピーしました");
+            }).catch(() => {
+                fallbackCopy(content);
+            });
+        } else {
+            // Fallback for non-HTTPS
+            fallbackCopy(content);
+        }
+    };
+
+    const fallbackCopy = (text: string) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            toast.success("注文内容をコピーしました");
+        } catch (err) {
+            toast.error("コピーに失敗しました");
+        }
+        document.body.removeChild(textArea);
     };
 
     const getStatusBadge = (status: string) => {
@@ -238,6 +280,7 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                             <TableHead className="text-right">発注数</TableHead>
                             <TableHead className="text-right">入荷済数</TableHead>
                             <TableHead className="text-center w-[200px]">入荷操作</TableHead>
+                            {order.status === 'DRAFT' && <TableHead className="w-[60px]"></TableHead>}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -301,6 +344,20 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                                         <span className="text-xs text-muted-foreground">-</span>
                                     )}
                                 </TableCell>
+                                {order.status === 'DRAFT' && (
+                                    <TableCell className="text-center">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                            onClick={() => handleDeleteItem(item)}
+                                            disabled={isUpdating}
+                                            title="削除"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </TableCell>
+                                )}
                             </TableRow>
                         ))}
                     </TableBody>
@@ -320,6 +377,18 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                             <div className="mb-3">
                                 <div className="font-medium">{item.product.name}</div>
                                 <div className="text-xs text-muted-foreground">{item.product.code}</div>
+                                {order.status === 'DRAFT' && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive float-right -mt-1"
+                                        onClick={() => handleDeleteItem(item)}
+                                        disabled={isUpdating}
+                                        title="削除"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 text-sm mb-3">

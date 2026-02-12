@@ -1999,6 +1999,22 @@ export async function addOrderItem(orderId: number, productId: number, quantity:
     return { success: true };
 }
 
+export async function deleteOrderItem(orderItemId: number) {
+    const item = await prisma.orderItem.findUnique({
+        where: { id: orderItemId },
+        include: { order: true }
+    });
+
+    if (!item) throw new Error("発注明細が見つかりません");
+    if (item.order.status !== 'DRAFT') throw new Error("下書き以外の発注からは削除できません");
+
+    await prisma.orderItem.delete({ where: { id: orderItemId } });
+
+    await logOperation("ORDER_ITEM_DELETE", `Order #${item.orderId}`, `商品ID: ${item.productId} を削除`);
+    revalidatePath(`/admin/orders/${item.orderId}`);
+    return { success: true };
+}
+
 export async function searchProducts(query: string) {
     return await prisma.product.findMany({
         where: {
