@@ -26,7 +26,7 @@ export function LogoutButton() {
     return (
         <div className="flex items-center gap-4">
             <span className="text-sm text-slate-300 hidden md:inline">
-                {vendor ? `${vendor.name} 様` : "未ログイン"}
+                {vendor ? `${vendor.name} ${vendorUser?.name ? vendorUser.name + ' ' : ''}様` : "未ログイン"}
             </span>
             <Button
                 variant="ghost"

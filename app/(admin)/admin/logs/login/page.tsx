@@ -1,30 +1,33 @@
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getOperationLogs } from "@/lib/actions";
 import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
 
-export default async function OperationLogsPage() {
-    const logs = await getOperationLogs(100);
+export default async function LoginHistoryPage() {
+    // Fetch only login/logout related logs
+    const logs = await getOperationLogs(100, ['LOGIN', 'KIOSK_LOGIN_SUCCESS', 'LOGOUT', 'AUTO_LOGOUT', 'ADMIN_LOGIN']);
 
     return (
         <div className="space-y-6">
-            <div>
-                <h2 className="text-3xl font-bold tracking-tight">操作ログ</h2>
-                <p className="text-muted-foreground">システム上の重要な操作履歴（直近100件）</p>
-                <div className="mt-4">
-                    <Button variant="outline" asChild>
-                        <Link href="/admin/logs/login">
-                            ログイン履歴のみを表示
-                        </Link>
-                    </Button>
+            <div className="flex items-center gap-4">
+                <Button variant="outline" size="icon" asChild>
+                    <Link href="/admin/logs">
+                        <ArrowLeft className="h-4 w-4" />
+                    </Link>
+                </Button>
+                <div>
+                    <h2 className="text-3xl font-bold tracking-tight">ログイン履歴</h2>
+                    <p className="text-muted-foreground">直近100件のログイン・ログアウト操作</p>
                 </div>
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>ログ一覧</CardTitle>
+                    <CardTitle>履歴一覧</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -54,7 +57,7 @@ export default async function OperationLogsPage() {
                             {logs.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={4} className="text-center py-10 text-muted-foreground">
-                                        ログはまだありません
+                                        履歴はまだありません
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -68,14 +71,29 @@ export default async function OperationLogsPage() {
 
 function BadgeAction({ action }: { action: string }) {
     let colorClass = "bg-gray-100 text-gray-800";
-    if (action.includes("CREATE")) colorClass = "bg-blue-100 text-blue-800";
-    if (action.includes("UPDATE")) colorClass = "bg-yellow-100 text-yellow-800";
-    if (action.includes("DELETE")) colorClass = "bg-red-100 text-red-800";
-    if (action === "IMPORT") colorClass = "bg-purple-100 text-purple-800";
+    let label = action;
+
+    if (action === "LOGIN" || action === "KIOSK_LOGIN_SUCCESS") {
+        colorClass = "bg-green-100 text-green-800";
+        label = "Kioskログイン";
+    }
+    if (action === "ADMIN_LOGIN") {
+
+        colorClass = "bg-blue-100 text-blue-800";
+        label = "管理ログイン";
+    }
+    if (action === "LOGOUT") {
+        colorClass = "bg-gray-100 text-gray-800";
+        label = "ログアウト";
+    }
+    if (action === "AUTO_LOGOUT") {
+        colorClass = "bg-orange-100 text-orange-800";
+        label = "自動ログアウト";
+    }
 
     return (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-            {action}
+            {label} ({action})
         </span>
     );
 }

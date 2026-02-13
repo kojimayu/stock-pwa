@@ -447,7 +447,8 @@ export async function verifyPin(vendorId: string | number, vendorUserId: string 
         await logOperation("PERFORMANCE_WARNING", `Login: ${vendorUser.name}`, `Slow Execution: ${Math.round(totalTime)}ms (DB: ${Math.round(dbTime - start)}ms)`);
     }
 
-    await logOperation("KIOSK_LOGIN_SUCCESS", vendorUser.name, `Vendor: ${vendorUser.vendor.name}`);
+    // Standardized Log Format: [Company] [User]
+    await logOperation("LOGIN", `${vendorUser.vendor.name} ${vendorUser.name}`, `ログイン (VendorID: ${vendorUser.vendorId}, UserID: ${vendorUser.id})`);
 
     return {
         success: true,
@@ -480,7 +481,8 @@ export async function verifyVendorPin(vendorId: string | number, pin: string) {
     }
 
     // 3. Success
-    await logOperation("LOGIN", `Vendor: ${matchedUser.vendor.name} (ID: ${matchedUser.vendor.id})`, `User: ${matchedUser.name}`);
+    // Standardized Log Format: [Company] [User]
+    await logOperation("LOGIN", `${matchedUser.vendor.name} ${matchedUser.name}`, `ログイン (VendorID: ${matchedUser.vendor.id}, UserID: ${matchedUser.id})`);
 
     return {
         success: true,
@@ -1592,10 +1594,11 @@ export async function getVendorTransactions(vendorId: number, limit = 20) {
 }
 
 // Operation Logs
-export async function getOperationLogs(limit = 100) {
+export async function getOperationLogs(limit = 100, actions?: string[]) {
     return await prisma.operationLog.findMany({
         take: limit,
         orderBy: { performedAt: 'desc' },
+        where: actions ? { action: { in: actions } } : undefined,
     });
 }
 
@@ -2190,16 +2193,26 @@ export async function correctTransactionPrice(
 }
 
 // Client-sideからログアウトログを記録するためのアクション
+// @deprecated: Newer clients use logLogout. Kept for backward compatibility with cached clients.
+export async function logAutoLogout(vendorId: number, vendorName: string) {
+    console.warn(`[Deprecated] logAutoLogout called for ${vendorName}. Client might be using old version.`);
+    await logLogout(vendorId, vendorName, 'AUTO');
+}
+
 export async function logLogout(vendorId: number, vendorName: string, type: 'AUTO' | 'MANUAL', userName?: string, vendorUserId?: number) {
     const action = type === 'AUTO' ? "AUTO_LOGOUT" : "LOGOUT";
-    const detailHeader = type === 'AUTO'
-        ? "System auto-logout due to inactivity (Client-side trigger)"
-        : "User clicked logout button";
 
-    const userDetail = userName ? `User: ${userName}` : "User: Unknown";
-    const detail = `${detailHeader}. ${userDetail}`;
+    // Standardized Log Format: Target = [Company] [User]
+    const target = `${vendorName} ${userName || '(担当者不明)'}`;
 
-    await logOperation(action, `Vendor: ${vendorName} (ID: ${vendorId})`, detail);
+    let detail = "";
+    if (type === 'AUTO') {
+        detail = "自動ログアウト (無操作タイムアウト)";
+    } else {
+        detail = "手動ログアウトボタン押下";
+    }
+
+    await logOperation(action, target, detail);
 }
 
 // Admin Login Logger
