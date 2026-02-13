@@ -22,20 +22,7 @@ interface Vendor {
     };
 }
 
-interface Product {
-    id: number;
-    code?: string;
-    name: string;
-    category: string;
-    subCategory?: string | null;
-    productType?: string | null;
-    priceA: number;
-    priceB: number;
-    stock: number;
-    minStock: number;
-    createdAt: Date | string;
-    updatedAt: Date | string;
-}
+import { Product } from "@/lib/types";
 
 interface ProxyInputClientProps {
     products: Product[];

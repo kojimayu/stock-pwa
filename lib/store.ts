@@ -31,10 +31,12 @@ type CartState = {
     vendorUser: VendorUser | null;
     items: CartItem[];
     isProxyMode: boolean;
+    isReturnMode: boolean;
     transactionDate: Date | null;
     setVendor: (vendor: Vendor | null) => void;
     setVendorUser: (vendorUser: VendorUser | null) => void;
     setProxyMode: (isProxy: boolean) => void;
+    setReturnMode: (isReturn: boolean) => void;
     setTransactionDate: (date: Date | null) => void;
     addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number }) => void;
     removeItem: (productId: number, isBox?: boolean) => void;
@@ -52,10 +54,12 @@ export const useCartStore = create<CartState>()(
             vendorUser: null,
             items: [],
             isProxyMode: false,
+            isReturnMode: false,
             transactionDate: null,
             setVendor: (vendor) => set({ vendor }),
             setVendorUser: (vendorUser) => set({ vendorUser }),
             setProxyMode: (isProxyMode) => set({ isProxyMode }),
+            setReturnMode: (isReturnMode) => set({ isReturnMode }),
             setTransactionDate: (transactionDate) => set({ transactionDate }),
             addItem: (newItem) =>
                 set((state) => {
@@ -97,7 +101,7 @@ export const useCartStore = create<CartState>()(
                     };
                 }),
             clearCart: () => set({ items: [] }),
-            clearSession: () => set({ vendor: null, vendorUser: null, items: [], isProxyMode: false, transactionDate: null }),
+            clearSession: () => set({ vendor: null, vendorUser: null, items: [], isProxyMode: false, isReturnMode: false, transactionDate: null }),
             getTotalPrice: () => get().items.reduce((sum, item) => sum + item.price * item.quantity, 0),
             getTotalItems: () => get().items.reduce((sum, item) => sum + item.quantity, 0),
         }),

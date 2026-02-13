@@ -19,14 +19,17 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 
+import { InventoryCheckDialog } from "./inventory-check-dialog";
+
 interface CartSidebarProps {
     className?: string;
 }
 
 export function CartSidebar({ className }: CartSidebarProps) {
-    const { items, removeItem, updateQuantity, getTotalPrice, getTotalItems, vendor, vendorUser, isProxyMode, transactionDate, clearCart } = useCartStore();
+    const { items, removeItem, updateQuantity, getTotalPrice, getTotalItems, vendor, vendorUser, isProxyMode, isReturnMode, transactionDate, clearCart } = useCartStore();
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [showInventoryCheckDialog, setShowInventoryCheckDialog] = useState(false);
     const router = useRouter();
 
     // const totalAmount = getTotalPrice();
@@ -165,9 +168,15 @@ export function CartSidebar({ className }: CartSidebarProps) {
                     <span>{items.length} 種類</span>
                 </div>
                 <Button
-                    className="w-full h-12 text-lg font-bold shadow-sm"
+                    className={cn("w-full h-12 text-lg font-bold shadow-sm", isReturnMode ? "bg-orange-600 hover:bg-orange-700" : "")}
                     size="lg"
-                    onClick={() => setShowConfirmDialog(true)}
+                    onClick={() => {
+                        if (isReturnMode) {
+                            setShowInventoryCheckDialog(true);
+                        } else {
+                            setShowConfirmDialog(true);
+                        }
+                    }}
                     disabled={items.length === 0 || isCheckingOut}
                 >
                     {isCheckingOut ? (
@@ -175,7 +184,7 @@ export function CartSidebar({ className }: CartSidebarProps) {
                     ) : (
                         <CheckCircle className="w-5 h-5 mr-2" />
                     )}
-                    注文確認へ
+                    {isReturnMode ? "返却確認へ" : "注文確認へ"}
                 </Button>
             </div>
 
@@ -210,6 +219,15 @@ export function CartSidebar({ className }: CartSidebarProps) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Inventory Check Dialog for Returns */}
+            <InventoryCheckDialog
+                open={showInventoryCheckDialog}
+                onOpenChange={setShowInventoryCheckDialog}
+                items={items}
+                vendorId={vendor?.id || 0}
+                vendorUserId={vendorUser?.id || null}
+            />
         </div>
     );
 }

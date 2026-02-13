@@ -31,8 +31,19 @@ interface ShopInterfaceProps {
     onProxyExit?: () => void;
 }
 
+import { getVendorReturnableProducts } from "@/lib/return-actions"; // Import action
+
+interface ShopInterfaceProps {
+    products: Product[];
+    isInventoryActive: boolean;
+    // 代理入力モード用
+    proxyMode?: boolean;
+    vendorOverride?: { id: number; name: string } | null;
+    onProxyExit?: () => void;
+}
+
 export function ShopInterface({
-    products,
+    products: initialProducts, // Rename to initialProducts
     isInventoryActive,
     proxyMode = false,
     vendorOverride,
@@ -44,15 +55,39 @@ export function ShopInterface({
     const [searchQuery, setSearchQuery] = useState("");
     const [isListening, setIsListening] = useState(false);
 
+    // Return Mode State
+    const [returnableProducts, setReturnableProducts] = useState<Product[]>([]);
+    const [isLoadingReturnables, setIsLoadingReturnables] = useState(false);
+
     const router = useRouter();
     const clearCart = useCartStore((state) => state.clearCart);
     const setVendor = useCartStore((state) => state.setVendor);
     const setProxyMode = useCartStore((state) => state.setProxyMode);
     const storeVendor = useCartStore((state) => state.vendor);
     const vendorUser = useCartStore((state) => state.vendorUser);
+    const isReturnMode = useCartStore((state) => state.isReturnMode);
 
     // 代理入力モードではvendorOverrideを使用
     const vendor = proxyMode ? vendorOverride : storeVendor;
+
+    // Determine which products to display
+    const activeProducts = isReturnMode ? returnableProducts : initialProducts;
+
+    // Fetch Returnable Products when entering Return Mode
+    useEffect(() => {
+        if (isReturnMode && vendor?.id) {
+            setIsLoadingReturnables(true);
+            getVendorReturnableProducts(vendor.id)
+                .then((products) => {
+                    // map to match Product type if needed, but action returns Product[] compatible objects
+                    setReturnableProducts(products as Product[]);
+                })
+                .catch(console.error)
+                .finally(() => setIsLoadingReturnables(false));
+        } else {
+            setReturnableProducts([]);
+        }
+    }, [isReturnMode, vendor?.id]);
 
     // 代理入力モードの場合、vendorをストアに設定（CheckoutButton用）
     useEffect(() => {
@@ -98,57 +133,64 @@ export function ShopInterface({
         recognition.start();
     };
 
-    // Filter Logic
+    // Filter products
     const filteredProducts = useMemo(() => {
-        // 1. Search Mode Override
-        if (searchQuery.trim().length > 0) {
-            const lowerQ = normalizeForSearch(searchQuery);
-            return products.filter(p =>
-                normalizeForSearch(p.name).includes(lowerQ) ||
-                (p.code && normalizeForSearch(p.code).includes(lowerQ))
-            );
+        let result = activeProducts; // Use activeProducts
+
+        // Search Query
+        if (searchQuery) {
+            const normalizedQuery = normalizeForSearch(searchQuery);
+            result = result.filter((product) => {
+                const normalizedName = normalizeForSearch(product.name);
+                const normalizedCode = product.code ? normalizeForSearch(product.code) : "";
+                return normalizedName.includes(normalizedQuery) || normalizedCode.includes(normalizedQuery);
+            });
         }
 
-        // 2. Category Filtering
-        let res = products;
+        // Category Filter
         if (selectedCategory && selectedCategory !== "すべて") {
-            res = res.filter((p) => p.category === selectedCategory);
-            if (selectedSubCategory && selectedSubCategory !== "すべて") {
-                res = res.filter((p) => p.subCategory === selectedSubCategory);
-            }
-            if (selectedProductType && selectedProductType !== "すべて") {
-                res = res.filter((p) => p.productType === selectedProductType);
-            }
+            result = result.filter((product) => product.category === selectedCategory);
         }
-        return res;
-    }, [products, selectedCategory, selectedSubCategory, selectedProductType, searchQuery]);
+
+        // SubCategory Filter
+        if (selectedSubCategory && selectedSubCategory !== "すべて") {
+            result = result.filter((product) => product.subCategory === selectedSubCategory);
+        }
+
+        // Product Type Filter (only if category and subcategory are selected)
+        if (selectedCategory && selectedCategory !== "すべて" && selectedSubCategory && selectedSubCategory !== "すべて" && selectedProductType && selectedProductType !== "すべて") {
+            result = result.filter((product) => product.productType === selectedProductType);
+        }
+
+        return result;
+    }, [activeProducts, searchQuery, selectedCategory, selectedSubCategory, selectedProductType]);
 
 
     // Computed Lists for Mobile (Desktop uses MergedCategoryList which computes internally)
     const categories = useMemo(() => {
-        const cats = new Set(products.map((p) => p.category));
+        const cats = new Set(activeProducts.map((p) => p.category));
         return Array.from(cats).sort();
-    }, [products]);
+    }, [activeProducts]);
 
     const subCategories = useMemo(() => {
         if (!selectedCategory || selectedCategory === "すべて") return [];
         const subs = new Set(
-            products
+            activeProducts
                 .filter((p) => p.category === selectedCategory && p.subCategory)
                 .map((p) => p.subCategory!)
         );
         return Array.from(subs).sort();
-    }, [products, selectedCategory]);
+    }, [activeProducts, selectedCategory]);
 
     const productTypes = useMemo(() => {
         if (!selectedCategory || selectedCategory === "すべて") return [];
-        let target = products.filter(p => p.category === selectedCategory);
+        let target = activeProducts.filter(p => p.category === selectedCategory);
         if (selectedSubCategory && selectedSubCategory !== "すべて") {
             target = target.filter(p => p.subCategory === selectedSubCategory);
         }
         const types = new Set(target.filter(p => p.productType).map(p => p.productType!));
         return Array.from(types).sort();
-    }, [products, selectedCategory, selectedSubCategory]);
+    }, [activeProducts, selectedCategory, selectedSubCategory]);
 
 
     const handleLogout = () => {
@@ -175,7 +217,7 @@ export function ShopInterface({
             )}
 
             {/* Header */}
-            <header className="bg-slate-900 text-white p-3 fixed top-0 left-0 right-0 z-40 flex justify-between items-center shadow-md h-[60px]">
+            <header className={`${isReturnMode ? 'bg-orange-600' : 'bg-slate-900'} text-white p-3 fixed top-0 left-0 right-0 z-40 flex justify-between items-center shadow-md h-[60px] transition-colors duration-300`}>
                 <Button
                     variant="ghost"
                     size="sm"
@@ -214,7 +256,8 @@ export function ShopInterface({
                 </div>
 
 
-                <div className="mr-2 hidden lg:block text-sm text-slate-300">
+                <div className="mr-2 hidden lg:flex items-center gap-2 text-sm text-slate-300">
+                    {isReturnMode && <span className="bg-white text-orange-600 px-2 py-0.5 rounded font-bold">返品モード</span>}
                     {vendorUser && vendor ? `${vendor.name} ${vendorUser.name} 様` : (vendor ? `${vendor.name} 様` : "")}
                 </div>
                 <div className="flex items-center space-x-1">
@@ -251,7 +294,7 @@ export function ShopInterface({
                 */}
                 <aside className="hidden md:block w-72 bg-white border-r fixed left-0 top-[60px] bottom-0 z-30 overflow-y-auto">
                     <MergedCategoryList
-                        products={products}
+                        products={activeProducts}
                         selectedCategory={selectedCategory}
                         selectedSubCategory={selectedSubCategory}
                         selectedProductType={selectedProductType}

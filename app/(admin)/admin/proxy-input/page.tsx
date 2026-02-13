@@ -8,5 +8,11 @@ export default async function ProxyInputPage() {
     ]);
 
     // ProxyInputClientが全画面表示を管理するため、ラッパーのみ提供
-    return <ProxyInputClient products={products} vendors={vendors} />;
+    const serializedProducts = products.map(p => ({
+        ...p,
+        createdAt: p.createdAt.toISOString(),
+        updatedAt: p.updatedAt.toISOString(),
+    }));
+
+    return <ProxyInputClient products={serializedProducts} vendors={vendors} />;
 }
