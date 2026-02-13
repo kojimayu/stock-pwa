@@ -4,13 +4,14 @@ import { useEffect, useRef } from "react";
 import { useCartStore } from "@/lib/store";
 import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { logAutoLogout } from "@/lib/actions";
+import { logLogout } from "@/lib/actions";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 const CHECK_INTERVAL_MS = 10 * 1000; // Check every 10 seconds
 
 export function IdleTimer() {
     const vendor = useCartStore((state) => state.vendor);
+    const vendorUser = useCartStore((state) => state.vendorUser);
     const clearSession = useCartStore((state) => state.clearSession);
     const router = useRouter();
     const pathname = usePathname();
@@ -25,7 +26,7 @@ export function IdleTimer() {
 
         if (vendor) {
             // Attempt to log server-side (fire and forget)
-            logAutoLogout(vendor.id, vendor.name).catch(console.error);
+            logLogout(vendor.id, vendor.name, 'AUTO', vendorUser?.name, vendorUser?.id).catch(console.error);
         }
 
         clearSession();

@@ -1,4 +1,5 @@
 import { IdleTimer } from "@/components/kiosk/idle-timer";
+import { AuthGuard } from "@/components/kiosk/auth-guard";
 
 
 export default function KioskLayout({
@@ -11,7 +12,9 @@ export default function KioskLayout({
         // 将来的にはヘッダーなどが必要ならここに追加
         <div className="min-h-screen bg-gray-50 text-gray-900">
             <IdleTimer />
-            {children}
+            <AuthGuard>
+                {children}
+            </AuthGuard>
         </div>
     );
 }

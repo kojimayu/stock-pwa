@@ -2207,9 +2207,9 @@ export async function logLogout(vendorId: number, vendorName: string, type: 'AUT
 
     let detail = "";
     if (type === 'AUTO') {
-        detail = "自動ログアウト (無操作タイムアウト)";
+        detail = `自動ログアウト (無操作タイムアウト) (VendorID: ${vendorId}, UserID: ${vendorUserId ?? 'N/A'})`;
     } else {
-        detail = "手動ログアウトボタン押下";
+        detail = `手動ログアウトボタン押下 (VendorID: ${vendorId}, UserID: ${vendorUserId ?? 'N/A'})`;
     }
 
     await logOperation(action, target, detail);
