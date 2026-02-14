@@ -35,31 +35,31 @@ export function InventoryCheckDialog({ open, onOpenChange, items, vendorId, vend
             setActualCounts({});
 
             // Fetch latest stocks
-            getLatestStocks(items.map(i => i.productId))
-                .then(data => {
-                    setStockData(data);
-                    // Initialize actual counts with Expected values (Current + Return)
-                    // No, wait. We want them to count.
-                    // But for UX, pre-filling with expected value might be easier?
-                    // User requirement: "Confirm/Input actual stock".
-                    // Let's pre-fill with expected stock to speed up "Correct" cases.
-                    const initialCounts: Record<number, number> = {};
-                    data.forEach(p => {
-                        const cartItem = items.find(i => i.productId === p.id);
-                        if (cartItem) {
-                            const returnQty = cartItem.quantity; // Assuming cart quantity is return quantity
-                            initialCounts[p.id] = p.stock + returnQty;
-                        }
+            // Only fetch if we have items
+            if (items.length > 0) {
+                getLatestStocks(items.map(i => i.productId))
+                    .then(data => {
+                        setStockData(data);
+                        const initialCounts: Record<number, number> = {};
+                        data.forEach(p => {
+                            const cartItem = items.find(i => i.productId === p.id);
+                            if (cartItem) {
+                                const returnQty = cartItem.quantity; // Assuming cart quantity is return quantity
+                                initialCounts[p.id] = p.stock + returnQty;
+                            }
+                        });
+                        setActualCounts(initialCounts);
+                        setStep('input');
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        setError("在庫情報の取得に失敗しました");
                     });
-                    setActualCounts(initialCounts);
-                    setStep('input');
-                })
-                .catch(err => {
-                    console.error(err);
-                    setError("在庫情報の取得に失敗しました");
-                });
+            } else {
+                setStep('input');
+            }
         }
-    }, [open, items]);
+    }, [open]); // Remove items from dependency to avoid re-fetch logic when items change (they shouldn't change while dialog is open)
 
     const handleConfirm = async () => {
         setStep('processing');

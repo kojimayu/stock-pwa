@@ -34,16 +34,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
         if (!currentVendor) {
             // Double check after a small delay to handle hydration/race conditions
-            const timer = setTimeout(() => {
-                const latestVendor = useCartStore.getState().vendor;
-                if (!latestVendor) {
-                    console.log("AuthGuard: No session found, redirecting to login.");
-                    router.replace("/");
-                } else {
-                    setIsChecking(false);
-                }
-            }, 100); // 100ms delay
-            return () => clearTimeout(timer);
+            const latestVendor = useCartStore.getState().vendor;
+            if (!latestVendor) {
+                console.log("AuthGuard: No session found, redirecting to login.");
+                router.replace("/");
+            } else {
+                setIsChecking(false);
+            }
         } else {
             setIsChecking(false);
         }

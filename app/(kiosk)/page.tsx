@@ -229,6 +229,9 @@ export default function KioskLoginPage() {
         setVendorStore(res.vendor);
         setVendorUserStore(res.vendorUser);
 
+        // Wait a tick to ensure store update propagates (just in case)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
         // 初期PINの場合はPIN変更画面へ
         if (!res.pinChanged) {
           toast.info("初回ログインのためPINを変更してください");

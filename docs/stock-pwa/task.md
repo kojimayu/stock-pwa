@@ -1,13 +1,16 @@
+
 # 調査タスク：Kioskログイン不具合と画面リセット問題
 
 ## 1. 現象の分析 (Root Cause Analysis)
 - [x] ログイン時の「ぐるぐる（スピナー）」が止まらない原因の特定
 - [x] 「別端末で初期画面を開くと、他端末もリセットされる」現象の調査
+    - [x] WebSocket / Server-Sent Events (SSE) の有無を確認
+    - [x] `revalidatePath` やグローバルなリダイレクト処理の確認
     - [x] **原因特定:** `dev.db` 更新によるNext.jsのホットリロード発生
 
 ## 2. サーバーサイドの調査
 - [x] `lib/actions.ts` の `verifyVendorPin` 周辺のログ出力強化
-- [x] `logOperation` の実装見直し
+- [x] `logOperation` の実装見直し（非同期化・タイムアウト設定）
 - [x] サーバーサイドでの「ログイン状態」のグローバル管理の有無を確認
 
 ## 3. クライアントサイドの調査
@@ -16,7 +19,7 @@
 
 ## 4. 対策の提案 (一旦原因究明後に実施)
 - [x] 特定された原因に基づく修正案の作成
-- [x] 修正の実施と検証
+- [x] 修正の実施と検証（`next.config.ts` の修正）
 
 # Kiosk UI改善 (Done)
 - [x] Kiosk画面（商品一覧、カート、確認画面）から金額表示を削除・非表示にする
@@ -27,40 +30,87 @@
     - [x] `QuantitySelectorDialog` の改善: 「箱（巻）」ボタンに入数を表示する
     - [x] `QuantitySelectorDialog` の改善: 箱選択時に「在庫からXX個減ります」と注釈を出す
 
-- [ ] **誤入力修正機能（取引編集）の実装**
-- [ ] **誤入力修正機能（取引編集）の実装**
-    - [ ] `implementation_plan.md` に基づくバックエンド実装 (Transaction更新、在庫自動調整)
-    - [ ] 管理画面のUI実装 (取引履歴からの編集呼び出し)
+- [x] **誤入力修正機能（取引編集）の実装**
+    - [x] `implementation_plan.md` に基づくバックエンド実装 (Transaction更新、在庫自動調整)
+    - [x] 管理画面のUI実装 (取引履歴からの編集呼び出し)
 
 # 2026-02-10 追加フィードバック & 不具合対応
-- [ ] **Kiosk UI/UX改善**
-    - [x] 数量入力の改善 (タブレット横画面対応: 2XLダイアログ、4桁対応、物理ボタン完結型UI)
+- [ ] **管理機能改善**
+- [x] **Excelインポート改善**: ID照合時の変更検知（品番変更対応）とプレビュー強化、ハイフン入りの品番許容
+    - [!] **業者による返品処理**: 在庫数確認フローの実装（FEEDBACK.md参照）
+
+- [/] **Kiosk UI/UX改善**
+    - [ ] **品番の常時表示**: 商品一覧、カート、確認画面すべてで品番(code)を併記する
+    - [ ] **予備部材の持ち出し対応**: 案件引き当て以外に、予備として余分に持ち出せる運用（在庫管理上は許容する）の検討・実装
+    - [ ] 数量入力の改善 (直接入力 or +5/+10ボタン)
     - [ ] カート・確認画面でのカテゴリ/サブカテゴリ表示
-- [x] **発注管理機能改善**
-    - [x] 発注書のExcel出力 (ヘッダー日本語化)
-    - [x] 発注データの取り消し機能
-    - [x] 発注後の数量変更 (発注済・一部入荷 ステータス対応)
-    - [x] Excel一括登録の差分確認 (プレビュー機能)
-    - [x] **デプロイ計画の作成**: Azure移行計画、低コスト代替案（Railway等）、バックアップ強化策の検討とドキュメント化。
-- [x] **クリップボードコピーの修正**: HTTP環境（非セキュアコンテキスト）でも動作するよう、`handleCopy`にフォールバック処理を実装。
-- [x] **発注項目の削除機能**: OrderDetail画面に商品削除ボタンを追加（Draftステータスのみ）。
-- [ ] **操作ログの検索機能**: 日付やアクションによるフィルタリング機能の実装。
-- [ ] **中途半端な材料の返却対応**: 在庫管理ロジックの改善（一部使用・一部返却の考慮）。
+    - [x] **3カラムレイアウト化**: カテゴリー大・中・小を統合(左)、商品(中央)、カート常時表示(右)へ変更。
+        - [x] Create `MergedCategoryList` (Tree View)
+        - [x] Create `CartSidebar` (Persistent)
+        - [x] Integrate into `ShopInterface` layout
+        - [x] Responsive adjustments (Tablet/PC)
+  - [x] **返品モードUI実装**
+    - [x] **`lib/store.ts`**: Storeに`isReturnMode`を追加。
+    - [x] **`app/(kiosk)/mode-select/page.tsx`**: 「部材返却」ボタン(Return)を追加。
+    - [x] **`components/kiosk/shop-interface.tsx`**: Storeの`isReturnMode`に応じてヘッダー色やスタイルを変更(例: オレンジ色)。
+    - [x] **`components/kiosk/cart-sidebar.tsx`**: 「注文確定」から「返却確認」への文言変更とクリック時の分岐。
+
+- [x] **在庫確認ダイアログ実装**
+    - [x] **`components/kiosk/inventory-check-dialog.tsx`**: 作成。
+        - カート内商品について「計算上の在庫数(現在+返却分)」を表示。
+        - ユーザーに「実在庫数」を入力させる。
+        - 差異があれば調整として記録する旨を明示。
+        - **`lib/actions.ts`** に `getLatestStocks(ids)` を追加し、ダイアログ表示時に最新在庫を取得。
+
+- [x] **バックエンドロジック実装**
+    - [x] **`lib/actions.ts`**:
+        - `getVendorPurchaseHistory(vendorId)`: 過去の購入履歴を取得・集計。
+        - `processVerifiedReturn(...)`:
+            - 履歴チェック(正当な返品か)。
+            - 在庫加算(返品分)。
+            - 実在庫との差異チェック & 自動調整(InventoryLog: ADJUSTMENT)。
+            - Transaction作成(負の数量)。
+
+- [x] **履歴からの返品選択機能**
+    - [x] **`lib/return-actions.ts`**: `getVendorReturnableProducts` 実装。
+    - [x] **`components/kiosk/shop-interface.tsx`**: 返品モード時に商品リストを履歴ベースに切り替え。
+
 - [ ] **不具合調査・修正**
-    - [x] **商品検索の改善**: 大文字・小文字、全角・半角を問わず検索できるように修正（`ProductSearchDialog`）
-    - [x] **ログ調査**: 取引修正時の「Updated items」ログの詳細確認（在庫ログに詳細あり）
-    - [ ] 完了画面で「0点」と表示されるバグの調査
-    - [ ] ログイン遅延の原因調査と解消
+    - [x] **発注番号のデータ修正**: 過去の確定済み発注に番号が付与されていない問題を解消（データ移行）
+    - [x] **VVF/IV線の単位統一と履歴補正**:
+        - [x] 商品マスタの単位を「m」に統一（単価・在庫数の補正）
+        - [x] **過去の取引履歴のデータ移行**: 過去に「巻」で記録された取引を、「m」換算した数量と単価に書き換え（scripts/migrate_vvf_units.ts実行済み）。
+    - [x] 完了画面で「0点」と表示されるバグの調査
+    - [x] **ログ機能強化**:
+        - [x] 自動ログアウト(AUTO_LOGOUT)の記録
+        - [x] 手動ログアウト(LOGOUT)の記録
+        - [x] 管理画面ログイン(ADMIN_LOGIN)の記録
+        - [x] **ログフォーマット統一**: 会社名＋担当者名に統一
+    - [x] **ログイン後の画面遷移フリーズ(2026/02/14調査)**:
+        - **原因**: ログイン時のログ保存(`logOperation`)が、不要なセッションチェック(500ms待機)によりDBロックを長く保持してしまうため、直後の商品一覧取得(`getShopProducts`)が待たされる。SQLiteがWALモードでないため読み書きが競合した。
+        - **対策案**: 1. `logOperation`のKiosk判定強化(セッションチェック回避) 2. SQLiteのWALモード有効化
+    - [x] ログイン遅延の原因調査と解消（WALモード、ログ最適化、状態伝播待機）
 
-# 2026-02-12 検索ロジック共通化
-- [x] **検索ロジックの共通化 (Standardization)**
-    - [x] `lib/utils.ts` に `normalizeForSearch` 関数を実装 (全角→半角, 大文字→小文字, 空白削除)
-    - [x] `components/admin/product-search-dialog.tsx` のリファクタリング
-    - [x] `components/kiosk/shop-interface.tsx` のリファクタリング (計画外追加)
-    - [x] `components/admin/vendor-list.tsx` のリファクタリング (計画外追加)
-    - [x] `components/admin/product-list.tsx` のリファクタリング
-    - [x] `components/admin/inventory-detail.tsx` のリファクタリング (計画外追加)
-    - [x] `components/admin/transaction-list.tsx` のリファクタリング (計画外追加)
-    - [x] `app/(admin)/admin/proxy-input/proxy-shop-interface.tsx` のリファクタリング (計画外追加)
-    - [x] `app/(admin)/admin/proxy-input/proxy-shop-content.tsx` のリファクタリング (計画外追加)
+## Phase 8: 自動テストの導入
+- [ ] **テスト環境の構築**
+    - [ ] Playwrightのインストールと設定
+    - [ ] `e2e` ディレクトリの作成
+    - [ ] テスト用DBデータのシードスクリプト作成
+- [ ] **E2Eテストの実装**
+    - [ ] Kioskモード: ログイン〜商品選択〜注文完了フロー
+    - [ ] Kioskモード: 返品フロー（在庫確認ダイアログ）
+    - [ ] 管理画面: 商品マスタのCRUD操作
+- [ ] **CI/CD準備**
+    - [ ] GitHub Actionsワークフローの作成（PR時にテスト実行）
 
+- [x] **ユーザーフィードバック対応 (2026-02-13)**
+    - [x] **Kioskヘッダー表示改善**: 作業モード選択画面で担当者名を表示する
+
+
+
+- [x] **ユーザーフィードバック対応 (2026-02-12)**
+    - [x] **数量選択ダイアログ改善**: 在庫超え防止、1箱/1巻のデフォルト化(VVF/IV)、表示の明確化（セット→箱/巻）
+    - [x] **カート表示改善**: 金額非表示化、サイドバー幅拡大、スクロール修正
+    - [x] **カート内数量・単位表示の改善**: 「1セット」→「合計: 50個」「100m」などの詳細表示を追加
+    - [x] **ヘッダー表示改善**: 担当者名の表示
+    - [x] **ダイアログ・確認画面の修正**: 合計点数→商品種類数への変更、金額非表示、自動ログアウト確認

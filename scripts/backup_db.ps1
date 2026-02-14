@@ -25,8 +25,25 @@ if (!(Test-Path $BackupFolder)) {
 
 # バックアップ実行
 try {
+    # .db ファイルコピー
     Copy-Item $SourceDB $BackupFile -Force
-    Write-Host "[$(Get-Date)] バックアップ完了: $BackupFile" -ForegroundColor Green
+    Write-Host "[$(Get-Date)] DB本体バックアップ完了: $BackupFile" -ForegroundColor Green
+
+    # WALファイル (.db-wal) のコピー
+    $SourceWal = "$SourceDB-wal"
+    if (Test-Path $SourceWal) {
+        $BackupWal = "$BackupFile-wal"
+        Copy-Item $SourceWal $BackupWal -Force
+        Write-Host "[$(Get-Date)] WALファイルバックアップ完了: $BackupWal" -ForegroundColor Green
+    }
+
+    # SHMファイル (.db-shm) のコピー
+    $SourceShm = "$SourceDB-shm"
+    if (Test-Path $SourceShm) {
+        $BackupShm = "$BackupFile-shm"
+        Copy-Item $SourceShm $BackupShm -Force
+        Write-Host "[$(Get-Date)] SHMファイルバックアップ完了: $BackupShm" -ForegroundColor Green
+    }
 }
 catch {
     Write-Error "バックアップ失敗: $_"
@@ -34,7 +51,8 @@ catch {
 }
 
 # 古いバックアップ削除（RetentionDays日以上前）
-$OldFiles = Get-ChildItem $BackupFolder -Filter "dev_*.db" | 
+# .db, .db-wal, .db-shm を対象にする
+$OldFiles = Get-ChildItem $BackupFolder -Include "dev_*.db", "dev_*.db-wal", "dev_*.db-shm" -Recurse | 
 Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-$RetentionDays) }
 
 if ($OldFiles.Count -gt 0) {
