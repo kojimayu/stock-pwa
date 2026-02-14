@@ -28,7 +28,14 @@ const nextConfig: NextConfig = {
     if (dev) {
       config.watchOptions = {
         ...config.watchOptions,
-        ignored: ["**/node_modules/**", "**/.git/**", "**/*.db", "**/*.db-journal"],
+        ignored: [
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/*.db",
+          "**/*.db-journal",
+          "**/*.db-wal",
+          "**/*.db-shm"
+        ],
       };
     }
     return config;

@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0 --webpack",
-    "build": "next build",
-    "start": "next start",
+    "build": "next build --webpack",
+    "start": "next start -H 0.0.0.0",
     "lint": "next lint",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
