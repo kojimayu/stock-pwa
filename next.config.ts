@@ -13,6 +13,8 @@ const pwaConfig = withPWA({
 });
 
 const nextConfig: NextConfig = {
+  // Use a separate distDir for tests to avoid lock conflicts with the main dev server
+  distDir: process.env.APP_ENV === "test" ? ".next-test" : ".next",
   logging: {
     fetches: {
       fullUrl: true,

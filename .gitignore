@@ -50,3 +50,18 @@ certificates
 # Ignore config dumps
 /config/*.txt
 /docs/stock-pwa/implementation_plan.md
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# WAL mode files
+*.db-shm
+*.db-wal
+
+# Test build
+.next-test/

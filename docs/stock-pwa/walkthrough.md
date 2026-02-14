@@ -1,57 +1,62 @@
-# 単位誤認防止対策の実装 (IV線・ビニールテープ)
+# 業者による返品・在庫確認機能の実装
 
-## 概要
-IV線1.6mmとビニールテープにおいて、システム上の在庫単位（個・m）と現場での持ち出し単位（箱・巻）の認識齟齬により在庫が合わなくなる問題を解決するため、マスタデータの整備とKiosk画面のUI改善を行いました。
+業者からの返品時に実在庫の確認を強制し、在庫の不整合をその場で補正する機能を実装しました。また、購入履歴に基づいた返品対象の選択機能を導入しました。
 
-## 実施内容
+## 主な変更内容
 
-### 1. マスタデータの整備
-以下の商品について、正しい単位と「箱入数 (QuantityPerBox)」を定義しました。
+### Kiosk UI
+- **返品モードの導入**: `ModeSelect` 画面に「部材返却・返品」ボタンを追加。モードに応じてヘッダーがオレンジ色に変化します。
+- [ShopInterface](file:///f:/Antigravity/stock-pwa/components/kiosk/shop-interface.tsx): 返品モード時は購入履歴がある商品のみを表示するように変更。
+- [InventoryCheckDialog](file:///f:/Antigravity/stock-pwa/components/kiosk/inventory-check-dialog.tsx) **[NEW]**: 返品確定時に表示されるダイアログ。現在の理論在庫と返品分を合わせた「期待在庫」を表示し、ユーザーに「実在庫（棚の数）」を入力させます。
 
-- **IV1.6ｍｍ (ID: 65)**
-    - 単位: `個` → **`m`**
-    - 箱入数: `1` → **`300`** (1巻 = 300m)
-- **ビニールテープ (ID: 66)**
-    - 単位: `個` → **`巻`**
-    - 箱入数: `1` → **`10`** (1箱 = 10巻)
+### バックエンド (Server Actions)
+- [return-actions.ts](file:///f:/Antigravity/stock-pwa/lib/return-actions.ts) **[NEW]**: 返品関連のロジックを集約しました。
+  - `getVendorPurchaseHistory`: 業者の過去の購入・返品履歴を集計。
+  - `getVendorReturnableProducts`: 履歴に基づき、返品可能な商品リストを抽出。
+  - `processVerifiedReturn`: 以下の処理を一括で行います：
+    1. 履歴チェック（正当な返品か）
+    2. 在庫加算（返品分）
+    3. **自動在庫調整**: 実在庫と期待在庫の差異がある場合、自動的に調整ログ(`ADJUSTMENT`)を作成し、在庫を修正。
+    4. 負の数量を持つ `Transaction` を作成。
 
-### 2. Kiosk UI (数量選択画面) の改善
-`QuantitySelectorDialog` を改修し、以下の機能を追加しました。
-
-- **単位の動的表示**: 商品マスタの `unit` 設定に基づき、「個」「m」「巻」などを正しく表示。
-- **具体的入数の提示**: 「箱」ボタンに具体的な内容量を表示（例: **「箱 (10巻入)」**）。
-- **在庫減算の注釈**: 「箱」選択時に、システム上の在庫からどれだけ減るかを明記（例: **「※在庫から 300m 減算されます」**）。
+### バグ修正と改善
+- `verifyPin` 時のフリーズ問題を解消するため、サーバープロセスを再起動し、ログ処理の非同期化を確認。
+- `ShopInterface` 等で発生していた `createdAt` / `updatedAt` の型不一致 (Date vs string) をシリアライズ処理により解消。
+- 管理画面の「代理入力」機能との型互換性を維持。
 
 ## 検証結果
-- [x] ビルドが正常に通ることを確認 (npm run build)
-    - ※ `npm run build` は Turbopack の問題で失敗する場合があるが、`npx tsc --noEmit` により型安全性を確認済み。
-    - 修正ファイル: `lib/actions.ts`, `prisma/seed.ts`, `app/api/access/route.ts` 等の型エラーを解消。
-- [x] マスタデータ更新スクリプト (`fix-product-units.js`) の正常実行を確認
-- [x] `QuantitySelectorDialog` のコードロジック確認
-    - `product.unit` が未定義の場合はデフォルト「個」を表示
-    - `quantityPerBox` が設定されている場合のみ「箱」ボタンが有効化
-    - 「箱」選択時の合計数量計算が正しいか (選択数量 × 箱入数)
 
-## 次のステップ
-- [ ] 現場での運用確認
-- [ ] 誤入力修正機能（取引編集）の実装へ移行
+- [x] **返品モードの切り替え**: モード選択画面から遷移し、UIがオレンジ色に変わることを確認。
+- [x] **履歴フィルタ**: その業者が購入したことのある商品のみが表示されることを確認。
+- [x] **在庫確認フロー**: 実際に個数を入力し、差異がある場合に `InventoryLog` に「棚卸」として調整が記録されることを確認。
+- [x] **二重返品の防止**: 購入数以上の返品を試みた際にエラーが出ることを確認。
 
-# 2026-02-10 実施内容 (ログ調査・検索改善・数量UI刷新)
+## 自動テスト (E2E) の導入
 
-## 1. 取引ログ調査 (Transaction #15)
-- **事象**: 特定の取引で数量修正が行われた形跡があり、詳細を調査。
-- **結果**: 過去のログ仕様（`date` vs `createdAt`）の違いによる確認ミスがあったが、修正スクリプト `scripts/check_log.js` により、正規の修正操作（1m → 300m への訂正）であることを確認。不具合ではないと判断。
+品質担保のため、Playwrightによる自動テスト環境を構築しました。
 
-## 2. 商品検索機能の改善 (`ProductSearchDialog`)
-- **課題**: 英字の大文字・小文字、全角・半角の違いにより検索ヒットしない問題があった。
-- **対応**: 検索キーワードと対象テキスト双方を正規化（小文字化・全角→半角変換）するロジックを実装。
-- **結果**: 「iv」「ＩＶ」「IV」いずれでもヒットするようになり、検索性が向上。
+### テスト実行方法
 
-## 3. 数量入力UIの刷新 (`QuantitySelectorDialog`)
-- **課題**: タブレット横画面での利用時、ソフトウェアキーボードが入力欄を隠してしまう問題。
-- **対応**: テキスト入力を廃止し、物理ボタンのみで完結するUIに変更。
-    - **ボタン配置**: `-10`, `-1`, `数量表示`, `+1`, `+10`
-    - **レイアウト**: 横一列の配置で、ボタンサイズを大きく (`h-16`) し、押しやすく改善。
-    - **視認性向上**: 数量表示を `text-7xl` (約72px) に拡大し、4桁表示 (`w-[280px]`) に対応。
-    - **UX改善**: 「カートに入れる」ボタンの幅を制限し、数量入力エリアを際立たせる視線誘導を採用。
+1.  テスト用DBの準備（初回のみ、またはリセット時）
+    ```bash
+    npm run db:test:push
+    npm run db:test:seed
+    ```
+2.  テス実行
+    ```bash
+    npm run test:e2e
+    ```
 
+### 実装済みのテストシナリオ
+- **Kioskログインフロー**: 業者選択 -> 担当者選択 -> PIN入力 -> モード選択画面への遷移を確認。
+
+---
+render_diffs(file:///f:/Antigravity/stock-pwa/lib/store.ts)
+render_diffs(file:///f:/Antigravity/stock-pwa/app/(kiosk)/mode-select/page.tsx)
+render_diffs(file:///f:/Antigravity/stock-pwa/components/kiosk/shop-interface.tsx)
+render_diffs(file:///f:/Antigravity/stock-pwa/components/kiosk/cart-sidebar.tsx)
+render_diffs(file:///f:/Antigravity/stock-pwa/lib/return-actions.ts)
+render_diffs(file:///f:/Antigravity/stock-pwa/components/kiosk/inventory-check-dialog.tsx)
+render_diffs(file:///f:/Antigravity/stock-pwa/app/(admin)/admin/proxy-input/page.tsx)
+render_diffs(file:///f:/Antigravity/stock-pwa/app/(admin)/admin/proxy-input/proxy-input-client.tsx)
+render_diffs(file:///f:/Antigravity/stock-pwa/app/(admin)/admin/proxy-input/proxy-shop-content.tsx)
