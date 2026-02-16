@@ -1,62 +1,56 @@
-# 業者による返品・在庫確認機能の実装
+# 実装完了：Kioskログイン不具合解消と本番環境の構築
 
-業者からの返品時に実在庫の確認を強制し、在庫の不整合をその場で補正する機能を実装しました。また、購入履歴に基づいた返品対象の選択機能を導入しました。
+## 実施した主な変更
 
-## 主な変更内容
+### 1. アプリケーションのフリーズ・リセット対策
+- **Hot Reloadの停止**: データベースの書き込みをNext.jsが「コード変更」と誤認して画面をリロードさせていた問題を、`next.config.ts` の監視対象外設定により解消しました。
+- **SQLite WALモード有効化**: 読み書きの競合を避けるため、高速な同時実行モードに変更しました。
+- **ログ処理の最適化**: ログイン時の不要なセッションチェックをスキップし、処理速度を大幅に向上させました。
 
-### Kiosk UI
-- **返品モードの導入**: `ModeSelect` 画面に「部材返却・返品」ボタンを追加。モードに応じてヘッダーがオレンジ色に変化します。
-- [ShopInterface](file:///f:/Antigravity/stock-pwa/components/kiosk/shop-interface.tsx): 返品モード時は購入履歴がある商品のみを表示するように変更。
-- [InventoryCheckDialog](file:///f:/Antigravity/stock-pwa/components/kiosk/inventory-check-dialog.tsx) **[NEW]**: 返品確定時に表示されるダイアログ。現在の理論在庫と返品分を合わせた「期待在庫」を表示し、ユーザーに「実在庫（棚の数）」を入力させます。
+### 2. 本番用ビルド（Production Mode）の整備
+- **`npm run start` の修正**: タブレットから外部アクセスできるよう `-H 0.0.0.0` を追加しました。
+- **ビルドエラーの解消**: Next.js 16のTurbopack競合（`--webpack` フラグ）と、補助スクリプトの型エラーを修正しました。
 
-### バックエンド (Server Actions)
-- [return-actions.ts](file:///f:/Antigravity/stock-pwa/lib/return-actions.ts) **[NEW]**: 返品関連のロジックを集約しました。
-  - `getVendorPurchaseHistory`: 業者の過去の購入・返品履歴を集計。
-  - `getVendorReturnableProducts`: 履歴に基づき、返品可能な商品リストを抽出。
-  - `processVerifiedReturn`: 以下の処理を一括で行います：
-    1. 履歴チェック（正当な返品か）
-    2. 在庫加算（返品分）
-    3. **自動在庫調整**: 実在庫と期待在庫の差異がある場合、自動的に調整ログ(`ADJUSTMENT`)を作成し、在庫を修正。
-    4. 負の数量を持つ `Transaction` を作成。
+### 3. 自動テスト環境の導入
+- **Playwrightの導入**: ログインフローを自動検証する環境を構築しました。
 
-### バグ修正と改善
-- `verifyPin` 時のフリーズ問題を解消するため、サーバープロセスを再起動し、ログ処理の非同期化を確認。
-- `ShopInterface` 等で発生していた `createdAt` / `updatedAt` の型不一致 (Date vs string) をシリアライズ処理により解消。
-- 管理画面の「代理入力」機能との型互換性を維持。
+## 運用マニュアル（停止と再起動）
 
-## 検証結果
+### サーバーを停止する場合
+ターミナル上で **`Ctrl + C`** を押してください。
 
-- [x] **返品モードの切り替え**: モード選択画面から遷移し、UIがオレンジ色に変わることを確認。
-- [x] **履歴フィルタ**: その業者が購入したことのある商品のみが表示されることを確認。
-- [x] **在庫確認フロー**: 実際に個数を入力し、差異がある場合に `InventoryLog` に「棚卸」として調整が記録されることを確認。
-- [x] **二重返品の防止**: 購入数以上の返品を試みた際にエラーが出ることを確認。
-
-## 自動テスト (E2E) の導入
-
-品質担保のため、Playwrightによる自動テスト環境を構築しました。
-
-### テスト実行方法
-
-1.  テスト用DBの準備（初回のみ、またはリセット時）
+### 再起動する場合
+1.  **通常（プログラム変更なし）**:
     ```bash
-    npm run db:test:push
-    npm run db:test:seed
+    npm run start
     ```
-2.  テス実行
+2.  **新機能追加や修正を行った後**:
+    一度ビルドし直す必要があります。
     ```bash
-    npm run test:e2e
+    npm run build
+    npm run start
     ```
 
-### 実装済みのテストシナリオ
-- **Kioskログインフロー**: 業者選択 -> 担当者選択 -> PIN入力 -> モード選択画面への遷移を確認。
+## ダッシュボードの改善 (2026-02-16)
+
+### 在庫アラート判定の厳格化
+ユーザーフィードバックに基づき、ダッシュボードの「在庫アラート」のロジックを調整しました。
+
+**変更前:**
+- 在庫数 <= 最低在庫数 でアラート表示（黄色）
+- 例: 最低在庫1個の設定で、在庫が1個ある場合もアラートが出ていた。
+
+**変更後:**
+- **在庫数 < 最低在庫数** （未満）でアラート表示
+- 例: 最低在庫1個の設定で、在庫が1個あればアラートは出ない。在庫が0個になった時点でアラートが出る。
+
+### 発注済み商品の除外
+「既に発注手配済みなのにアラートが出続けて目障り」という意見に基づき、以下の条件に合致する商品は**在庫アラートから除外**するようにしました。
+- 注文ステータスが **「発注済 (ORDERED)」** または **「一部入荷 (PARTIAL)」** の注文に含まれている商品
+
+これにより、最低在庫ギリギリで運用しているニッチな商品や、手配済みの商品がアラート表示されるノイズを防ぎ、本当に補充が必要なタイミングでのみ警告が出るようになりました。
+「在庫切れ（0個）」のアラート（赤色）は従来通り最優先で表示されます。
 
 ---
-render_diffs(file:///f:/Antigravity/stock-pwa/lib/store.ts)
-render_diffs(file:///f:/Antigravity/stock-pwa/app/(kiosk)/mode-select/page.tsx)
-render_diffs(file:///f:/Antigravity/stock-pwa/components/kiosk/shop-interface.tsx)
-render_diffs(file:///f:/Antigravity/stock-pwa/components/kiosk/cart-sidebar.tsx)
-render_diffs(file:///f:/Antigravity/stock-pwa/lib/return-actions.ts)
-render_diffs(file:///f:/Antigravity/stock-pwa/components/kiosk/inventory-check-dialog.tsx)
-render_diffs(file:///f:/Antigravity/stock-pwa/app/(admin)/admin/proxy-input/page.tsx)
-render_diffs(file:///f:/Antigravity/stock-pwa/app/(admin)/admin/proxy-input/proxy-input-client.tsx)
-render_diffs(file:///f:/Antigravity/stock-pwa/app/(admin)/admin/proxy-input/proxy-shop-content.tsx)
+> [!IMPORTANT]
+> 日常的な運用（朝の立ち上げなど）では、**`npm run start`** だけで問題ありません。

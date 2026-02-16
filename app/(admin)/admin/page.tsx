@@ -8,20 +8,41 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 // 材料の発注アラート情報を取得
+// 材料の発注アラート情報を取得
+// 材料の発注アラート情報を取得
 async function getLowStockMaterials() {
-    // 在庫 <= 最低在庫 の材料を取得（最低在庫が0の物は除外）
-    const lowStockProducts = await prisma.product.findMany({
+    // 1. 最低在庫設定がある商品をすべて取得
+    // ※Prismaで「カラム同士の比較(stock < minStock)」は直接できないため、JS側でフィルタリングする
+    const candidates = await prisma.product.findMany({
         where: {
-            minStock: { gt: 0 }, // 最低在庫が設定されている商品のみ
-            stock: { lte: prisma.product.fields.minStock }
+            minStock: { gt: 0 }
+        },
+        include: {
+            // 発注済みチェック用: ORDEREDかPARTIALの注文が含まれているか
+            orderItems: {
+                where: {
+                    order: {
+                        status: { in: ["ORDERED", "PARTIAL"] }
+                    }
+                },
+                select: { id: true } // 存在確認だけで良いのでIDのみ取得
+            }
         },
         orderBy: [
-            { stock: 'asc' }, // 在庫が少ない順
+            { stock: 'asc' },
             { name: 'asc' }
-        ],
-        take: 20
+        ]
     });
-    return lowStockProducts;
+
+    // 2. フィルタリング (在庫切れ or 最低在庫未満 どちらも対象)
+    // ・在庫 < 最低在庫
+    // ・かつ、発注済み(orderItems)がない
+    const lowStockProducts = candidates.filter(p =>
+        p.stock < p.minStock && p.orderItems.length === 0
+    );
+
+    // 3. 表示上限
+    return lowStockProducts.slice(0, 20);
 }
 
 // エアコン関連の統計を取得
@@ -71,7 +92,7 @@ export default async function AdminDashboardPage() {
 
     // 発注が必要な材料（在庫0）
     const criticalMaterials = lowStockMaterials.filter(p => p.stock === 0);
-    // 在庫が少ない材料（在庫 > 0 だが minStock 以下）
+    // 在庫が少ない材料（在庫 > 0 だが minStock 未満）
     const warningMaterials = lowStockMaterials.filter(p => p.stock > 0);
 
     return (
@@ -107,7 +128,7 @@ export default async function AdminDashboardPage() {
                         <div className={`text-2xl font-bold ${warningMaterials.length > 0 ? "text-amber-600" : ""}`}>
                             {warningMaterials.length}
                         </div>
-                        <p className="text-xs text-muted-foreground">最低在庫以下の材料</p>
+                        <p className="text-xs text-muted-foreground">最低在庫未満の材料</p>
                     </CardContent>
                 </Card>
 
@@ -199,7 +220,7 @@ export default async function AdminDashboardPage() {
                             <TrendingDown className="w-5 h-5" />
                             在庫が少なくなっている材料
                         </CardTitle>
-                        <CardDescription>在庫が最低在庫数以下の材料です。発注を検討してください。</CardDescription>
+                        <CardDescription>在庫が最低在庫数未満の材料です。発注を検討してください。</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <Table>
@@ -306,7 +327,7 @@ export default async function AdminDashboardPage() {
                                     <TableHead>品番</TableHead>
                                 </TableRow>
                             </TableHeader>
-                            < TableBody >
+                            <TableBody >
                                 {
                                     airconStats.recentAirconLogs.map((log: any) => (
                                         <TableRow key={log.id} className={log.isReturned ? "bg-red-50 hover:bg-red-100" : ""}>
