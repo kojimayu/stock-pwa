@@ -177,17 +177,45 @@ export default function AirconPage() {
                                 <CardTitle className="text-sm">管理No検索</CardTitle>
                             </CardHeader>
                             <CardContent className="px-3 pb-3 pt-0">
-                                <div className="flex gap-2">
-                                    <Input
-                                        placeholder="6桁の管理No"
-                                        value={managementNo}
-                                        onChange={(e) => setManagementNo(e.target.value)}
-                                        className="text-xl h-12 font-mono"
-                                        type="tel"
-                                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                                    />
-                                    <Button onClick={handleSearch} disabled={loading} className="h-12 px-4">
-                                        {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder="6桁の管理No"
+                                            value={managementNo}
+                                            onChange={(e) => setManagementNo(e.target.value)}
+                                            className="text-xl h-12 font-mono"
+                                            type="tel"
+                                            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                                            disabled={loading || managementNo === "INTERNAL"}
+                                        />
+                                        <Button onClick={handleSearch} disabled={loading || managementNo === "INTERNAL"} className="h-12 px-4">
+                                            {loading ? <Loader2 className="animate-spin w-5 h-5" /> : <Search className="w-5 h-5" />}
+                                        </Button>
+                                    </div>
+
+                                    {/* 予備（自社在庫）ボタン */}
+                                    <Button
+                                        variant={managementNo === "INTERNAL" ? "secondary" : "outline"}
+                                        onClick={() => {
+                                            if (managementNo === "INTERNAL") {
+                                                // 解除
+                                                setManagementNo("");
+                                                setJobInfo(null);
+                                            } else {
+                                                // 設定
+                                                setManagementNo("INTERNAL");
+                                                setJobInfo({
+                                                    管理No: "INTERNAL",
+                                                    顧客名: "自社在庫(予備)",
+                                                    SubContractor: "自社在庫",
+                                                    PrimeContractor: "自社在庫"
+                                                });
+                                                toast.success("自社在庫モードに切り替えました");
+                                            }
+                                        }}
+                                        className={`w-full text-sm border-dashed ${managementNo === "INTERNAL" ? "bg-slate-200 border-slate-400" : "text-slate-500 hover:text-slate-700"}`}
+                                    >
+                                        {managementNo === "INTERNAL" ? "通常モードに戻す" : "管理Noなし（予備・自社在庫）として登録"}
                                     </Button>
                                 </div>
                             </CardContent>

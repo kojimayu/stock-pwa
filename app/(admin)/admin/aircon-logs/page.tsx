@@ -220,7 +220,13 @@ export default function AirconLogsPage() {
                                     <TableRow key={log.id} className={log.isReturned ? "bg-green-50" : ""}>
                                         <TableCell className="text-sm">{formatDate(new Date(log.createdAt))}</TableCell>
                                         <TableCell className="font-medium">{log.vendor.name}</TableCell>
-                                        <TableCell>{log.managementNo}</TableCell>
+                                        <TableCell>
+                                            {log.managementNo === "INTERNAL" ? (
+                                                <Badge variant="secondary" className="bg-slate-200 text-slate-700">自社在庫</Badge>
+                                            ) : (
+                                                log.managementNo
+                                            )}
+                                        </TableCell>
                                         <TableCell>{log.customerName || "-"}</TableCell>
                                         <TableCell className="font-mono bg-slate-100 rounded px-1">{log.modelNumber}</TableCell>
                                         <TableCell className="text-center">
