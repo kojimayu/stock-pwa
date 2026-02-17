@@ -151,6 +151,7 @@ model AirConditionerLog {
   modelNumber     String
   vendorId        Int
   vendorUserId    Int?
+  type            String         @default("SET") // SET, INDOOR, OUTDOOR
   airconProductId Int?
   isReturned      Boolean        @default(false)
   returnedAt      DateTime?
