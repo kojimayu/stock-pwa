@@ -47,7 +47,7 @@
     - [x] **3カラムレイアウト化**: カテゴリー大・中・小を統合(左)、商品(中央)、カート常時表示(右)へ変更。
         - [x] Create `MergedCategoryList` (Tree View)
         - [x] **Material Unit**: Clarify unit (individual vs rolls) in history.
-        - [x] **Tablet Layout**: Fix narrow column for products on vendor screen.
+        - [x] **Tablet Layout**: Collapsible category sidebar + Persistent cart.
         - [x] **Test Env**: Fix 3001 port issues (PIN prompt, All vendors shown).
         - [ ] **Duplicate Check**: Prevent double checkout of same management number.
         - [x] Create `CartSidebar` (Persistent)

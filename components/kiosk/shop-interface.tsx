@@ -55,6 +55,9 @@ export function ShopInterface({
     const [searchQuery, setSearchQuery] = useState("");
     const [isListening, setIsListening] = useState(false);
 
+    // Sidebar State
+    const [isCategoryOpen, setIsCategoryOpen] = useState(true);
+
     // Return Mode State
     const [returnableProducts, setReturnableProducts] = useState<Product[]>([]);
     const [isLoadingReturnables, setIsLoadingReturnables] = useState(false);
@@ -292,32 +295,47 @@ export function ShopInterface({
                    Left Column: Category Tree (Desktop Only)
                    ===============================================
                 */}
-                <aside className="hidden md:block w-72 bg-white border-r fixed left-0 top-[60px] bottom-0 z-30 overflow-y-auto">
-                    <MergedCategoryList
-                        products={activeProducts}
-                        selectedCategory={selectedCategory}
-                        selectedSubCategory={selectedSubCategory}
-                        selectedProductType={selectedProductType}
-                        onSelectCategory={setSelectedCategory}
-                        onSelectSubCategory={setSelectedSubCategory}
-                        onSelectProductType={setSelectedProductType}
-                    />
-                    <div className="p-4 border-t bg-slate-50 sticky bottom-0">
-                        <ManualProductSheet trigger={
-                            <Button className="w-full h-12 bg-slate-800 text-white hover:bg-slate-700 font-bold shadow-sm">
-                                <Plus className="w-5 h-5 mr-2" />
-                                手入力商品
-                            </Button>
-                        } />
+                <aside
+                    className={`hidden md:block bg-white border-r fixed left-0 top-[60px] bottom-0 z-30 overflow-y-auto transition-all duration-300 ${isCategoryOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 overflow-hidden border-none'}`}
+                >
+                    <div className="w-72">
+                        <MergedCategoryList
+                            products={activeProducts}
+                            selectedCategory={selectedCategory}
+                            selectedSubCategory={selectedSubCategory}
+                            selectedProductType={selectedProductType}
+                            onSelectCategory={setSelectedCategory}
+                            onSelectSubCategory={setSelectedSubCategory}
+                            onSelectProductType={setSelectedProductType}
+                        />
+                        <div className="p-4 border-t bg-slate-50 sticky bottom-0">
+                            <ManualProductSheet trigger={
+                                <Button className="w-full h-12 bg-slate-800 text-white hover:bg-slate-700 font-bold shadow-sm">
+                                    <Plus className="w-5 h-5 mr-2" />
+                                    手入力商品
+                                </Button>
+                            } />
+                        </div>
                     </div>
                 </aside>
+
+                {/* Sidebar Toggle Button (Floating) */}
+                <button
+                    onClick={() => setIsCategoryOpen(!isCategoryOpen)}
+                    className={`hidden md:flex items-center justify-center fixed bottom-6 left-6 z-40 bg-slate-900 text-white w-12 h-12 rounded-full shadow-lg transition-all duration-300 hover:bg-slate-800 ${isCategoryOpen ? 'translate-x-64' : 'translate-x-0'}`}
+                    title={isCategoryOpen ? "カテゴリーを閉じる" : "カテゴリーを開く"}
+                >
+                    {isCategoryOpen ? <ChevronLeft className="w-6 h-6" /> : <Search className="w-6 h-6" />}
+                </button>
 
                 {/* 
                    ===============================================
                    Center Column: Product List
                    ===============================================
                 */}
-                <main className={`flex-1 flex flex-col md:ml-72 lg:mr-[400px] min-w-0 ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                <main
+                    className={`flex-1 flex flex-col transition-all duration-300 min-w-0 ${isCategoryOpen ? 'md:ml-72' : 'md:ml-0'} md:mr-[400px] ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}
+                >
 
                     {/* Mobile Filters */}
                     <div className="md:hidden sticky top-[60px] z-30 bg-slate-50 border-b shadow-sm">
@@ -382,17 +400,17 @@ export function ShopInterface({
 
                 {/* 
                    ===============================================
-                   Right Column: Persistent Cart (Desktop Only -> Large Desktop Only)
+                   Right Column: Persistent Cart (Desktop Only)
                    ===============================================
                 */}
-                <aside className="hidden lg:block w-[400px] bg-white border-l fixed right-0 top-[60px] bottom-0 z-30">
+                <aside className="hidden md:block w-[400px] bg-white border-l fixed right-0 top-[60px] bottom-0 z-30">
                     <CartSidebar />
                 </aside>
 
             </div>
 
-            {/* Mobile/Tablet Footer Cart Summary (Hidden on Large Desktop) */}
-            <div className="lg:hidden">
+            {/* Mobile Footer Cart Summary (Mobile Only) */}
+            <div className="md:hidden">
                 <CartSummary />
             </div>
         </div>
