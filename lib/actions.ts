@@ -1680,6 +1680,53 @@ export async function updateInventoryItem(itemId: number, actualStock: number) {
     // No log here, only on finalize
 }
 
+// Vendor Aircon Stock (Dashboard)
+export async function getVendorAirconStock() {
+    // 持ち出し中で返却されていないエアコンを取得
+    const logs = await prisma.airConditionerLog.findMany({
+        where: {
+            isReturned: false,
+        },
+        include: {
+            vendor: true,
+            vendorUser: true,
+            airconProduct: true,
+        },
+        orderBy: {
+            vendorId: 'asc',
+        }
+    });
+
+    // 業者ごとに集計
+    const vendorStock = new Map<number, {
+        vendor: { id: number; name: string };
+        items: typeof logs;
+        summary: { set: number; indoor: number; outdoor: number; total: number };
+    }>();
+
+    for (const log of logs) {
+        if (!vendorStock.has(log.vendorId)) {
+            vendorStock.set(log.vendorId, {
+                vendor: log.vendor,
+                items: [],
+                summary: { set: 0, indoor: 0, outdoor: 0, total: 0 }
+            });
+        }
+
+        const entry = vendorStock.get(log.vendorId)!;
+        entry.items.push(log);
+
+        // 集計
+        const type = (log.type || 'SET') as 'SET' | 'INDOOR' | 'OUTDOOR';
+        if (type === 'SET') entry.summary.set++;
+        else if (type === 'INDOOR') entry.summary.indoor++;
+        else if (type === 'OUTDOOR') entry.summary.outdoor++;
+        entry.summary.total++;
+    }
+
+    return Array.from(vendorStock.values());
+}
+
 export async function finalizeInventory(id: number) {
     try {
         const result = await prisma.$transaction(async (tx) => {

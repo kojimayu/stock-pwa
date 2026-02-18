@@ -4,12 +4,15 @@ import { prisma } from '@/lib/prisma';
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+        console.log("Transaction Request Body:", JSON.stringify(body, null, 2)); // Debug log
         const {
             managementNo,
             customerName,
             contractor,
             items, // 品番の配列
-            vendorId
+            vendorId,
+            vendorUserId, // Added: Handle vendorUserId from request
+            type = 'SET'  // Added: Default type to 'SET'
         } = body;
 
         if (!managementNo || !items || !Array.isArray(items) || items.length === 0 || !vendorId) {
@@ -47,12 +50,14 @@ export async function POST(request: Request) {
                         modelNumber,
                         vendorId: Number(vendorId),
                         airconProductId: airconProduct?.id || null, // 商品紐付け
+                        vendorUserId: vendorUserId ? Number(vendorUserId) : null, // Added: Save vendorUserId
+                        type: type // Added: Save type
                     },
                 });
                 logs.push(log);
 
                 // 在庫がある場合は減算
-                if (airconProduct && airconProduct.stock > 0) {
+                if (airconProduct) {
                     await tx.airconProduct.update({
                         where: { id: airconProduct.id },
                         data: { stock: { decrement: 1 } }

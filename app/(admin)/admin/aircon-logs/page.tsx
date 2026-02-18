@@ -30,6 +30,10 @@ type LogEntry = {
     vendor: {
         name: string;
     };
+    vendorUser?: {
+        name: string;
+    };
+    type: string;
 };
 
 export default function AirconLogsPage() {
@@ -218,8 +222,21 @@ export default function AirconLogsPage() {
                             ) : (
                                 filteredLogs.map((log) => (
                                     <TableRow key={log.id} className={log.isReturned ? "bg-green-50" : ""}>
-                                        <TableCell className="text-sm">{formatDate(new Date(log.createdAt))}</TableCell>
-                                        <TableCell className="font-medium">{log.vendor.name}</TableCell>
+                                        <TableCell className="text-sm">
+                                            {formatDate(new Date(log.createdAt))}
+                                            <div className="text-xs text-slate-500 mt-0.5">
+                                                {log.type === 'INDOOR' && <Badge variant="outline" className="scale-90 origin-left">内機</Badge>}
+                                                {log.type === 'OUTDOOR' && <Badge variant="outline" className="scale-90 origin-left">外機</Badge>}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="font-medium">{log.vendor.name}</div>
+                                            {log.vendorUser && (
+                                                <div className="text-xs text-slate-500">
+                                                    (担) {log.vendorUser.name}
+                                                </div>
+                                            )}
+                                        </TableCell>
                                         <TableCell>
                                             {log.managementNo === "INTERNAL" ? (
                                                 <Badge variant="secondary" className="bg-slate-200 text-slate-700">自社在庫</Badge>

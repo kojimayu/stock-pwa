@@ -36,14 +36,21 @@
 - **Backend (`lib/actions.ts`)**
     - `createAirConditionerLog` 関数に `type: string` 引数を追加（'SET', 'INDOOR', 'OUTDOOR'）。
 
-### 4. 業者別予備在庫ダッシュボード
-- **Backend (`lib/actions.ts`)**
-    - `getVendorAirconStock()` 関数を作成。
-    - `AirConditionerLog` から `isReturned: false` のレコードを全取得し、`vendorId` ごとに集計・グループ化して返す。
-- **Frontend (Admin)**
-    - `app/(admin)/admin/aircon-stock/page.tsx` を新規作成。
-    - 業者ごとにアコーディオンまたはカード形式で、現在持ち出し中のエアコン一覧（管理No、機種データ、区分、日付）を表示。
-    - 「自社在庫 (INTERNAL)」や「手動入力」分もここで確認できるようにする。
+    - `app/(admin)/admin/aircon-inventory/page.tsx` を改修し、業者在庫と合算した総在庫を表示。
+    - **Backend (`lib/aircon-actions.ts`)**
+        - `getAirconStockWithVendorBreakdown` を修正。
+        - 業者在庫の定義を変更: `managementNo` が `null` (または空) の未返却レコードのみを集計対象とする。
+    - **Database Schema**:
+        - `AirConditionerLog` の `managementNo` を `String?` (Optional) に変更。
+        - 既存のデータはそのまま維持（管理番号あり＝案件紐づき＝業者在庫ではない）。
+    - **UIデザイン**:
+        - テーブルのカラム構成を変更:
+            - ベースコード (RAS-AJ22等)
+            - 倉庫在庫 (現在の `stock`)
+            - 業者在庫 (各業者の持出数合計)
+            - 総在庫 (倉庫 + 業者)
+            - 詳細 (クリック/ホバーで「A社: 2台, B社: 1台」の内訳を表示)
+    - ※ `app/(admin)/admin/aircon-stock/page.tsx` は廃止または統合。
 
 ## 検証計画
 ### 手動検証

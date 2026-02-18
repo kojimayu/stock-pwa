@@ -26,6 +26,7 @@ interface AccessJobInfo {
 export default function AirconPage() {
     const router = useRouter();
     const vendor = useCartStore((state) => state.vendor);
+    const vendorUser = useCartStore((state) => state.vendorUser);
 
     const [managementNo, setManagementNo] = useState("");
     const [jobInfo, setJobInfo] = useState<AccessJobInfo | null>(null);
@@ -34,6 +35,7 @@ export default function AirconPage() {
     const [manualInputModel, setManualInputModel] = useState("");
     const [isManualInput, setIsManualInput] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [selectedType, setSelectedType] = useState<"SET" | "INDOOR" | "OUTDOOR">("SET");
 
     useEffect(() => {
         if (!vendor) {
@@ -74,7 +76,7 @@ export default function AirconPage() {
     };
 
     const addItem = (model: string) => {
-        setSelectedItems((prev) => [...prev, model]);
+        setSelectedItems((prev) => [...prev, JSON.stringify({ model, type: selectedType })]);
     };
 
     const removeItem = (index: number) => {
@@ -86,25 +88,44 @@ export default function AirconPage() {
 
         setSaving(true);
         try {
-            const res = await fetch("/api/aircon/transaction", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    managementNo: String(jobInfo.管理No),
-                    customerName: jobInfo.顧客名,
-                    contractor: jobInfo.SubContractor || jobInfo.PrimeContractor,
-                    items: selectedItems,
-                    vendorId: vendor.id,
-                }),
-            });
-            const data = await res.json();
+            const parsedItems = selectedItems.map(item => JSON.parse(item));
 
-            if (res.ok && data.success) {
-                toast.success(`${data.count}件の持出しを記録しました`);
+            const itemsByType: Record<string, string[]> = {};
+            parsedItems.forEach(({ model, type }) => {
+                if (!itemsByType[type]) itemsByType[type] = [];
+                itemsByType[type].push(model);
+            });
+
+            let totalCount = 0;
+            for (const [type, models] of Object.entries(itemsByType)) {
+                const res = await fetch("/api/aircon/transaction", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        managementNo: String(jobInfo.管理No),
+                        customerName: jobInfo.顧客名,
+                        contractor: jobInfo.SubContractor || jobInfo.PrimeContractor,
+                        items: models,
+                        vendorId: vendor.id,
+                        vendorUserId: vendorUser?.id,
+                        type: type
+                    }),
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    totalCount += data.count;
+                } else {
+                    console.error(`Failed for type ${type}`, data);
+                }
+            }
+
+            if (totalCount > 0) {
+                toast.success(`${totalCount}件の持出しを記録しました`);
                 router.push("/mode-select");
             } else {
-                toast.error(`保存に失敗しました: ${data.details || data.error || "不明なエラー"}`);
+                toast.error("保存に失敗しました");
             }
+
         } catch (e) {
             toast.error("システムエラー");
         } finally {
@@ -137,9 +158,10 @@ export default function AirconPage() {
         { label: "3.6kw", model: "RAS-AJ3625S" },
     ];
 
+    const parseItem = (jsonStr: string) => JSON.parse(jsonStr) as { model: string, type: 'SET' | 'INDOOR' | 'OUTDOOR' };
+
     return (
         <div className="h-screen bg-slate-100 flex flex-col overflow-hidden">
-            {/* Header */}
             <header className="bg-slate-900 text-white px-4 py-2 flex items-center justify-between flex-shrink-0">
                 <Button variant="ghost" size="sm" className="text-white h-10 px-3" onClick={() => router.push("/mode-select")}>
                     <ChevronLeft className="w-5 h-5 mr-1" />
@@ -165,13 +187,10 @@ export default function AirconPage() {
                 </div>
             </header>
 
-            {/* Main - 2カラムレイアウト */}
             <main className="flex-1 p-2 overflow-hidden">
                 <div className="h-full grid grid-cols-2 gap-2">
 
-                    {/* ===== 左カラム: 検索 + 物件情報 ===== */}
                     <div className="flex flex-col gap-2 min-h-0">
-                        {/* 検索セクション */}
                         <Card className="flex-shrink-0">
                             <CardHeader className="py-2 px-3">
                                 <CardTitle className="text-sm">管理No検索</CardTitle>
@@ -193,16 +212,13 @@ export default function AirconPage() {
                                         </Button>
                                     </div>
 
-                                    {/* 予備（自社在庫）ボタン */}
                                     <Button
                                         variant={managementNo === "INTERNAL" ? "secondary" : "outline"}
                                         onClick={() => {
                                             if (managementNo === "INTERNAL") {
-                                                // 解除
                                                 setManagementNo("");
                                                 setJobInfo(null);
                                             } else {
-                                                // 設定
                                                 setManagementNo("INTERNAL");
                                                 setJobInfo({
                                                     管理No: "INTERNAL",
@@ -221,7 +237,6 @@ export default function AirconPage() {
                             </CardContent>
                         </Card>
 
-                        {/* 物件情報 */}
                         <Card className={`flex-1 min-h-0 overflow-auto ${jobInfo ? 'border-blue-300 bg-blue-50' : ''}`}>
                             <CardHeader className="py-2 px-3">
                                 <CardTitle className="text-sm">物件情報</CardTitle>
@@ -257,10 +272,8 @@ export default function AirconPage() {
                         </Card>
                     </div>
 
-                    {/* ===== 右カラム: 持出しリスト + 機種選択 + 確定ボタン ===== */}
                     <div className={`flex flex-col gap-2 min-h-0 ${!jobInfo ? 'opacity-40 pointer-events-none' : ''}`}>
 
-                        {/* 持出しリスト */}
                         <Card className="flex-1 min-h-0 flex flex-col">
                             <CardHeader className="py-2 px-3 flex-shrink-0 border-b flex flex-row items-center justify-between">
                                 <CardTitle className="text-sm">持出しリスト</CardTitle>
@@ -275,28 +288,52 @@ export default function AirconPage() {
                                     </div>
                                 ) : (
                                     <ul className="space-y-1">
-                                        {selectedItems.map((item, index) => (
-                                            <li key={index} className="flex justify-between items-center bg-slate-50 border p-2 rounded">
-                                                <span className="font-mono font-medium">{item}</span>
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() => removeItem(index)}
-                                                    className="h-7 px-2"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
-                                            </li>
-                                        ))}
+                                        {selectedItems.map((itemStr, index) => {
+                                            const item = parseItem(itemStr);
+                                            return (
+                                                <li key={index} className="flex justify-between items-center bg-slate-50 border p-2 rounded">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`text-[10px] px-1 rounded border ${item.type === 'SET' ? 'bg-slate-100 text-slate-600 border-slate-300' :
+                                                                item.type === 'INDOOR' ? 'bg-blue-100 text-blue-600 border-blue-300' :
+                                                                    'bg-orange-100 text-orange-600 border-orange-300'
+                                                            }`}>
+                                                            {item.type === 'SET' ? 'セット' : item.type === 'INDOOR' ? '内機' : '外機'}
+                                                        </span>
+                                                        <span className="font-mono font-medium">{item.model}</span>
+                                                    </div>
+                                                    <Button
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => removeItem(index)}
+                                                        className="h-7 px-2"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 )}
                             </CardContent>
                         </Card>
 
-                        {/* 機種選択ボタン */}
                         <Card className="flex-shrink-0">
-                            <CardHeader className="py-2 px-3">
+                            <CardHeader className="py-2 px-3 flex flex-row items-center justify-between">
                                 <CardTitle className="text-sm">機種選択</CardTitle>
+                                <div className="flex bg-slate-100 rounded p-1">
+                                    {(['SET', 'INDOOR', 'OUTDOOR'] as const).map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setSelectedType(t)}
+                                            className={`px-3 py-1 text-xs font-bold rounded transition-colors ${selectedType === t
+                                                    ? 'bg-white shadow text-slate-900'
+                                                    : 'text-slate-400 hover:text-slate-600'
+                                                }`}
+                                        >
+                                            {t === 'SET' ? 'セット' : t === 'INDOOR' ? '内機' : '外機'}
+                                        </button>
+                                    ))}
+                                </div>
                             </CardHeader>
                             <CardContent className="px-3 pb-3 pt-0 space-y-2">
                                 <div className="grid grid-cols-4 gap-2">
@@ -304,7 +341,9 @@ export default function AirconPage() {
                                         <Button
                                             key={p.model}
                                             variant="outline"
-                                            className="h-12 text-sm font-bold flex flex-col gap-0 hover:bg-blue-50 hover:border-blue-400"
+                                            className={`h-12 text-sm font-bold flex flex-col gap-0 hover:bg-blue-50 hover:border-blue-400 ${selectedType === 'INDOOR' ? 'border-blue-200 bg-blue-50/50' :
+                                                    selectedType === 'OUTDOOR' ? 'border-orange-200 bg-orange-50/50' : ''
+                                                }`}
                                             onClick={() => addItem(p.model)}
                                             disabled={!jobInfo}
                                         >
@@ -313,7 +352,6 @@ export default function AirconPage() {
                                     ))}
                                 </div>
 
-                                {/* 手動入力 */}
                                 {isManualInput ? (
                                     <div className="flex gap-2">
                                         <Input
@@ -358,7 +396,6 @@ export default function AirconPage() {
                             </CardContent>
                         </Card>
 
-                        {/* 確定ボタン */}
                         <Button
                             className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 flex-shrink-0 shadow-lg"
                             onClick={handleSubmit}

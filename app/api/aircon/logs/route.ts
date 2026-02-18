@@ -9,6 +9,9 @@ export async function GET() {
                 vendor: {
                     select: { name: true }
                 },
+                vendorUser: { // Added: Include vendorUser name
+                    select: { name: true }
+                }
             },
             take: 500, // 最大500件
         });

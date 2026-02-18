@@ -3,15 +3,48 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-// エアコン商品一覧取得
-export async function getAirconProducts() {
-    return prisma.airconProduct.findMany({
+// エアコン商品一覧取得（業者保有在庫つき）
+export async function getAirconStockWithVendorBreakdown() {
+    const products = await prisma.airconProduct.findMany({
         orderBy: { code: "asc" },
         include: {
             _count: {
                 select: { orderItems: true }
+            },
+            logs: {
+                where: {
+                    isReturned: false,
+                    managementNo: null // 管理番号がないもの＝業者在庫
+                },
+                include: { vendor: true }
             }
         }
+    });
+
+    // 業者保有在庫の集計を行う
+    return products.map(product => {
+        const vendorStockMap = new Map<number, { id: number, name: string, count: number }>();
+        let totalVendorStock = 0;
+
+        product.logs.forEach(log => {
+            if (!log.vendor) return;
+            const vendorId = log.vendor.id;
+            if (!vendorStockMap.has(vendorId)) {
+                vendorStockMap.set(vendorId, { id: vendorId, name: log.vendor.name, count: 0 });
+            }
+            vendorStockMap.get(vendorId)!.count++;
+            totalVendorStock++;
+        });
+
+        const vendorBreakdown = Array.from(vendorStockMap.values()).sort((a, b) => b.count - a.count);
+
+        return {
+            ...product,
+            logs: undefined, // フロントエンドには渡さない
+            vendorStock: totalVendorStock,
+            totalStock: product.stock + totalVendorStock,
+            vendorBreakdown
+        };
     });
 }
 

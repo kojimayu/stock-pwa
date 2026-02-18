@@ -145,7 +145,7 @@ model OrderItem {
 
 model AirConditionerLog {
   id              Int            @id @default(autoincrement())
-  managementNo    String
+  managementNo    String?
   customerName    String?
   contractor      String?
   modelNumber     String

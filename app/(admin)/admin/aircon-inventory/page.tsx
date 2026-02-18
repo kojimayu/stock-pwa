@@ -12,13 +12,25 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Plus, Minus, AlertTriangle, Package, Save } from "lucide-react";
+import { Plus, Minus, AlertTriangle, Package, Save, Info, Truck, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import {
-    getAirconProducts,
+    getAirconStockWithVendorBreakdown,
     updateAirconStock,
     updateAirconProductSuffix,
 } from "@/lib/aircon-actions";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+
+type VendorStockBreakdown = {
+    id: number;
+    name: string;
+    count: number;
+};
 
 type AirconProduct = {
     id: number;
@@ -26,8 +38,11 @@ type AirconProduct = {
     name: string;
     capacity: string;
     suffix: string;
-    stock: number;
+    stock: number; // 倉庫在庫
+    vendorStock: number; // 業者在庫
+    totalStock: number; // 総在庫
     minStock: number;
+    vendorBreakdown: VendorStockBreakdown[];
 };
 
 export default function AirconInventoryPage() {
@@ -42,7 +57,7 @@ export default function AirconInventoryPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const prods = await getAirconProducts();
+            const prods = await getAirconStockWithVendorBreakdown(); // Updated function
             setProducts(prods);
             // 初期サフィックス値をセット
             const suffixMap: Record<number, string> = {};
@@ -82,8 +97,11 @@ export default function AirconInventoryPage() {
         }
     };
 
-    const totalStock = products.reduce((acc, p) => acc + p.stock, 0);
-    const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
+    // 統計計算
+    const totalWarehouseStock = products.reduce((acc, p) => acc + p.stock, 0);
+    const totalVendorStock = products.reduce((acc, p) => acc + p.vendorStock, 0);
+    const grandTotalStock = totalWarehouseStock + totalVendorStock;
+    const lowStockCount = products.filter((p) => p.totalStock <= p.minStock).length; // アラート基準は総在庫とするか倉庫在庫とするか要検討だが、一旦総在庫で
 
     return (
         <div className="space-y-6">
@@ -95,22 +113,33 @@ export default function AirconInventoryPage() {
             </div>
 
             {/* 統計カード */}
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card>
+            <div className="grid gap-4 md:grid-cols-4">
+                <Card className="bg-slate-50 border-slate-200">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">総在庫</CardTitle>
-                        <Package className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className="text-sm font-medium">総資産台数</CardTitle>
+                        <Package className="h-4 w-4 text-slate-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{totalStock} 台</div>
+                        <div className="text-2xl font-bold">{grandTotalStock} 台</div>
+                        <p className="text-xs text-muted-foreground">倉庫 + 業者持出</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">登録機種</CardTitle>
+                        <CardTitle className="text-sm font-medium">倉庫在庫</CardTitle>
+                        <Building2 className="h-4 w-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{products.length} 機種</div>
+                        <div className="text-2xl font-bold">{totalWarehouseStock} 台</div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">業者持出中</CardTitle>
+                        <Truck className="h-4 w-4 text-orange-500" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{totalVendorStock} 台</div>
                     </CardContent>
                 </Card>
                 {lowStockCount > 0 && (
@@ -146,14 +175,16 @@ export default function AirconInventoryPage() {
                                     <TableHead>ベースコード</TableHead>
                                     <TableHead>名称</TableHead>
                                     <TableHead>容量</TableHead>
+                                    <TableHead className="text-center bg-blue-50/50">倉庫在庫</TableHead>
+                                    <TableHead className="text-center bg-orange-50/50">業者持出</TableHead>
+                                    <TableHead className="text-center bg-slate-50/50 font-bold">総在庫</TableHead>
                                     <TableHead className="text-center">発注サフィックス</TableHead>
-                                    <TableHead className="text-center">現在庫</TableHead>
-                                    <TableHead className="text-right">在庫調整</TableHead>
+                                    <TableHead className="text-right">倉庫調整</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {products.map((product) => {
-                                    const isLowStock = product.stock <= product.minStock;
+                                    const isLowStock = product.totalStock <= product.minStock;
                                     const currentSuffix = editingSuffix[product.id] || "";
                                     const suffixChanged = currentSuffix !== product.suffix;
 
@@ -170,6 +201,42 @@ export default function AirconInventoryPage() {
                                             </TableCell>
                                             <TableCell>{product.name}</TableCell>
                                             <TableCell>{product.capacity}</TableCell>
+                                            <TableCell className="text-center bg-blue-50/30">
+                                                <span className="font-bold text-lg text-blue-700">
+                                                    {product.stock}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-center bg-orange-50/30">
+                                                {product.vendorStock > 0 ? (
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button variant="ghost" className="h-8 hover:bg-orange-100 text-orange-700 font-bold text-lg underline decoration-dashed underline-offset-4">
+                                                                {product.vendorStock}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-64 p-3">
+                                                            <div className="space-y-2">
+                                                                <h4 className="font-medium text-sm border-b pb-1 mb-2">保有業者内訳</h4>
+                                                                {product.vendorBreakdown.map((v) => (
+                                                                    <div key={v.id} className="flex justify-between items-center text-sm">
+                                                                        <span className="truncate max-w-[150px]">{v.name}</span>
+                                                                        <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                                                                            {v.count}台
+                                                                        </Badge>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                ) : (
+                                                    <span className="text-slate-400">-</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-center bg-slate-50/30">
+                                                <span className="font-bold text-lg text-slate-900">
+                                                    {product.totalStock}
+                                                </span>
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-center gap-1">
                                                     <Input
@@ -193,14 +260,6 @@ export default function AirconInventoryPage() {
                                                         </Button>
                                                     )}
                                                 </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <span
-                                                    className={`font-bold text-lg ${isLowStock ? "text-amber-600" : "text-slate-900"
-                                                        }`}
-                                                >
-                                                    {product.stock}
-                                                </span>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-1">
