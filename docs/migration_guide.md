@@ -71,7 +71,19 @@ cd stock-pwa
 
 ---
 
-## Step 3: 依存関係のインストール
+## Step 3: データベースと環境設定の移行（重要）
+
+`dev.db`（SQLiteデータベース）と `.env`（環境設定）は **Gitに含まれない** ため、手動でコピーする必要があります。
+
+1. **開発PC** から以下のファイルをUSBメモリや共有フォルダ経由でコピー:
+   - `dev.db` (プロジェクトルート直下)
+   - `.env` (同上)
+
+2. **サーバーPC** の `C:\Apps\stock-pwa` (プロジェクトルート) に配置。
+
+---
+
+## Step 4: 依存関係のインストール
 
 ```powershell
 cd C:\Apps\stock-pwa  # 移行先のパスに変更
@@ -80,7 +92,7 @@ npm install
 
 ---
 
-## Step 4: Access DB パスの設定
+## Step 5: Access DB パスの設定
 
 ### 4.1 Access DB の共有設定（Access DB PC側）
 
@@ -132,7 +144,7 @@ Test-Path "\\ACCESS-PC\共有フォルダ\作業管理・２０１１年７月�
 
 ---
 
-## Step 5: 環境変数の設定（必要に応じて）
+## Step 6: 環境変数の設定（必要に応じて）
 
 `.env` ファイルがある場合は、サーバーPCにもコピーまたは作成。
 
@@ -144,7 +156,7 @@ cp .env.example .env
 
 ---
 
-## Step 6: 本番ビルド
+## Step 7: 本番ビルド
 
 ```powershell
 npm run build
@@ -154,7 +166,7 @@ npm run build
 
 ---
 
-## Step 7: 動作確認
+## Step 8: 動作確認
 
 ### 7.1 サーバー起動
 
@@ -177,7 +189,7 @@ npm run start
 
 ---
 
-## Step 8: 自動起動設定（本番運用）
+## Step 9: 自動起動設定（本番運用）
 
 ### 8.1 スタートアップスクリプト作成
 
