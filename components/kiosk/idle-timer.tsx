@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { logLogout } from "@/lib/actions";
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const CHECK_INTERVAL_MS = 10 * 1000; // Check every 10 seconds
 
 export function IdleTimer() {

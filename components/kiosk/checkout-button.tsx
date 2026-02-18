@@ -65,8 +65,8 @@ export function CheckoutButton() {
                     // Kiosk: 在庫確認ダイアログを表示
                     setStockInfo(res.stockInfo);
                 } else {
-                    // 在庫情報がない場合はそのまま完了画面へ
-                    router.push("/shop/complete");
+                    // 在庫情報がない場合はそのまま（トースト表示済み）
+                    // router.push("/shop/complete");
                 }
             } else {
                 toast.error(res.message || "出庫処理に失敗しました");
@@ -78,10 +78,11 @@ export function CheckoutButton() {
         }
     };
 
-    // 在庫確認後に完了画面へ遷移
+    // 在庫確認後に完了画面へ遷移せず、ダイアログを閉じるだけ
     const handleStockVerified = () => {
         setStockInfo(null);
-        router.push("/shop/complete");
+        // router.push("/shop/complete");
+        toast.success("在庫確認を完了しました");
     };
 
     return (

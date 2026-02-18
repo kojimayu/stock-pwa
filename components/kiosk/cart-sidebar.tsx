@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { InventoryCheckDialog } from "./inventory-check-dialog";
+import { StockVerificationDialog } from "@/components/kiosk/stock-verification-dialog";
 
 interface CartSidebarProps {
     className?: string;
@@ -30,6 +31,8 @@ export function CartSidebar({ className }: CartSidebarProps) {
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [showInventoryCheckDialog, setShowInventoryCheckDialog] = useState(false);
+    // チェックアウト後の在庫確認用
+    const [stockVerificationItems, setStockVerificationItems] = useState<any[] | null>(null);
     const router = useRouter();
 
     // const totalAmount = getTotalPrice();
@@ -58,9 +61,13 @@ export function CartSidebar({ className }: CartSidebarProps) {
                 clearCart();
                 toast.success("注文を確定しました");
                 if (isProxyMode) {
-                    router.push("/shop/complete");
+                    // router.push("/shop/complete");
+                    toast.success("代理入力完了");
+                } else if (res.stockInfo && res.stockInfo.length > 0) {
+                    // 在庫確認ダイアログを表示（代理入力でない場合）
+                    setStockVerificationItems(res.stockInfo);
                 } else {
-                    router.push("/shop/complete");
+                    // router.push("/shop/complete");
                 }
             } else {
                 toast.error(res.message || "注文処理に失敗しました");
@@ -228,6 +235,24 @@ export function CartSidebar({ className }: CartSidebarProps) {
                 vendorId={vendor?.id || 0}
                 vendorUserId={vendorUser?.id || null}
             />
+
+            {/* Stock Verification Dialog (After checkout) */}
+            {stockVerificationItems && (
+                <StockVerificationDialog
+                    items={stockVerificationItems}
+                    mode="checkout"
+                    onConfirm={() => {
+                        setStockVerificationItems(null);
+                        // router.push("/shop/complete");
+                        toast.success("在庫確認を完了しました");
+                    }}
+                    onMismatch={() => {
+                        setStockVerificationItems(null);
+                        // router.push("/shop/complete");
+                        toast.success("在庫確認を完了しました");
+                    }}
+                />
+            )}
         </div>
     );
 }

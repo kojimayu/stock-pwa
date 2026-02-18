@@ -1634,6 +1634,9 @@ export async function createReturnFromHistory(
     }
 
     try {
+        // 過去の返品数を集計
+        const returnedQuantities = await getReturnedQuantities(originalTransactionId);
+
         const result = await prisma.$transaction(async (tx) => {
             // 元の取引を取得して検証
             const originalTx = await tx.transaction.findUnique({
@@ -1661,8 +1664,12 @@ export async function createReturnFromHistory(
                     ? origItem.quantity * origItem.quantityPerBox
                     : origItem.quantity;
 
-                if (returnItem.returnQuantity > origMaxUnits) {
-                    throw new Error(`返品数が元の数量を超えています (${returnItem.name})`);
+                // 過去の返品数を考慮して上限チェック
+                const alreadyReturned = returnedQuantities[returnItem.productId] || 0;
+                const maxReturnable = origMaxUnits - alreadyReturned;
+
+                if (returnItem.returnQuantity > maxReturnable) {
+                    throw new Error(`返品数が上限を超えています (${returnItem.name}: 残り${maxReturnable}個)`);
                 }
 
                 // マイナス取引アイテムを作成（個数単位で記録）
@@ -1676,6 +1683,7 @@ export async function createReturnFromHistory(
                     isBox: returnItem.isBox ?? false,
                     quantityPerBox: returnItem.quantityPerBox,
                     isManual: origItem.isManual || false,
+                    originalTransactionId: originalTransactionId, // どの取引への返品か記録
                 });
 
                 totalReturnAmount += returnItem.price * (-returnItem.returnQuantity);
@@ -2523,4 +2531,21 @@ async function sendPriceCorrectionNotification(
     }
 
     console.log(`Price correction notification sent to ${adminEmails.join(', ')}`);
+}
+// 指定した取引IDに対する返品済み数量（個数単位）を取得
+export async function getReturnedQuantities(transactionId: number) {
+    // InventoryLogのreasonに "元取引#{id}" が含まれているログを集計
+    // これが最も確実（過去データ含め）
+    const logs = await prisma.inventoryLog.findMany({
+        where: {
+            type: '入庫',
+            reason: { contains: `元取引#${transactionId}` }
+        }
+    });
+
+    const returnedMap: Record<number, number> = {};
+    for (const log of logs) {
+        returnedMap[log.productId] = (returnedMap[log.productId] || 0) + log.quantity;
+    }
+    return returnedMap;
 }

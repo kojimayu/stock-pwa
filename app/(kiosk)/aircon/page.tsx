@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, ChevronLeft, Search, Check, Trash2 } from "lucide-react";
+import { Loader2, ChevronLeft, Search, Check, Trash2, FileText } from "lucide-react";
 import { LogoutButton } from "@/components/kiosk/logout-button";
 
 interface AccessJobInfo {
@@ -169,18 +169,15 @@ export default function AirconPage() {
                 </Button>
                 <div className="flex items-center gap-2">
                     <h1 className="text-base font-bold">エアコン持出し</h1>
-                    <span className="text-slate-400">|</span>
-                    <span className="text-sm text-slate-300">
-                        {vendor ? `${vendor.name} 様` : ""}
-                    </span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="text-white hover:bg-slate-800"
+                        className="bg-amber-500/20 border-amber-400 text-amber-100 hover:bg-amber-500/30 hover:text-white font-bold"
                         onClick={() => router.push("/aircon/history")}
                     >
+                        <FileText className="w-4 h-4 mr-1" />
                         履歴
                     </Button>
                     <LogoutButton />
@@ -294,8 +291,8 @@ export default function AirconPage() {
                                                 <li key={index} className="flex justify-between items-center bg-slate-50 border p-2 rounded">
                                                     <div className="flex items-center gap-2">
                                                         <span className={`text-[10px] px-1 rounded border ${item.type === 'SET' ? 'bg-slate-100 text-slate-600 border-slate-300' :
-                                                                item.type === 'INDOOR' ? 'bg-blue-100 text-blue-600 border-blue-300' :
-                                                                    'bg-orange-100 text-orange-600 border-orange-300'
+                                                            item.type === 'INDOOR' ? 'bg-blue-100 text-blue-600 border-blue-300' :
+                                                                'bg-orange-100 text-orange-600 border-orange-300'
                                                             }`}>
                                                             {item.type === 'SET' ? 'セット' : item.type === 'INDOOR' ? '内機' : '外機'}
                                                         </span>
@@ -326,8 +323,8 @@ export default function AirconPage() {
                                             key={t}
                                             onClick={() => setSelectedType(t)}
                                             className={`px-3 py-1 text-xs font-bold rounded transition-colors ${selectedType === t
-                                                    ? 'bg-white shadow text-slate-900'
-                                                    : 'text-slate-400 hover:text-slate-600'
+                                                ? 'bg-white shadow text-slate-900'
+                                                : 'text-slate-400 hover:text-slate-600'
                                                 }`}
                                         >
                                             {t === 'SET' ? 'セット' : t === 'INDOOR' ? '内機' : '外機'}
@@ -342,7 +339,7 @@ export default function AirconPage() {
                                             key={p.model}
                                             variant="outline"
                                             className={`h-12 text-sm font-bold flex flex-col gap-0 hover:bg-blue-50 hover:border-blue-400 ${selectedType === 'INDOOR' ? 'border-blue-200 bg-blue-50/50' :
-                                                    selectedType === 'OUTDOOR' ? 'border-orange-200 bg-orange-50/50' : ''
+                                                selectedType === 'OUTDOOR' ? 'border-orange-200 bg-orange-50/50' : ''
                                                 }`}
                                             onClick={() => addItem(p.model)}
                                             disabled={!jobInfo}

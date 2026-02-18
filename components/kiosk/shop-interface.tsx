@@ -6,7 +6,7 @@ import { CategoryTabs } from "./category-tabs";
 import { ProductListItem } from "./product-list-item";
 import { ManualProductSheet } from "@/components/kiosk/manual-product-sheet";
 import { CartSummary } from "./cart-summary";
-import { LogOut, Plus, ChevronLeft, Search, X, Mic } from "lucide-react";
+import { LogOut, Plus, ChevronLeft, Search, X, Mic, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -259,18 +259,15 @@ export function ShopInterface({
                 </div>
 
 
-                <div className="mr-2 hidden lg:flex items-center gap-2 text-sm text-slate-300">
-                    {isReturnMode && <span className="bg-white text-orange-600 px-2 py-0.5 rounded font-bold">返品モード</span>}
-                    {vendorUser && vendor ? `${vendor.name} ${vendorUser.name} 様` : (vendor ? `${vendor.name} 様` : "")}
-                </div>
                 <div className="flex items-center space-x-1">
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="text-slate-300 hover:text-white hover:bg-slate-800"
+                        className="bg-amber-500/20 border-amber-400 text-amber-100 hover:bg-amber-500/30 hover:text-white font-bold"
                         onClick={() => router.push("/shop/history")}
                     >
-                        履歴
+                        <FileText className="w-4 h-4 mr-1" />
+                        履歴・返品
                     </Button>
                     <Button
                         variant="ghost"

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Minus, Plus, Loader2 } from "lucide-react";
-import { createReturnFromHistory } from "@/lib/actions";
+import { createReturnFromHistory, getReturnedQuantities } from "@/lib/actions";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
 import { StockVerificationDialog } from "@/components/kiosk/stock-verification-dialog";
@@ -44,11 +44,12 @@ function formatOriginalQuantity(item: TransactionItem): string {
 }
 
 // 返品可能な最大個数（個数ベース）を計算
-function getMaxReturnUnits(item: TransactionItem): number {
+function getMaxReturnUnits(item: TransactionItem, returnedQty: number = 0): number {
+    let originalTotal = item.quantity;
     if (item.isBox && item.quantityPerBox) {
-        return item.quantity * item.quantityPerBox;
+        originalTotal = item.quantity * item.quantityPerBox;
     }
-    return item.quantity;
+    return Math.max(0, originalTotal - returnedQty);
 }
 
 // 返品数の表示単位ラベルを取得
@@ -73,15 +74,32 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
     const [loading, setLoading] = useState(false);
     // 在庫確認ダイアログの状態
     const [stockVerificationItems, setStockVerificationItems] = useState<any[] | null>(null);
+    // 過去の返品済み数量
+    const [returnedQuantities, setReturnedQuantities] = useState<Record<number, number>>({});
+    const [fetchingReturns, setFetchingReturns] = useState(true);
 
-    // 返品対象は正の数量のアイテムのみ（手動入力品は除外）
-    const returnableItems = items.filter(i => i.quantity > 0 && !i.isManual);
+    useEffect(() => {
+        getReturnedQuantities(transaction.id)
+            .then(data => {
+                setReturnedQuantities(data);
+                setFetchingReturns(false);
+            })
+            .catch(() => {
+                toast.error("返品履歴の取得に失敗しました");
+                setFetchingReturns(false);
+            });
+    }, [transaction.id]);
+
+    // 返品対象は手動入力品を除外
+    const returnableItems = items.filter(i => !i.isManual);
 
     const updateQuantity = (productId: number, delta: number) => {
         setReturnQuantities(prev => {
             const item = items.find(i => i.productId === productId);
             if (!item) return prev;
-            const maxUnits = getMaxReturnUnits(item);
+
+            const returnedQty = returnedQuantities[productId] || 0;
+            const maxUnits = getMaxReturnUnits(item, returnedQty);
             const current = prev[productId] || 0;
             const newVal = Math.max(0, Math.min(maxUnits, current + delta));
             return { ...prev, [productId]: newVal };
@@ -182,14 +200,22 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {returnableItems.length === 0 ? (
                         <p className="text-center text-slate-500 py-8">返品可能な商品がありません</p>
+                    ) : fetchingReturns ? (
+                        <div className="text-center py-8 text-slate-500">
+                            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+                            返品可能数を確認中...
+                        </div>
                     ) : (
                         returnableItems.map((item) => {
+                            const returnedQty = returnedQuantities[item.productId] || 0;
+                            const maxUnits = getMaxReturnUnits(item, returnedQty);
                             const returnQty = returnQuantities[item.productId] || 0;
-                            const maxUnits = getMaxReturnUnits(item);
                             const unitLabel = getReturnUnitLabel(item);
 
+                            const isFullyReturned = maxUnits === 0;
+
                             return (
-                                <div key={item.productId} className="bg-slate-50 rounded-xl p-3">
+                                <div key={item.productId} className={`bg-slate-50 rounded-xl p-3 ${isFullyReturned ? 'opacity-60' : ''}`}>
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
                                             <p className="font-medium text-slate-900 text-sm">{item.name}</p>
@@ -197,9 +223,12 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
                                                 <p className="text-xs text-slate-500">{item.code}</p>
                                             )}
                                         </div>
-                                        <span className="text-xs text-slate-500">
-                                            持出: {formatOriginalQuantity(item)}
-                                        </span>
+                                        <div className="text-right text-xs text-slate-500">
+                                            <p>持出: {formatOriginalQuantity(item)}</p>
+                                            {returnedQty > 0 && (
+                                                <p className="text-slate-400">済: {returnedQty}{unitLabel}</p>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* 返品数量コントロール（個数単位） */}
@@ -235,11 +264,9 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
                                         </div>
                                     </div>
                                     {/* 箱入り商品の場合、返品上限の補足 */}
-                                    {item.isBox && item.quantityPerBox && (
-                                        <p className="text-xs text-slate-400 text-right mt-1">
-                                            最大 {maxUnits}{unitLabel} まで返品可能
-                                        </p>
-                                    )}
+                                    <p className="text-xs text-slate-400 text-right mt-1">
+                                        残り {maxUnits}{unitLabel} 返品可能
+                                    </p>
                                 </div>
                             );
                         })

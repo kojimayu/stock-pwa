@@ -260,6 +260,9 @@ export default function KioskLoginPage() {
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-slate-900">業者選択</h1>
             <p className="text-slate-500">会社名を選択してください</p>
+            <p className="text-xs text-amber-600 font-bold mt-2">
+              ※セキュリティのため、操作から10分経過すると自動的にログアウトされます
+            </p>
           </div>
 
           <div className="space-y-4">
