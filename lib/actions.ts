@@ -1303,7 +1303,18 @@ export async function createTransaction(
                 });
             }
 
-            return transaction;
+            // 処理後の在庫を取得（在庫確認ダイアログ用）
+            const updatedProducts = await Promise.all(
+                items.filter(i => !i.isManual).map(async (item) => {
+                    const p = await tx.product.findUnique({
+                        where: { id: item.productId },
+                        select: { id: true, stock: true, name: true, code: true, unit: true },
+                    });
+                    return p;
+                })
+            );
+
+            return { transaction, updatedProducts: updatedProducts.filter(Boolean) };
         });
 
         revalidatePath('/admin/products');
@@ -1325,7 +1336,15 @@ export async function createTransaction(
         }
 
         console.log("Transaction created successfully, returning success.");
-        return { success: true };
+        // 在庫確認用に処理後の在庫情報を返す
+        const stockInfo = transactionResult.updatedProducts.map((p: any) => ({
+            productId: p.id,
+            name: p.name,
+            code: p.code,
+            expectedStock: p.stock,
+            unit: p.unit,
+        }));
+        return { success: true, stockInfo };
     } catch (error) {
         console.error("Transaction Error:", error);
         return { success: false, message: error instanceof Error ? error.message : '取引処理中にエラーが発生しました' };
@@ -1705,12 +1724,26 @@ export async function createReturnFromHistory(
             return returnTx;
         });
 
+        // 返品後の在庫情報を取得（在庫確認ダイアログ用）
+        const returnedProductIds = returnItems.filter(i => i.returnQuantity > 0).map(i => i.productId);
+        const updatedProducts = await prisma.product.findMany({
+            where: { id: { in: returnedProductIds } },
+            select: { id: true, stock: true, name: true, code: true, unit: true },
+        });
+
         revalidatePath('/admin/products');
         revalidatePath('/admin/transactions');
         revalidatePath('/shop');
         revalidatePath('/shop/history');
 
-        return { success: true, transactionId: result.id };
+        const stockInfo = updatedProducts.map(p => ({
+            productId: p.id,
+            name: p.name,
+            code: p.code,
+            expectedStock: p.stock,
+            unit: p.unit,
+        }));
+        return { success: true, transactionId: result.id, stockInfo };
 
     } catch (error) {
         console.error("Return from History Error:", error);

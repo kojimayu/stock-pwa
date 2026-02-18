@@ -6,6 +6,7 @@ import { AlertTriangle, Minus, Plus, Loader2 } from "lucide-react";
 import { createReturnFromHistory } from "@/lib/actions";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
+import { StockVerificationDialog } from "@/components/kiosk/stock-verification-dialog";
 
 interface TransactionItem {
     productId: number;
@@ -70,6 +71,8 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
     // 変更理由
     const [reason, setReason] = useState<string>("返品");
     const [loading, setLoading] = useState(false);
+    // 在庫確認ダイアログの状態
+    const [stockVerificationItems, setStockVerificationItems] = useState<any[] | null>(null);
 
     // 返品対象は正の数量のアイテムのみ（手動入力品は除外）
     const returnableItems = items.filter(i => i.quantity > 0 && !i.isManual);
@@ -123,7 +126,12 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
 
             if (result.success) {
                 toast.success("返品処理が完了しました");
-                onComplete();
+                if (result.stockInfo && result.stockInfo.length > 0) {
+                    // 在庫確認ダイアログを表示
+                    setStockVerificationItems(result.stockInfo);
+                } else {
+                    onComplete();
+                }
             } else {
                 toast.error(result.message || "返品処理に失敗しました");
             }
@@ -133,6 +141,18 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
             setLoading(false);
         }
     };
+
+    // 在庫確認ダイアログが表示中の場合
+    if (stockVerificationItems) {
+        return (
+            <StockVerificationDialog
+                items={stockVerificationItems}
+                mode="return"
+                onConfirm={onComplete}
+                onMismatch={onComplete}
+            />
+        );
+    }
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
