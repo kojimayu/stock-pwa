@@ -1594,6 +1594,124 @@ export async function getVendorTransactions(vendorId: number, limit = 20) {
     return transactions;
 }
 
+/**
+ * 履歴から返品処理を行う。
+ * 元の取引は変更せず、差分を当日日付の新規マイナス取引として記録する。
+ * これにより前月の請求データに影響を与えない。
+ */
+export async function createReturnFromHistory(
+    originalTransactionId: number,
+    vendorId: number,
+    vendorUserId: number | null,
+    returnItems: { productId: number; returnQuantity: number; name: string; code?: string; price: number; unit?: string; isBox?: boolean; quantityPerBox?: number }[],
+    reason: string // '返品' | '入力ミス'
+) {
+    // 棚卸中チェック
+    const activeInventory = await prisma.inventoryCount.findFirst({
+        where: { status: "IN_PROGRESS" },
+    });
+    if (activeInventory) {
+        return { success: false, message: '現在棚卸中のため、返品処理は利用できません' };
+    }
+
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            // 元の取引を取得して検証
+            const originalTx = await tx.transaction.findUnique({
+                where: { id: originalTransactionId }
+            });
+            if (!originalTx || originalTx.vendorId !== vendorId) {
+                throw new Error('取引が見つかりません');
+            }
+
+            const originalItems: any[] = JSON.parse(originalTx.items);
+            let totalReturnAmount = 0;
+            const transactionItems: any[] = [];
+
+            for (const returnItem of returnItems) {
+                if (returnItem.returnQuantity <= 0) continue;
+
+                // 元の取引に含まれているか検証
+                const origItem = originalItems.find(i => i.productId === returnItem.productId);
+                if (!origItem) {
+                    throw new Error(`商品ID ${returnItem.productId} は元の取引に含まれていません`);
+                }
+                if (returnItem.returnQuantity > origItem.quantity) {
+                    throw new Error(`返品数が元の数量を超えています (${returnItem.name})`);
+                }
+
+                // マイナス取引アイテムを作成
+                transactionItems.push({
+                    productId: returnItem.productId,
+                    code: returnItem.code || origItem.code,
+                    name: returnItem.name,
+                    price: returnItem.price,
+                    quantity: -returnItem.returnQuantity, // マイナス
+                    unit: returnItem.unit || origItem.unit,
+                    isBox: returnItem.isBox ?? origItem.isBox,
+                    quantityPerBox: returnItem.quantityPerBox ?? origItem.quantityPerBox,
+                    isManual: origItem.isManual || false,
+                });
+
+                totalReturnAmount += returnItem.price * (-returnItem.returnQuantity);
+
+                // 在庫を復元
+                const restoreQty = (returnItem.isBox && returnItem.quantityPerBox)
+                    ? returnItem.returnQuantity * returnItem.quantityPerBox
+                    : returnItem.returnQuantity;
+
+                await tx.product.update({
+                    where: { id: returnItem.productId },
+                    data: {
+                        stock: { increment: restoreQty },
+                        usageCount: { decrement: returnItem.returnQuantity },
+                    }
+                });
+
+                // 在庫ログに記録
+                await tx.inventoryLog.create({
+                    data: {
+                        productId: returnItem.productId,
+                        type: '入庫',
+                        quantity: restoreQty,
+                        reason: `${reason} (元取引#${originalTransactionId}, ${returnItem.name} ×${returnItem.returnQuantity})`,
+                    }
+                });
+            }
+
+            if (transactionItems.length === 0) {
+                throw new Error('返品する商品がありません');
+            }
+
+            // 当日日付で新規マイナス取引を作成
+            const returnTx = await tx.transaction.create({
+                data: {
+                    vendorId,
+                    vendorUserId,
+                    items: JSON.stringify(transactionItems),
+                    totalAmount: totalReturnAmount,
+                    hasUnregisteredItems: false,
+                    date: new Date(), // 当日日付
+                    isProxyInput: false,
+                }
+            });
+
+            return returnTx;
+        });
+
+        revalidatePath('/admin/products');
+        revalidatePath('/admin/transactions');
+        revalidatePath('/shop');
+        revalidatePath('/shop/history');
+
+        return { success: true, transactionId: result.id };
+
+    } catch (error) {
+        console.error("Return from History Error:", error);
+        return { success: false, message: error instanceof Error ? error.message : '返品処理中にエラーが発生しました' };
+    }
+}
+
 // Operation Logs
 export async function getOperationLogs(limit = 100, actions?: string[]) {
     return await prisma.operationLog.findMany({

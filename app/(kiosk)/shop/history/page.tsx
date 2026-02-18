@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { getVendorTransactions } from "@/lib/actions";
@@ -8,28 +8,29 @@ import { VendorHistoryList } from "@/components/kiosk/history-list";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Loader2 } from "lucide-react";
 
-// Client Component to handle vendor session and fetching
+// クライアントコンポーネント: 業者セッションとデータ取得を管理
 export default function KioskHistoryPage() {
     const router = useRouter();
     const vendor = useCartStore((state) => state.vendor);
-    // Needed to type the state, or use any if we want to avoid double definition without sharing type
     const [transactions, setTransactions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const fetchTransactions = useCallback(() => {
+        if (!vendor) return;
+        setLoading(true);
+        getVendorTransactions(vendor.id)
+            .then((data) => setTransactions(data))
+            .catch(console.error)
+            .finally(() => setLoading(false));
+    }, [vendor]);
 
     useEffect(() => {
         if (!vendor) {
             router.push("/");
             return;
         }
-
-        getVendorTransactions(vendor.id)
-            .then((data) => {
-                // Date serialization happens automatically from server actions in newer Next.js but purely safe to keep it as is or handle parsing
-                setTransactions(data);
-            })
-            .catch(console.error)
-            .finally(() => setLoading(false));
-    }, [vendor, router]);
+        fetchTransactions();
+    }, [vendor, router, fetchTransactions]);
 
     if (!vendor) return null;
 
@@ -53,7 +54,7 @@ export default function KioskHistoryPage() {
                         <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
                     </div>
                 ) : (
-                    <VendorHistoryList transactions={transactions} />
+                    <VendorHistoryList transactions={transactions} onRefresh={fetchTransactions} />
                 )}
             </main>
         </div>

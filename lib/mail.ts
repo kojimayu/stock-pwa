@@ -4,6 +4,20 @@ export interface CartItem {
   name: string;
   price: number;
   quantity: number;
+  unit?: string;
+  isBox?: boolean;
+  quantityPerBox?: number;
+}
+
+// メール用の数量表示フォーマット
+function formatEmailQuantity(item: CartItem): string {
+  if (item.isBox) {
+    if (item.unit === 'm') {
+      return `${item.quantity}巻`;
+    }
+    return `${item.quantity}箱`;
+  }
+  return `${item.quantity}${item.unit || '個'}`;
 }
 
 // Helper to get Access Token from Azure AD
@@ -64,7 +78,7 @@ export async function sendTransactionEmail(
           `<tr>
             <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name}</td>
             <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${item.price}円</td>
-            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${item.quantity}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${formatEmailQuantity(item)}</td>
             <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">${item.price * item.quantity}円</td>
             </tr>`
       )
