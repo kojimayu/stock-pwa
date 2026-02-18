@@ -94,7 +94,7 @@ export function VendorHistoryList({ transactions, onRefresh }: VendorHistoryList
                                                 onClick={() => setEditingTx(tx)}
                                             >
                                                 <Pencil className="w-4 h-4 mr-1" />
-                                                修正
+                                                返品
                                             </Button>
                                         )}
                                     </div>

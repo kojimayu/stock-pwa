@@ -1636,11 +1636,17 @@ export async function createReturnFromHistory(
                 if (!origItem) {
                     throw new Error(`商品ID ${returnItem.productId} は元の取引に含まれていません`);
                 }
-                if (returnItem.returnQuantity > origItem.quantity) {
+
+                // 元取引の最大個数を計算（箱の場合は箱数×入数）
+                const origMaxUnits = (origItem.isBox && origItem.quantityPerBox)
+                    ? origItem.quantity * origItem.quantityPerBox
+                    : origItem.quantity;
+
+                if (returnItem.returnQuantity > origMaxUnits) {
                     throw new Error(`返品数が元の数量を超えています (${returnItem.name})`);
                 }
 
-                // マイナス取引アイテムを作成
+                // マイナス取引アイテムを作成（個数単位で記録）
                 transactionItems.push({
                     productId: returnItem.productId,
                     code: returnItem.code || origItem.code,
@@ -1648,14 +1654,14 @@ export async function createReturnFromHistory(
                     price: returnItem.price,
                     quantity: -returnItem.returnQuantity, // マイナス
                     unit: returnItem.unit || origItem.unit,
-                    isBox: returnItem.isBox ?? origItem.isBox,
-                    quantityPerBox: returnItem.quantityPerBox ?? origItem.quantityPerBox,
+                    isBox: returnItem.isBox ?? false,
+                    quantityPerBox: returnItem.quantityPerBox,
                     isManual: origItem.isManual || false,
                 });
 
                 totalReturnAmount += returnItem.price * (-returnItem.returnQuantity);
 
-                // 在庫を復元
+                // 在庫を復元（返品は常に個数単位で送られてくる）
                 const restoreQty = (returnItem.isBox && returnItem.quantityPerBox)
                     ? returnItem.returnQuantity * returnItem.quantityPerBox
                     : returnItem.returnQuantity;
