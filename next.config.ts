@@ -1,5 +1,21 @@
 import type { NextConfig } from "next";
 import withPWA from "@ducanh2912/next-pwa";
+import { execSync } from "child_process";
+
+// ビルド時にGit情報を取得
+function getGitInfo() {
+  try {
+    const commitHash = execSync("git rev-parse --short HEAD").toString().trim();
+    const branch = execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
+    const commitDate = execSync("git log -1 --format=%ci").toString().trim();
+    return { commitHash, branch, commitDate };
+  } catch {
+    return { commitHash: "unknown", branch: "unknown", commitDate: "unknown" };
+  }
+}
+
+const gitInfo = getGitInfo();
+const buildDate = new Date().toISOString();
 
 const pwaConfig = withPWA({
   dest: "public",
@@ -13,6 +29,12 @@ const pwaConfig = withPWA({
 });
 
 const nextConfig: NextConfig = {
+  // ビルド情報を環境変数として注入
+  env: {
+    NEXT_PUBLIC_BUILD_COMMIT: gitInfo.commitHash,
+    NEXT_PUBLIC_BUILD_BRANCH: gitInfo.branch,
+    NEXT_PUBLIC_BUILD_DATE: buildDate,
+  },
   // Use a separate distDir for tests to avoid lock conflicts with the main dev server
   distDir: process.env.APP_ENV === "test" ? ".next-test" : ".next",
   logging: {

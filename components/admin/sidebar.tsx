@@ -121,6 +121,17 @@ function SidebarContent({ onClose, user }: { onClose?: () => void; user?: Sideba
             ← Kiosk画面へ戻る
           </Link>
         </div>
+        {/* ビルド情報 */}
+        <div className="mt-3 pt-3 border-t border-slate-800/50 text-center">
+          <p className="text-[10px] text-slate-600 font-mono">
+            {process.env.NEXT_PUBLIC_BUILD_BRANCH || "dev"}:{process.env.NEXT_PUBLIC_BUILD_COMMIT || "local"}
+          </p>
+          <p className="text-[10px] text-slate-700">
+            {process.env.NEXT_PUBLIC_BUILD_DATE
+              ? new Date(process.env.NEXT_PUBLIC_BUILD_DATE).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })
+              : "開発モード"}
+          </p>
+        </div>
       </div>
     </div>
   );
