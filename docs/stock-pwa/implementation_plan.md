@@ -42,6 +42,10 @@
         - 業者在庫の定義を変更: `managementNo` が `null` (または空) の未返却レコードのみを集計対象とする。
     - **Database Schema**:
         - `AirConditionerLog` の `managementNo` を `String?` (Optional) に変更。
+        - [x] **Consolidate Vendor Stock**: display vendor-held items (Management No = NULL) in main list.
+- [x] **Material History Unit**: Added unit display to transaction list.
+- [x] **Tablet Layout**: Optimized Kiosk product list for tablet (hide right sidebar).
+- [x] **Test Env Fix**: Fixed import script to sync isActive/pinChanged correctly.
         - 既存のデータはそのまま維持（管理番号あり＝案件紐づき＝業者在庫ではない）。
     - **UIデザイン**:
         - テーブルのカラム構成を変更:

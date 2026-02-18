@@ -1223,7 +1223,7 @@ import { sendTransactionEmail } from './mail';
 export async function createTransaction(
     vendorId: number,
     vendorUserId: number | null,  // 担当者ID追加
-    items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean; code?: string; isBox?: boolean; quantityPerBox?: number }[],
+    items: { productId: number; quantity: number; price: number; name: string; isManual?: boolean; code?: string; isBox?: boolean; quantityPerBox?: number; unit?: string }[],
     totalAmountParam?: number,
     isProxyInput: boolean = false,
     transactionDate?: Date  // 代理入力用：引取日を指定
@@ -1255,8 +1255,9 @@ export async function createTransaction(
                 if (!product || product.stock < item.quantity) {
                     throw new Error(`商品ID ${item.productId} の在庫が不足しています`);
                 }
-                // Add code to item for storage
+                // Add code and unit to item for storage
                 item.code = product.code;
+                item.unit = product.unit; // Store unit snapshot
             }
 
             // Create Transaction Record (Now items contains codes)

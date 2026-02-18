@@ -41,11 +41,15 @@
 
 - [/] **Kiosk UI/UX改善**
     - [ ] **品番の常時表示**: 商品一覧、カート、確認画面すべてで品番(code)を併記する
-    - [ ] **予備部材の持ち出し対応**: 案件引き当て以外に、予備として余分に持ち出せる運用（在庫管理上は許容する）の検討・実装
-    - [ ] 数量入力の改善 (直接入力 or +5/+10ボタン)
-    - [ ] カート・確認画面でのカテゴリ/サブカテゴリ表示
+    - [x] **予備部材の持ち出し対応**: 案件引き当て以外に、予備として余分に持ち出せる運用（在庫管理上は許容する）の検討・実装
+    - [x] 数量入力の改善 (直接入力 or +5/+10ボタン)
+    - [x] カート・確認画面でのカテゴリ/サブカテゴリ表示
     - [x] **3カラムレイアウト化**: カテゴリー大・中・小を統合(左)、商品(中央)、カート常時表示(右)へ変更。
         - [x] Create `MergedCategoryList` (Tree View)
+        - [x] **Material Unit**: Clarify unit (individual vs rolls) in history.
+        - [x] **Tablet Layout**: Fix narrow column for products on vendor screen.
+        - [x] **Test Env**: Fix 3001 port issues (PIN prompt, All vendors shown).
+        - [ ] **Duplicate Check**: Prevent double checkout of same management number.
         - [x] Create `CartSidebar` (Persistent)
         - [x] Integrate into `ShopInterface` layout
         - [x] Responsive adjustments (Tablet/PC)
@@ -134,10 +138,20 @@
     - [/] **業者別予備在庫ダッシュボード（在庫管理統合版）**:
         - [x] API: `getAirconStockWithVendorBreakdown` を実装。
         - [x] Admin: `/admin/aircon-inventory` に業者在庫・総在庫カラムを追加。
-        - [x] Logic: 「業者在庫」の定義修正（管理番号なし＝業者在庫）。Schema変更含む。
-        - [ ] Logic: 「業者在庫」の定義修正（管理番号なし＝業者在庫）。Schema変更含む。
-        - [ ] UI: 倉庫在庫 + 業者在庫 = 総在庫 の表示。
-        - [ ] UI: 業者在庫の内訳（どの業者が持っているか）を表示。
+        - [x] Admin: `/admin/aircon-inventory` に業者在庫・総在庫カラムを追加。
+    - [x] Logic: 「業者在庫」の定義修正（管理番号なし＝業者在庫）。Schema変更含む。
+    - [ ] UI: 倉庫在庫 + 業者在庫 = 総在庫 の表示（未実装？要確認）。
+    - [ ] UI: 業者在庫の内訳（どの業者が持っているか）を表示（実装済みだが表示調整？要確認）。
+
+    - [ ] **材料取引履歴の表示改善**:
+        - [ ] 数量の単位を表示（個/巻/箱など）。
+
+    - [ ] **業者画面(Kiosk)レイアウト改善**:
+        - [ ] タブレット表示時のカラム幅調整（左・右を狭く、中央を広く）。
+
+    - [ ] **テスト環境デバッグ**:
+        - [ ] 業者ログイン時のPIN要求挙動の調査。
+        - [ ] 業者一覧の表示フィルタリング確認。
 
     - [ ] **管理番号重複チェック**:
         - [ ] 管理番号(`managementNo`)に紐づいたエアコン持出し時に、既に持出し中の番号であればエラーにする。

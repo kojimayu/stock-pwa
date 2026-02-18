@@ -336,7 +336,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                                         {tx.isProxyInput && <span className="text-xs bg-purple-100 text-purple-700 px-1 rounded mr-1">代</span>}
                                                         {item.isManual && <span className="text-xs bg-amber-200 text-amber-800 px-1 rounded mr-1">手入力</span>}
                                                         {item.code && <span className="font-mono text-xs text-slate-500 mr-1">[{item.code}]</span>}
-                                                        {item.name || `商品ID:${item.productId}`} × {item.quantity}
+                                                        {item.name || `商品ID:${item.productId}`} × {item.quantity}{item.unit || "個"}
                                                         <span className="text-slate-400 text-xs ml-2">
                                                             (@{item.isManual ? "-" : formatCurrency(item.price)})
                                                         </span>

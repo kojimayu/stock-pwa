@@ -317,7 +317,7 @@ export function ShopInterface({
                    Center Column: Product List
                    ===============================================
                 */}
-                <main className={`flex-1 flex flex-col md:ml-72 md:mr-[400px] min-w-0 ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                <main className={`flex-1 flex flex-col md:ml-72 lg:mr-[400px] min-w-0 ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
 
                     {/* Mobile Filters */}
                     <div className="md:hidden sticky top-[60px] z-30 bg-slate-50 border-b shadow-sm">
@@ -382,17 +382,17 @@ export function ShopInterface({
 
                 {/* 
                    ===============================================
-                   Right Column: Persistent Cart (Desktop Only)
+                   Right Column: Persistent Cart (Desktop Only -> Large Desktop Only)
                    ===============================================
                 */}
-                <aside className="hidden md:block w-[400px] bg-white border-l fixed right-0 top-[60px] bottom-0 z-30">
+                <aside className="hidden lg:block w-[400px] bg-white border-l fixed right-0 top-[60px] bottom-0 z-30">
                     <CartSidebar />
                 </aside>
 
             </div>
 
-            {/* Mobile Footer Cart Summary */}
-            <div className="md:hidden">
+            {/* Mobile/Tablet Footer Cart Summary (Hidden on Large Desktop) */}
+            <div className="lg:hidden">
                 <CartSummary />
             </div>
         </div>

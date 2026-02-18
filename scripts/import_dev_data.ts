@@ -38,8 +38,15 @@ async function main() {
     for (const v of vendors) {
         await prismaTest.vendor.upsert({
             where: { id: v.id },
-            update: { name: v.name },
-            create: { id: v.id, name: v.name },
+            update: {
+                name: v.name,
+                isActive: v.isActive
+            },
+            create: {
+                id: v.id,
+                name: v.name,
+                isActive: v.isActive
+            },
         });
 
         for (const u of v.users) {
@@ -49,16 +56,14 @@ async function main() {
                     name: u.name,
                     pinCode: u.pinCode,
                     vendorId: v.id,
-                    airconProductId: u.airconProductId // This might be a circular dep if it points to a product not yet created?
-                    // VendorUser.airconProduct is optional relation?
-                    // Let's check schema.
+                    pinChanged: u.pinChanged
                 },
                 create: {
                     id: u.id,
                     name: u.name,
                     pinCode: u.pinCode,
                     vendorId: v.id,
-                    // airconProductId // omit for now to avoid FK error if product doesn't exist
+                    pinChanged: u.pinChanged
                 },
             });
         }
@@ -92,17 +97,14 @@ async function main() {
         });
     }
 
-    // 2.5 Update VendorUser with products if needed
-    for (const v of vendors) {
-        for (const u of v.users) {
-            if (u.airconProductId) {
-                await prismaTest.vendorUser.update({
-                    where: { id: u.id },
-                    data: { airconProductId: u.airconProductId }
-                }).catch(e => console.warn(`Could not link product to user ${u.id}: ${e.message}`));
-            }
-        }
-    }
+    // 2.5 Update VendorUser with products if needed - REMOVED (Field no longer exists)
+    // for (const v of vendors) {
+    //     for (const u of v.users) {
+    //         if ((u as any).airconProductId) {
+    //             console.warn('Skipping airconProductId for user ' + u.id);
+    //         }
+    //     }
+    // }
 
     // 3. Logs
     for (const l of logs) {
@@ -119,8 +121,7 @@ async function main() {
                 airconProductId: l.airconProductId,
                 isReturned: l.isReturned,
                 returnedAt: l.returnedAt,
-                createdAt: l.createdAt,
-                updatedAt: l.updatedAt
+                createdAt: l.createdAt
             },
             create: {
                 id: l.id,
@@ -134,8 +135,7 @@ async function main() {
                 airconProductId: l.airconProductId,
                 isReturned: l.isReturned,
                 returnedAt: l.returnedAt,
-                createdAt: l.createdAt,
-                updatedAt: l.updatedAt
+                createdAt: l.createdAt
             },
         });
     }
