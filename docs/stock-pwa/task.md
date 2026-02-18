@@ -49,6 +49,13 @@
         - [x] **Material Unit**: Clarify unit (individual vs rolls) in history.
         - [x] **Tablet Layout**: Collapsible category sidebar + Persistent cart.
         - [x] **Test Env**: Fix 3001 port issues (PIN prompt, All vendors shown).
+
+## Operations & Reliability (BCP)
+- [ ] **Business Continuity Plan**: Document strategy for PC failure (Cold Standby + Cloud Backup).
+- [ ] **Cloud Backup Setup**: Configure daily auto-backup to cloud storage (OneDrive/Google Drive).
+- [ ] **Standby Machine Setup**: Instructions for preparing a secondary PC.
+
+## Future Development
         - [ ] **Duplicate Check**: Prevent double checkout of same management number.
         - [x] Create `CartSidebar` (Persistent)
         - [x] Integrate into `ShopInterface` layout
