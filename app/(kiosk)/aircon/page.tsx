@@ -116,14 +116,20 @@ export default function AirconPage() {
                     totalCount += data.count;
                 } else {
                     console.error(`Failed for type ${type}`, data);
+                    if (data.error || data.details) {
+                        toast.error(`エラー: ${data.details || data.error}`);
+                    }
                 }
             }
 
             if (totalCount > 0) {
                 toast.success(`${totalCount}件の持出しを記録しました`);
                 router.push("/mode-select");
+            } else if (!itemsByType || Object.keys(itemsByType).length === 0) {
+                // No items selected case
             } else {
-                toast.error("保存に失敗しました");
+                // All failed (messages already shown above)
+                // toast.error("保存に失敗しました"); // Remove generic error if specific ones shown
             }
 
         } catch (e) {

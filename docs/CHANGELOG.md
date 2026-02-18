@@ -9,6 +9,7 @@
 - **Quantity Warning**: Added warning dialog when selecting odd quantities for paired items (e.g., cosmetic blocks).
 
 ### Fixed
+- **Aircon Stock Check**: Fixed critical issue where air conditioners could be checked out even with 0 stock. Added strict server-side stock validation and detailed error messages.
 - **Return Validation**: Implemented strict validation for return quantities based on previous return history, preventing excessive returns.
 - **UI**: Cleaned up Kiosk headers (removed vendor name) and enhanced visibility of History buttons.
 - **Admin UI**: Made admin sidebar menus collapsible for better navigation.

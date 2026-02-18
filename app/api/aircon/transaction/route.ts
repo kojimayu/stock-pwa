@@ -57,7 +57,11 @@ export async function POST(request: Request) {
                 logs.push(log);
 
                 // 在庫がある場合は減算
+                // 在庫がある場合は減算
                 if (airconProduct) {
+                    if (airconProduct.stock <= 0) {
+                        throw new Error(`在庫切れ: ${airconProduct.name || baseCode} (在庫: ${airconProduct.stock})`);
+                    }
                     await tx.airconProduct.update({
                         where: { id: airconProduct.id },
                         data: { stock: { decrement: 1 } }
