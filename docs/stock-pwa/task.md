@@ -51,7 +51,7 @@
         - [x] **Test Env**: Fix 3001 port issues (PIN prompt, All vendors shown).
 
 ## Operations & Reliability (BCP)
-- [ ] **Business Continuity Plan**: Document strategy for PC failure (Cold Standby + Cloud Backup).
+- [x] **Business Continuity Plan**: Document strategy for PC failure (Cold Standby + Cloud Backup).
 - [ ] **Cloud Backup Setup**: Configure daily auto-backup to cloud storage (OneDrive/Google Drive).
 - [ ] **Standby Machine Setup**: Instructions for preparing a secondary PC.
 
