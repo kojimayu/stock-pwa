@@ -73,3 +73,4 @@ node_modules/
 /public/swe-worker-*.js
 /public/worker-*.js
 /public/fallback-*.js
+test-output.txt

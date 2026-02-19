@@ -114,6 +114,15 @@
     - [x] Playwrightのインストールと設定
     - [x] `e2e` ディレクトリの作成
     - [x] テスト用DBデータのシードスクリプト作成 (`db:test:seed`)
+    - [x] **Vitestのインストールと設定** (2026-02-19)
+        - [x] `vitest.config.ts` 作成（テスト用DB分離、直列実行）
+        - [x] `__tests__/setup/` にGlobalSetup・ファクトリ関数作成
+        - [x] テスト専用DB (`test-vitest.db`) で開発DBと完全分離
+- [x] **単体テスト（Phase 1: サーバーアクション）** (2026-02-19)
+    - [x] `auth.test.ts`: PIN認証・変更・リセット・担当者登録 (10テスト通過)
+    - [x] `transaction.test.ts`: チェックアウト・在庫チェック・返品 (8テスト通過)
+    - [x] `stock.test.ts`: 在庫調整・棚卸し・エアコン在庫 (9テスト通過)
+    - [x] **🐛 バグ発見**: `adjustStock` がOUT時もstockを加算するバグを検出
 - [ ] **E2Eテストの実装**（優先度: 低）
     - [x] Kioskモード: ログイン〜商品選択〜注文完了フロー (Login完了)
     - [ ] Kioskモード: 返品フロー（在庫確認ダイアログ）
