@@ -13,6 +13,9 @@ const prisma = new PrismaClient();
 beforeEach(async () => {
     // 依存関係の深いテーブルから順に削除
     await prisma.airConditionerLog.deleteMany();
+    await prisma.airconOrderItem.deleteMany();
+    await prisma.airconOrder.deleteMany();
+    await prisma.deliveryLocation.deleteMany();
     await prisma.operationLog.deleteMany();
     await prisma.inventoryLog.deleteMany();
     await prisma.inventoryCountItem.deleteMany();
@@ -90,6 +93,18 @@ export async function createTestAirconProduct(overrides = {}) {
             suffix: 'N',
             stock: 3,
             minStock: 1,
+            ...overrides,
+        },
+    });
+}
+
+/** テスト用納品先拠点を作成 */
+export async function createTestDeliveryLocation(overrides = {}) {
+    return prisma.deliveryLocation.create({
+        data: {
+            name: `テスト拠点-${Date.now()}`,
+            address: 'テスト住所',
+            isActive: true,
             ...overrides,
         },
     });
