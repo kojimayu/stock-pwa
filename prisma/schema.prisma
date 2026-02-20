@@ -176,13 +176,29 @@ model AirconProduct {
   orderItems AirconOrderItem[]
 }
 
+// 納品先拠点
+model DeliveryLocation {
+  id        Int           @id @default(autoincrement())
+  name      String        // 例: "プラスカンパニー本社", "ZION"
+  address   String?       // 住所
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  orders    AirconOrder[]
+}
+
 model AirconOrder {
-  id        Int               @id @default(autoincrement())
-  status    String            @default("DRAFT")
-  note      String?
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  items     AirconOrderItem[]
+  id                 Int               @id @default(autoincrement())
+  orderNumber        String?           @unique // 発注番号（例: AC-2026-001）
+  status             String            @default("DRAFT")
+  note               String?
+  deliveryLocationId Int?              // 納品先拠点
+  orderedAt          DateTime?         // 発注日時
+  orderedBy          String?           // 発注者（管理者メール）
+  emailSentAt        DateTime?         // メール送信日時
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  deliveryLocation   DeliveryLocation? @relation(fields: [deliveryLocationId], references: [id])
+  items              AirconOrderItem[]
 }
 
 model AirconOrderItem {

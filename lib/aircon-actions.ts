@@ -175,6 +175,7 @@ export async function getAirconOrders() {
     return prisma.airconOrder.findMany({
         orderBy: { createdAt: "desc" },
         include: {
+            deliveryLocation: true,
             items: {
                 include: { product: true }
             }
@@ -182,11 +183,33 @@ export async function getAirconOrders() {
     });
 }
 
-// エアコン発注作成
-export async function createAirconOrder(items: { productId: number, quantity: number }[]) {
+// 発注番号の自動採番
+async function generateOrderNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `AC-${year}-`;
+    const latest = await prisma.airconOrder.findFirst({
+        where: { orderNumber: { startsWith: prefix } },
+        orderBy: { orderNumber: "desc" }
+    });
+    const seq = latest?.orderNumber
+        ? parseInt(latest.orderNumber.replace(prefix, ""), 10) + 1
+        : 1;
+    return `${prefix}${String(seq).padStart(3, "0")}`;
+}
+
+// エアコン発注作成（拡張版: 拠点・備考対応）
+export async function createAirconOrder(
+    items: { productId: number; quantity: number }[],
+    deliveryLocationId?: number,
+    note?: string
+) {
+    const orderNumber = await generateOrderNumber();
     const order = await prisma.airconOrder.create({
         data: {
+            orderNumber,
             status: "DRAFT",
+            note: note || null,
+            deliveryLocationId: deliveryLocationId || null,
             items: {
                 create: items.map(item => ({
                     productId: item.productId,
@@ -195,6 +218,7 @@ export async function createAirconOrder(items: { productId: number, quantity: nu
             }
         },
         include: {
+            deliveryLocation: true,
             items: { include: { product: true } }
         }
     });
@@ -205,9 +229,13 @@ export async function createAirconOrder(items: { productId: number, quantity: nu
 
 // 発注ステータス更新
 export async function updateAirconOrderStatus(orderId: number, status: string) {
+    const data: Record<string, unknown> = { status };
+    if (status === "ORDERED") {
+        data.orderedAt = new Date();
+    }
     await prisma.airconOrder.update({
         where: { id: orderId },
-        data: { status }
+        data
     });
     revalidatePath("/admin/aircon-orders");
     return { success: true };
@@ -264,6 +292,93 @@ export async function receiveAirconOrderItem(itemId: number, quantity: number) {
 
     revalidatePath("/admin/aircon-orders");
     revalidatePath("/admin/aircon-inventory");
+    return { success: true };
+}
+
+// 発注メール送信記録
+export async function markOrderEmailSent(orderId: number, orderedBy: string) {
+    await prisma.airconOrder.update({
+        where: { id: orderId },
+        data: {
+            status: "ORDERED",
+            orderedAt: new Date(),
+            orderedBy,
+            emailSentAt: new Date()
+        }
+    });
+    revalidatePath("/admin/aircon-orders");
+    return { success: true };
+}
+
+// ===============================
+// 拠点管理
+// ===============================
+
+// 拠点一覧取得
+export async function getDeliveryLocations() {
+    return prisma.deliveryLocation.findMany({
+        orderBy: { id: "asc" }
+    });
+}
+
+// 拠点作成
+export async function createDeliveryLocation(name: string, address?: string) {
+    const loc = await prisma.deliveryLocation.create({
+        data: { name, address: address || null }
+    });
+    revalidatePath("/admin/aircon-orders");
+    return { success: true, location: loc };
+}
+
+// 拠点更新
+export async function updateDeliveryLocation(id: number, data: { name?: string; address?: string; isActive?: boolean }) {
+    await prisma.deliveryLocation.update({
+        where: { id },
+        data
+    });
+    revalidatePath("/admin/aircon-orders");
+    return { success: true };
+}
+
+// 拠点削除
+export async function deleteDeliveryLocation(id: number) {
+    // 使用中チェック
+    const usedCount = await prisma.airconOrder.count({
+        where: { deliveryLocationId: id }
+    });
+    if (usedCount > 0) {
+        return { success: false, message: `${usedCount}件の発注で使用中のため削除できません。無効化してください。` };
+    }
+    await prisma.deliveryLocation.delete({ where: { id } });
+    revalidatePath("/admin/aircon-orders");
+    return { success: true };
+}
+
+// ===============================
+// メール設定（SystemSetting）
+// ===============================
+
+// メール設定取得
+export async function getOrderEmailSettings() {
+    const settings = await prisma.systemSetting.findMany({
+        where: {
+            key: { in: ["aircon_order_to", "aircon_order_cc", "aircon_order_from_company"] }
+        }
+    });
+    const result: Record<string, string> = {};
+    for (const s of settings) {
+        result[s.key] = s.value;
+    }
+    return result;
+}
+
+// メール設定更新
+export async function updateOrderEmailSetting(key: string, value: string) {
+    await prisma.systemSetting.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value }
+    });
     return { success: true };
 }
 
