@@ -20,6 +20,8 @@ beforeEach(async () => {
     await prisma.inventoryLog.deleteMany();
     await prisma.inventoryCountItem.deleteMany();
     await prisma.inventoryCount.deleteMany();
+    await prisma.airconInventoryCountItem.deleteMany();
+    await prisma.airconInventoryCount.deleteMany();
     await prisma.orderItem.deleteMany();
     await prisma.order.deleteMany();
     await prisma.transaction.deleteMany();
