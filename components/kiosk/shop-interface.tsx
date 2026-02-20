@@ -296,6 +296,17 @@ export function ShopInterface({
                     className={`hidden md:block bg-white border-r fixed left-0 top-[60px] bottom-0 z-30 overflow-y-auto transition-all duration-300 ${isCategoryOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 overflow-hidden border-none'}`}
                 >
                     <div className="w-72">
+                        {/* カテゴリサイドバーヘッダー（閉じるボタン付き） */}
+                        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white border-b">
+                            <span className="text-sm font-bold text-slate-700">カテゴリー</span>
+                            <button
+                                onClick={() => setIsCategoryOpen(false)}
+                                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                                title="カテゴリーを閉じる"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
                         <MergedCategoryList
                             products={activeProducts}
                             selectedCategory={selectedCategory}

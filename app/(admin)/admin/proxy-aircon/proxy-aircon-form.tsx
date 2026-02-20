@@ -113,6 +113,7 @@ export function ProxyAirconForm({ vendor, onComplete }: ProxyAirconFormProps) {
                         items: models,
                         vendorId: vendor.id,
                         type: type,
+                        isProxyInput: true, // 代理入力フラグ
                         // 代理入力用：引取日を指定
                         transactionDate: transactionDate,
                     }),

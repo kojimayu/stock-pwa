@@ -154,6 +154,7 @@ model AirConditionerLog {
   type            String         @default("SET") // SET, INDOOR, OUTDOOR
   airconProductId Int?
   isReturned      Boolean        @default(false)
+  isProxyInput    Boolean        @default(false)
   returnedAt      DateTime?
   createdAt       DateTime       @default(now())
   airconProduct   AirconProduct? @relation(fields: [airconProductId], references: [id])

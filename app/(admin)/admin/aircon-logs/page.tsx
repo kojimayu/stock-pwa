@@ -26,6 +26,7 @@ type LogEntry = {
     contractor: string | null;
     modelNumber: string;
     isReturned: boolean;
+    isProxyInput: boolean;
     returnedAt: string | null;
     vendor: {
         name: string;
@@ -230,7 +231,10 @@ export default function AirconLogsPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <div className="font-medium">{log.vendor.name}</div>
+                                            <div className="font-medium">
+                                                {log.isProxyInput && <span className="text-xs bg-purple-100 text-purple-700 px-1 rounded mr-1">代</span>}
+                                                {log.vendor.name}
+                                            </div>
                                             {log.vendorUser && (
                                                 <div className="text-xs text-slate-500">
                                                     (担) {log.vendorUser.name}

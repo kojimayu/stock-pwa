@@ -12,7 +12,8 @@ export async function POST(request: Request) {
             items, // 品番の配列
             vendorId,
             vendorUserId, // Added: Handle vendorUserId from request
-            type = 'SET'  // Added: Default type to 'SET'
+            type = 'SET',  // Added: Default type to 'SET'
+            isProxyInput = false // 代理入力フラグ
         } = body;
 
         if (!managementNo || !items || !Array.isArray(items) || items.length === 0 || !vendorId) {
@@ -51,7 +52,8 @@ export async function POST(request: Request) {
                         vendorId: Number(vendorId),
                         airconProductId: airconProduct?.id || null, // 商品紐付け
                         vendorUserId: vendorUserId ? Number(vendorUserId) : null, // Added: Save vendorUserId
-                        type: type // Added: Save type
+                        type: type, // Added: Save type
+                        isProxyInput: Boolean(isProxyInput) // 代理入力フラグ
                     },
                 });
                 logs.push(log);

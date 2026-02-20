@@ -34,10 +34,10 @@ const navigationGroups = [
     collapsible: true,
     items: [
       { name: "取引履歴", href: "/admin/transactions", icon: FileText },
-      { name: "代理入力", href: "/admin/proxy-input", icon: Users },
       { name: "商品管理", href: "/admin/products", icon: Package },
       { name: "在庫管理", href: "/admin/inventory", icon: Package },
       { name: "発注管理", href: "/admin/orders", icon: ClipboardList },
+      { name: "代理入力", href: "/admin/proxy-input", icon: Users },
     ],
   },
   {
@@ -45,9 +45,9 @@ const navigationGroups = [
     icon: Fan,
     collapsible: true,
     items: [
+      { name: "持出し履歴", href: "/admin/aircon-logs", icon: FileText },
       { name: "在庫管理", href: "/admin/aircon-inventory", icon: Package },
       { name: "発注管理", href: "/admin/aircon-orders", icon: ClipboardList },
-      { name: "持出し履歴", href: "/admin/aircon-logs", icon: FileText },
       { name: "代理入力", href: "/admin/proxy-aircon", icon: Users },
     ],
   },
