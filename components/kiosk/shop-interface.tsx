@@ -296,17 +296,14 @@ export function ShopInterface({
                     className={`hidden md:block bg-white border-r fixed left-0 top-[60px] bottom-0 z-30 overflow-y-auto transition-all duration-300 ${isCategoryOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 overflow-hidden border-none'}`}
                 >
                     <div className="w-72">
-                        {/* カテゴリサイドバーヘッダー（閉じるボタン付き） */}
-                        <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 bg-white border-b">
-                            <span className="text-sm font-bold text-slate-700">カテゴリー</span>
-                            <button
-                                onClick={() => setIsCategoryOpen(false)}
-                                className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
-                                title="カテゴリーを閉じる"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
+                        {/* カテゴリサイドバーヘッダー（閉じるバー） */}
+                        <button
+                            onClick={() => setIsCategoryOpen(false)}
+                            className="sticky top-0 z-10 w-full flex items-center gap-2 px-4 py-3 bg-slate-100 border-b hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-900 group"
+                        >
+                            <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
+                            <span className="text-sm font-bold">カテゴリーを閉じる</span>
+                        </button>
                         <MergedCategoryList
                             products={activeProducts}
                             selectedCategory={selectedCategory}
@@ -327,14 +324,18 @@ export function ShopInterface({
                     </div>
                 </aside>
 
-                {/* Sidebar Toggle Button (Floating) */}
-                <button
-                    onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-                    className={`hidden md:flex items-center justify-center fixed bottom-6 left-6 z-40 bg-slate-900 text-white w-12 h-12 rounded-full shadow-lg transition-all duration-300 hover:bg-slate-800 ${isCategoryOpen ? 'translate-x-64' : 'translate-x-0'}`}
-                    title={isCategoryOpen ? "カテゴリーを閉じる" : "カテゴリーを開く"}
-                >
-                    {isCategoryOpen ? <ChevronLeft className="w-6 h-6" /> : <Search className="w-6 h-6" />}
-                </button>
+                {/* カテゴリーを開くタブ（サイドバーが閉じている時のみ表示） */}
+                {!isCategoryOpen && (
+                    <button
+                        onClick={() => setIsCategoryOpen(true)}
+                        className="hidden md:flex items-center gap-1 fixed left-0 top-1/3 z-40 bg-slate-800 text-white px-2 py-3 rounded-r-lg shadow-lg hover:bg-slate-700 transition-all hover:px-3 writing-mode-vertical"
+                        title="カテゴリーを開く"
+                        style={{ writingMode: 'vertical-rl' }}
+                    >
+                        <Search className="w-4 h-4 mb-1 rotate-90" />
+                        <span className="text-xs font-bold tracking-widest">カテゴリー</span>
+                    </button>
+                )}
 
                 {/* 
                    ===============================================
