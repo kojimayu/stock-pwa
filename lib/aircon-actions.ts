@@ -10,6 +10,29 @@ export async function getAirconProducts() {
     });
 }
 
+// エアコン商品の発注単価を更新
+export async function updateAirconProductPrice(productId: number, orderPrice: number) {
+    await prisma.airconProduct.update({
+        where: { id: productId },
+        data: { orderPrice },
+    });
+    revalidatePath("/admin/aircon-orders/settings");
+    return { success: true };
+}
+
+// 下書き発注を削除
+export async function deleteAirconOrder(orderId: number) {
+    const order = await prisma.airconOrder.findUnique({ where: { id: orderId } });
+    if (!order || order.status !== "DRAFT") {
+        return { success: false, message: "下書き状態の発注のみ削除可能です" };
+    }
+    // 関連アイテムを先に削除
+    await prisma.airconOrderItem.deleteMany({ where: { orderId } });
+    await prisma.airconOrder.delete({ where: { id: orderId } });
+    revalidatePath("/admin/aircon-orders");
+    return { success: true };
+}
+
 // エアコン商品一覧取得（業者保有在庫つき）
 export async function getAirconStockWithVendorBreakdown() {
     const products = await prisma.airconProduct.findMany({
@@ -197,11 +220,12 @@ async function generateOrderNumber(): Promise<string> {
     return `${prefix}${String(seq).padStart(3, "0")}`;
 }
 
-// エアコン発注作成（拡張版: 拠点・備考対応）
+// エアコン発注作成（拡張版: 拠点・備考・カスタム納品先対応）
 export async function createAirconOrder(
     items: { productId: number; quantity: number }[],
     deliveryLocationId?: number,
-    note?: string
+    note?: string,
+    customDeliveryName?: string
 ) {
     const orderNumber = await generateOrderNumber();
     const order = await prisma.airconOrder.create({
@@ -210,6 +234,7 @@ export async function createAirconOrder(
             status: "DRAFT",
             note: note || null,
             deliveryLocationId: deliveryLocationId || null,
+            customDeliveryName: customDeliveryName || null,
             items: {
                 create: items.map(item => ({
                     productId: item.productId,

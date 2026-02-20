@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { CategoryTabs } from "./category-tabs";
 import { ProductListItem } from "./product-list-item";
 import { ManualProductSheet } from "@/components/kiosk/manual-product-sheet";
@@ -57,6 +57,34 @@ export function ShopInterface({
 
     // Sidebar State
     const [isCategoryOpen, setIsCategoryOpen] = useState(true);
+    const [showCollapseHint, setShowCollapseHint] = useState(false);
+    const hintTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // 初回表示時のサイドバー折りたたみヒントアニメーション
+    useEffect(() => {
+        const hintShown = localStorage.getItem("sidebar-collapse-hint-shown");
+        if (hintShown) return;
+
+        // 1.5秒後にサイドバーを一瞬閉じる
+        hintTimerRef.current = setTimeout(() => {
+            setIsCategoryOpen(false);
+            setShowCollapseHint(true);
+
+            // 1秒後に戻す
+            setTimeout(() => {
+                setIsCategoryOpen(true);
+                // パルスアニメーションを3秒間表示
+                setTimeout(() => {
+                    setShowCollapseHint(false);
+                    localStorage.setItem("sidebar-collapse-hint-shown", "1");
+                }, 3000);
+            }, 800);
+        }, 1500);
+
+        return () => {
+            if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+        };
+    }, []);
 
     // Return Mode State
     const [returnableProducts, setReturnableProducts] = useState<Product[]>([]);
@@ -299,10 +327,13 @@ export function ShopInterface({
                         {/* カテゴリサイドバーヘッダー（閉じるバー） */}
                         <button
                             onClick={() => setIsCategoryOpen(false)}
-                            className="sticky top-0 z-10 w-full flex items-center gap-2 px-4 py-3 bg-slate-100 border-b hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-900 group"
+                            className={`sticky top-0 z-10 w-full flex items-center gap-2 px-4 py-3 bg-slate-100 border-b hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-900 group ${showCollapseHint ? 'animate-pulse bg-blue-100 text-blue-700 ring-2 ring-blue-300' : ''
+                                }`}
                         >
-                            <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-                            <span className="text-sm font-bold">カテゴリーを閉じる</span>
+                            <ChevronLeft className={`w-5 h-5 transition-transform group-hover:-translate-x-0.5 ${showCollapseHint ? 'text-blue-600' : ''}`} />
+                            <span className="text-sm font-bold">
+                                {showCollapseHint ? '← タップで折りたたみ' : 'カテゴリーを閉じる'}
+                            </span>
                         </button>
                         <MergedCategoryList
                             products={activeProducts}

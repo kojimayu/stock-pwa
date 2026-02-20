@@ -170,6 +170,7 @@ model AirconProduct {
   suffix     String              @default("N")
   stock      Int                 @default(0)
   minStock   Int                 @default(0)
+  orderPrice Int                 @default(0) // 発注単価（税抜）
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
   logs       AirConditionerLog[]
@@ -192,6 +193,7 @@ model AirconOrder {
   status             String            @default("DRAFT")
   note               String?
   deliveryLocationId Int?              // 納品先拠点
+  customDeliveryName String?           // 「その他」選択時の自由入力拠点名
   orderedAt          DateTime?         // 発注日時
   orderedBy          String?           // 発注者（管理者メール）
   emailSentAt        DateTime?         // メール送信日時

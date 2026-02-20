@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft } from "lucide-react";
+import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft, Lock, LockOpen, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import {
     getOrderEmailSettings,
@@ -13,8 +13,19 @@ import {
     createDeliveryLocation,
     updateDeliveryLocation,
     deleteDeliveryLocation,
+    getAirconProducts,
+    updateAirconProductPrice,
 } from "@/lib/aircon-actions";
 import Link from "next/link";
+
+interface AirconProd {
+    id: number;
+    code: string;
+    name: string;
+    suffix: string;
+    capacity: string;
+    orderPrice: number;
+}
 
 interface EmailContact {
     name: string;
@@ -47,6 +58,12 @@ export default function AirconOrderSettingsPage() {
     const [newLocationName, setNewLocationName] = useState("");
     const [newLocationAddress, setNewLocationAddress] = useState("");
 
+    // 単価管理
+    const [products, setProducts] = useState<AirconProd[]>([]);
+    const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
+    const [priceLocked, setPriceLocked] = useState(true);
+    const [savingPrices, setSavingPrices] = useState(false);
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -54,9 +71,10 @@ export default function AirconOrderSettingsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [settings, locs] = await Promise.all([
+            const [settings, locs, prods] = await Promise.all([
                 getOrderEmailSettings(),
                 getDeliveryLocations(),
+                getAirconProducts(),
             ]);
             if (settings["aircon_order_to"]) {
                 setToContact(JSON.parse(settings["aircon_order_to"]));
@@ -68,6 +86,13 @@ export default function AirconOrderSettingsPage() {
                 setFromCompany(settings["aircon_order_from_company"]);
             }
             setLocations(locs);
+            setProducts(prods as unknown as AirconProd[]);
+            // 現在の単価を編集用にセット
+            const edits: Record<number, string> = {};
+            (prods as unknown as AirconProd[]).forEach(p => {
+                edits[p.id] = String(p.orderPrice || 0);
+            });
+            setPriceEdits(edits);
         } catch {
             toast.error("設定の読み込みに失敗しました");
         } finally {
@@ -131,6 +156,26 @@ export default function AirconOrderSettingsPage() {
             fetchData();
         } else {
             toast.error(result.message);
+        }
+    };
+
+    // 単価保存
+    const handleSavePrices = async () => {
+        setSavingPrices(true);
+        try {
+            for (const product of products) {
+                const newPrice = parseInt(priceEdits[product.id] || "0") || 0;
+                if (newPrice !== product.orderPrice) {
+                    await updateAirconProductPrice(product.id, newPrice);
+                }
+            }
+            toast.success("単価を保存しました");
+            setPriceLocked(true);
+            fetchData();
+        } catch {
+            toast.error("単価の保存に失敗しました");
+        } finally {
+            setSavingPrices(false);
         }
     };
 
@@ -278,6 +323,57 @@ export default function AirconOrderSettingsPage() {
                             <Plus className="h-4 w-4 mr-1" /> 追加
                         </Button>
                     </div>
+                </CardContent>
+            </Card>
+
+            {/* 単価管理 */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <DollarSign className="h-5 w-5" /> 発注単価管理
+                            </CardTitle>
+                            <CardDescription>注文書PDFに反映される発注単価を管理します</CardDescription>
+                        </div>
+                        <Button
+                            variant={priceLocked ? "outline" : "destructive"}
+                            size="sm"
+                            onClick={() => setPriceLocked(!priceLocked)}
+                        >
+                            {priceLocked ? <><Lock className="h-4 w-4 mr-1" /> ロック中</> : <><LockOpen className="h-4 w-4 mr-1" /> 編集中</>}
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="grid grid-cols-[1fr_120px_100px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                        <span>品番 / 商品名</span>
+                        <span>容量</span>
+                        <span className="text-right">単価（税抜）</span>
+                    </div>
+                    {products.map(product => (
+                        <div key={product.id} className="grid grid-cols-[1fr_120px_100px] gap-2 items-center p-2 rounded border">
+                            <div className="text-sm">
+                                <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}{product.suffix}</span>
+                                {product.name}
+                            </div>
+                            <span className="text-sm text-muted-foreground">{product.capacity}</span>
+                            <Input
+                                type="number"
+                                min={0}
+                                step={100}
+                                className="h-8 text-right"
+                                value={priceEdits[product.id] || "0"}
+                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: e.target.value })}
+                                disabled={priceLocked}
+                            />
+                        </div>
+                    ))}
+                    {!priceLocked && (
+                        <Button onClick={handleSavePrices} disabled={savingPrices} className="w-full mt-3">
+                            {savingPrices ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 単価を保存</>}
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
         </div>

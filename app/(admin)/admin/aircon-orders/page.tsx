@@ -31,6 +31,8 @@ import {
     MapPin,
     Settings,
     Loader2,
+    Trash2,
+    XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -41,6 +43,7 @@ import {
     receiveAirconOrderItem,
     getDeliveryLocations,
     getOrderEmailSettings,
+    deleteAirconOrder,
 } from "@/lib/aircon-actions";
 import { formatDate } from "@/lib/utils";
 
@@ -52,6 +55,7 @@ interface AirconProduct {
     capacity: string;
     suffix: string;
     stock: number;
+    orderPrice: number;
 }
 
 interface OrderItem {
@@ -103,10 +107,12 @@ export default function AirconOrdersPage() {
     const [orderQuantities, setOrderQuantities] = useState<Record<number, number>>({});
     const [selectedLocationId, setSelectedLocationId] = useState<string>("");
     const [orderNote, setOrderNote] = useState("");
+    const [customDeliveryName, setCustomDeliveryName] = useState(""); // 「その他」自由入力
 
     // 入荷ダイアログ
     const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [receiveQuantities, setReceiveQuantities] = useState<Record<number, number>>({});
 
     // メール送信
     const [sendingEmail, setSendingEmail] = useState(false);
@@ -161,8 +167,9 @@ export default function AirconOrdersPage() {
 
         const result = await createAirconOrder(
             items,
-            selectedLocationId ? parseInt(selectedLocationId) : undefined,
-            orderNote || undefined
+            selectedLocationId === "other" ? undefined : (selectedLocationId ? parseInt(selectedLocationId) : undefined),
+            orderNote || undefined,
+            selectedLocationId === "other" ? customDeliveryName || undefined : undefined
         );
         if (result.success) {
             toast.success(`発注 ${result.order.orderNumber} を作成しました`);
@@ -170,6 +177,7 @@ export default function AirconOrdersPage() {
             setOrderQuantities({});
             setSelectedLocationId("");
             setOrderNote("");
+            setCustomDeliveryName("");
             fetchData();
         }
     };
@@ -185,8 +193,29 @@ export default function AirconOrdersPage() {
     const handleReceive = async (itemId: number, quantity: number) => {
         const result = await receiveAirconOrderItem(itemId, quantity);
         if (result.success) {
-            toast.success("入荷を記録しました");
-            fetchData();
+            toast.success(`${quantity}台の入荷を記録しました`);
+            // データを再取得してモーダルの状態も更新
+            const [prods, ords] = await Promise.all([
+                getAirconProducts(),
+                getAirconOrders(),
+            ]);
+            setProducts(prods as AirconProduct[]);
+            setOrders(ords as Order[]);
+            // selectedOrderを更新
+            if (selectedOrder) {
+                const updated = (ords as Order[]).find(o => o.id === selectedOrder.id);
+                if (updated && (updated.status === "ORDERED" || updated.status === "PARTIAL")) {
+                    setSelectedOrder(updated);
+                    // 入荷数量をリセット
+                    setReceiveQuantities({});
+                } else {
+                    // 全入荷完了またはステータス変更済み
+                    setReceiveDialogOpen(false);
+                    setSelectedOrder(null);
+                    setReceiveQuantities({});
+                    toast.success("全商品の入荷が完了しました！");
+                }
+            }
         } else {
             toast.error(result.message);
         }
@@ -195,62 +224,20 @@ export default function AirconOrdersPage() {
     // 入荷ダイアログを開く
     const openReceiveDialog = (order: Order) => {
         setSelectedOrder(order);
+        setReceiveQuantities({});
         setReceiveDialogOpen(true);
     };
 
-    // PDF生成（クライアントサイド）
+    // PDF生成（サーバーサイド）
     const generateOrderPdf = async (order: Order): Promise<string> => {
-        const { jsPDF } = await import("jspdf");
-        const autoTable = (await import("jspdf-autotable")).default;
-
-        const doc = new jsPDF();
-
-        // 日本語フォント対応（ASCII範囲のみ + Unicode対応）
-        // ヘッダー
-        doc.setFontSize(20);
-        doc.text("ORDER FORM", 105, 20, { align: "center" });
-
-        doc.setFontSize(10);
-        const dateStr = new Date().toLocaleDateString("ja-JP");
-        doc.text(`Date: ${dateStr}`, 150, 30);
-        doc.text(`Order No: ${order.orderNumber || "-"}`, 150, 36);
-
-        // 宛先
-        doc.setFontSize(10);
-        doc.text("To: Hitachi Global Life Solutions, Inc.", 14, 45);
-        doc.text("Kansai/Chushikoku Corporate Branch", 14, 51);
-
-        // 発注元
-        doc.text("From: Plus Company Co., Ltd.", 14, 62);
-        const locationName = order.deliveryLocation?.name || "Head Office";
-        doc.text(`Delivery to: ${locationName}`, 14, 68);
-
-        // 商品テーブル
-        const tableData = order.items.map(item => [
-            item.product.code,
-            item.product.name,
-            item.product.capacity,
-            String(item.quantity),
-        ]);
-
-        autoTable(doc, {
-            startY: 78,
-            head: [["Product Code", "Product Name", "Capacity", "Qty"]],
-            body: tableData,
-            styles: { fontSize: 9 },
-            headStyles: { fillColor: [41, 128, 185] },
+        const res = await fetch("/api/aircon/order-pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: order.id }),
         });
-
-        // 備考
-        if (order.note) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const finalY = (doc as any).lastAutoTable?.finalY || 120;
-            doc.text(`Note: ${order.note}`, 14, finalY + 10);
-        }
-
-        // Base64で返す
-        const pdfBase64 = doc.output("datauristring").split(",")[1];
-        return pdfBase64;
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        return data.pdfBase64;
     };
 
     // PDFダウンロード
@@ -339,7 +326,7 @@ export default function AirconOrdersPage() {
                                 新規発注
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>新規発注作成</DialogTitle>
                                 <DialogDescription>商品と数量を選択し、納品先を指定してください。</DialogDescription>
@@ -350,7 +337,10 @@ export default function AirconOrdersPage() {
                                 <label className="text-sm font-medium flex items-center gap-1">
                                     <MapPin className="h-4 w-4" /> 納品先拠点
                                 </label>
-                                <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
+                                <Select value={selectedLocationId} onValueChange={(val) => {
+                                    setSelectedLocationId(val);
+                                    if (val !== "other") setCustomDeliveryName("");
+                                }}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="拠点を選択" />
                                     </SelectTrigger>
@@ -360,8 +350,17 @@ export default function AirconOrdersPage() {
                                                 {loc.name}
                                             </SelectItem>
                                         ))}
+                                        <SelectItem value="other">その他（自由入力）</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                {selectedLocationId === "other" && (
+                                    <Input
+                                        value={customDeliveryName}
+                                        onChange={e => setCustomDeliveryName(e.target.value)}
+                                        placeholder="納品先名を入力（例: ジンコーポレーション）"
+                                        className="mt-2"
+                                    />
+                                )}
                             </div>
 
                             {/* 商品選択 */}
@@ -369,17 +368,25 @@ export default function AirconOrdersPage() {
                                 <label className="text-sm font-medium">商品と数量</label>
                                 <div className="max-h-64 overflow-y-auto space-y-1">
                                     {products.map(product => (
-                                        <div key={product.id} className="flex items-center gap-2 p-2 rounded hover:bg-muted/50">
-                                            <div className="flex-1 text-sm">
-                                                <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}</span>
-                                                {product.name}
-                                                <span className="text-xs text-muted-foreground ml-1">({product.capacity})</span>
-                                                <span className="text-xs ml-2 text-slate-500">在庫: {product.stock}</span>
+                                        <div key={product.id} className="flex items-center gap-3 p-2 rounded hover:bg-muted/50">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-mono text-xs text-muted-foreground whitespace-nowrap">{product.code}{product.suffix}</span>
+                                                    <span className="text-sm">{product.name}</span>
+                                                    <span className="text-xs text-muted-foreground">({product.capacity})</span>
+                                                    {/* 在庫はプラスカンパニー本社の時のみ表示 */}
+                                                    {(!selectedLocationId || selectedLocationId === "" || locations.find(l => String(l.id) === selectedLocationId)?.name?.includes("プラス") || locations.find(l => String(l.id) === selectedLocationId)?.name?.includes("本社")) && (
+                                                        <span className="text-xs text-slate-500 whitespace-nowrap">在庫: {product.stock}</span>
+                                                    )}
+                                                    {product.orderPrice > 0 && (
+                                                        <span className="text-xs text-blue-500 whitespace-nowrap">¥{product.orderPrice.toLocaleString()}</span>
+                                                    )}
+                                                </div>
                                             </div>
                                             <Input
                                                 type="number"
                                                 min={0}
-                                                className="w-20 h-8"
+                                                className="w-20 h-8 shrink-0"
                                                 value={orderQuantities[product.id] || ""}
                                                 onChange={(e) =>
                                                     setOrderQuantities({
@@ -506,9 +513,18 @@ export default function AirconOrdersPage() {
                                                 <Button
                                                     size="sm"
                                                     variant="destructive"
-                                                    onClick={() => handleStatusChange(order.id, "CANCELLED")}
+                                                    onClick={async () => {
+                                                        if (!confirm("この下書きを削除しますか？")) return;
+                                                        const result = await deleteAirconOrder(order.id);
+                                                        if (result.success) {
+                                                            toast.success("下書きを削除しました");
+                                                            fetchData();
+                                                        } else {
+                                                            toast.error(result.message || "削除に失敗しました");
+                                                        }
+                                                    }}
                                                 >
-                                                    キャンセル
+                                                    <Trash2 className="h-3 w-3 mr-1" /> 削除
                                                 </Button>
                                             </>
                                         )}
@@ -518,13 +534,25 @@ export default function AirconOrdersPage() {
                                             </Button>
                                         )}
                                         {order.status === "ORDERED" && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleDownloadPdf(order)}
-                                            >
-                                                <FileText className="h-3 w-3 mr-1" /> PDF再ダウンロード
-                                            </Button>
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleDownloadPdf(order)}
+                                                >
+                                                    <FileText className="h-3 w-3 mr-1" /> PDF再ダウンロード
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    onClick={() => {
+                                                        if (!confirm("この発注をキャンセルしますか？\n履歴は保持されます。")) return;
+                                                        handleStatusChange(order.id, "CANCELLED");
+                                                    }}
+                                                >
+                                                    <XCircle className="h-3 w-3 mr-1" /> キャンセル
+                                                </Button>
+                                            </>
                                         )}
                                     </div>
                                 </CardContent>
@@ -587,7 +615,13 @@ export default function AirconOrdersPage() {
             </Dialog>
 
             {/* 入荷チェックダイアログ */}
-            <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
+            <Dialog open={receiveDialogOpen} onOpenChange={(open) => {
+                setReceiveDialogOpen(open);
+                if (!open) {
+                    setSelectedOrder(null);
+                    setReceiveQuantities({});
+                }
+            }}>
                 <DialogContent className="max-w-lg">
                     <DialogHeader>
                         <DialogTitle>入荷チェック ({selectedOrder?.orderNumber})</DialogTitle>
@@ -597,25 +631,54 @@ export default function AirconOrdersPage() {
                         <div className="space-y-3">
                             {selectedOrder.items.map(item => {
                                 const remaining = item.quantity - item.receivedQuantity;
+                                const inputQty = receiveQuantities[item.id] ?? remaining;
                                 return (
-                                    <div key={item.id} className="flex items-center gap-3 p-3 border rounded">
-                                        <div className="flex-1">
-                                            <div className="font-medium text-sm">{item.product.name}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {item.product.code} | 発注: {item.quantity} | 入荷済: {item.receivedQuantity}
-                                                {remaining > 0 && <span className="text-orange-600 ml-1">（残: {remaining}）</span>}
+                                    <div key={item.id} className="p-3 border rounded space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-medium text-sm">{item.product.name}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {item.product.code} | 発注: {item.quantity} | 入荷済: {item.receivedQuantity}
+                                                    {remaining > 0 && <span className="text-orange-600 ml-1">（残: {remaining}）</span>}
+                                                </div>
+                                                <div className="text-xs text-blue-600 mt-0.5">
+                                                    現在在庫: {item.product.stock ?? "—"}台
+                                                </div>
                                             </div>
+                                            {remaining <= 0 && (
+                                                <span className="text-green-600 text-sm font-medium">✓ 完了</span>
+                                            )}
                                         </div>
                                         {remaining > 0 && (
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleReceive(item.id, remaining)}
-                                            >
-                                                全数入荷 ({remaining})
-                                            </Button>
-                                        )}
-                                        {remaining <= 0 && (
-                                            <span className="text-green-600 text-sm font-medium">✓ 完了</span>
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    max={remaining}
+                                                    className="w-20 h-8"
+                                                    value={inputQty}
+                                                    onChange={(e) => setReceiveQuantities({
+                                                        ...receiveQuantities,
+                                                        [item.id]: Math.min(Math.max(1, parseInt(e.target.value) || 0), remaining),
+                                                    })}
+                                                />
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setReceiveQuantities({
+                                                        ...receiveQuantities,
+                                                        [item.id]: remaining,
+                                                    })}
+                                                >
+                                                    全数({remaining})
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleReceive(item.id, inputQty)}
+                                                >
+                                                    <Package className="h-3 w-3 mr-1" /> 入荷確定
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 );
