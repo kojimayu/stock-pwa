@@ -112,6 +112,8 @@ export default function AirconOrdersPage() {
     const [sendingEmail, setSendingEmail] = useState(false);
     const [confirmEmailDialogOpen, setConfirmEmailDialogOpen] = useState(false);
     const [emailTargetOrder, setEmailTargetOrder] = useState<Order | null>(null);
+    const [isTestMode, setIsTestMode] = useState(false);
+    const [testEmailOverride, setTestEmailOverride] = useState<string | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -128,6 +130,14 @@ export default function AirconOrdersPage() {
             setProducts(prods);
             setOrders(ords as unknown as Order[]);
             setLocations(locs);
+
+            // テストモード判定
+            try {
+                const configRes = await fetch("/api/config");
+                const configData = await configRes.json();
+                setIsTestMode(configData.isTestMode);
+                setTestEmailOverride(configData.testEmailOverride);
+            } catch { /* 無視 */ }
         } catch {
             toast.error("データ取得に失敗しました");
         } finally {
@@ -284,6 +294,9 @@ export default function AirconOrdersPage() {
             const data = await res.json();
             if (data.success) {
                 toast.success(`発注メールを送信しました (${data.orderNumber})`);
+                if (data.isTestMode) {
+                    setIsTestMode(true);
+                }
                 setConfirmEmailDialogOpen(false);
                 setEmailTargetOrder(null);
                 fetchData();
@@ -547,9 +560,15 @@ export default function AirconOrdersPage() {
                                     ))}
                                 </ul>
                             </div>
-                            <div className="p-3 bg-yellow-50 rounded text-yellow-800 text-xs">
-                                ⚠️ 送信すると、日立の担当者にメールが届きます。発注内容を確認してから送信してください。
-                            </div>
+                            {isTestMode ? (
+                                <div className="p-3 bg-green-50 rounded text-green-800 text-xs border border-green-200">
+                                    🧪 テストモード: メールは <strong>y.kojima@plus-company.co.jp</strong> のみに送信されます。日立担当者には届きません。
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-yellow-50 rounded text-yellow-800 text-xs">
+                                    ⚠️ 送信すると、日立の担当者にメールが届きます。発注内容を確認してから送信してください。
+                                </div>
+                            )}
                         </div>
                     )}
                     <DialogFooter>

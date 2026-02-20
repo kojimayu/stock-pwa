@@ -59,10 +59,21 @@ export async function POST(request: NextRequest) {
 
         // メール設定取得
         const settings = await getOrderEmailSettings();
+        let toEmail = JSON.parse(settings["aircon_order_to"] || "{}").email;
+        let ccEmails = JSON.parse(settings["aircon_order_cc"] || "[]");
         const toConfig = JSON.parse(settings["aircon_order_to"] || "{}");
-        const ccList = JSON.parse(settings["aircon_order_cc"] || "[]");
         const fromCompany = settings["aircon_order_from_company"] || "㈱プラスカンパニー";
         const fromAddress = process.env.SMTP_FROM_ADDRESS;
+
+        // 🔒 テストモード: メール宛先をテスト用アドレスに固定（事故防止）
+        const isTestMode = process.env.TEST_MODE === "true";
+        const testEmailOverride = process.env.TEST_EMAIL_OVERRIDE;
+
+        if (isTestMode && testEmailOverride) {
+            console.log(`🧪 テストモード: メール宛先を ${testEmailOverride} に固定`);
+            toEmail = testEmailOverride;
+            ccEmails = []; // CCも空にして安全確保
+        }
 
         if (!fromAddress) {
             return NextResponse.json({ error: "SMTP_FROM_ADDRESS が設定されていません" }, { status: 500 });
@@ -71,7 +82,8 @@ export async function POST(request: NextRequest) {
         // メール件名
         const dateStr = new Date().toLocaleDateString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit" });
         const locationName = order.deliveryLocation?.name || "本社";
-        const subject = `【注文書】${fromCompany} ${locationName} ${dateStr}`;
+        const testPrefix = isTestMode ? "【テスト】" : "";
+        const subject = `${testPrefix}【注文書】${fromCompany} ${locationName} ${dateStr}`;
 
         // メール本文（HTML）
         const itemRows = order.items.map(item =>
@@ -124,9 +136,9 @@ export async function POST(request: NextRequest) {
                     content: htmlContent,
                 },
                 toRecipients: [
-                    { emailAddress: { address: toConfig.email } }
+                    { emailAddress: { address: toEmail } }
                 ],
-                ccRecipients: ccList.map((cc: { email: string }) => ({
+                ccRecipients: ccEmails.map((cc: { email: string }) => ({
                     emailAddress: { address: cc.email }
                 })),
                 attachments: [
@@ -160,8 +172,8 @@ export async function POST(request: NextRequest) {
         // 送信記録
         await markOrderEmailSent(orderId, orderedBy || fromAddress);
 
-        console.log(`発注メール送信成功: ${order.orderNumber} → ${toConfig.email}`);
-        return NextResponse.json({ success: true, orderNumber: order.orderNumber });
+        console.log(`発注メール送信成功: ${order.orderNumber} → ${toEmail}${isTestMode ? " (テストモード)" : ""}`);
+        return NextResponse.json({ success: true, orderNumber: order.orderNumber, isTestMode });
 
     } catch (error) {
         console.error("発注メール送信エラー:", error);

@@ -29,10 +29,17 @@ export default async function AdminLayout({
         }
     }
 
+    const isTestMode = process.env.TEST_MODE === "true";
+
     return (
         <div className="flex h-screen w-full bg-slate-50">
             <AdminSidebar user={session?.user || undefined} />
             <main className="flex-1 overflow-y-auto">
+                {isTestMode && (
+                    <div className="bg-red-600 text-white text-center py-1.5 text-sm font-bold sticky top-0 z-50">
+                        ⚠️ テスト環境 — 本番データには影響しません｜メール送信先: {process.env.TEST_EMAIL_OVERRIDE || "テスト用"}
+                    </div>
+                )}
                 <div className="p-4 pt-16 md:p-8 max-w-7xl mx-auto space-y-8">
                     {children}
                 </div>
