@@ -1,0 +1,144 @@
+"use client";
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { UserCheck, ArrowRight, Fan, AlertCircle, ArrowLeft } from "lucide-react";
+import { ProxyAirconForm } from "./proxy-aircon-form";
+
+interface Vendor {
+    id: number;
+    name: string;
+    accessCompanyName?: string | null;
+    _count?: {
+        transactions: number;
+    };
+}
+
+interface ProxyAirconClientProps {
+    vendors: Vendor[];
+}
+
+export function ProxyAirconClient({ vendors }: ProxyAirconClientProps) {
+    const [selectedVendorId, setSelectedVendorId] = useState<string>("");
+    const [isFormMode, setIsFormMode] = useState(false);
+
+    const selectedVendor = vendors.find(v => v.id === Number(selectedVendorId));
+
+    const handleStartProxy = () => {
+        if (selectedVendor) {
+            setIsFormMode(true);
+        }
+    };
+
+    const handleExitProxy = () => {
+        setIsFormMode(false);
+        setSelectedVendorId("");
+    };
+
+    // 代理入力フォームモード
+    if (isFormMode && selectedVendor) {
+        return (
+            <div className="-m-4 md:-m-8 flex flex-col" style={{ height: "100vh" }}>
+                {/* 代理入力バナー */}
+                <div className="bg-amber-500 text-white p-2 flex items-center justify-between flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5" />
+                        <span className="font-medium">エアコン代理入力モード: {selectedVendor.name}</span>
+                    </div>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleExitProxy}
+                    >
+                        <ArrowLeft className="w-4 h-4 mr-1" />
+                        終了
+                    </Button>
+                </div>
+                {/* エアコン代理入力フォーム */}
+                <div className="flex-1 overflow-hidden">
+                    <ProxyAirconForm
+                        vendor={selectedVendor}
+                        onComplete={handleExitProxy}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // 業者選択画面
+    return (
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-3xl font-bold tracking-tight">エアコン代理入力</h2>
+                <p className="text-muted-foreground">業者に代わってエアコンの持出しを記録します</p>
+            </div>
+            <Card className="max-w-xl">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <UserCheck className="w-5 h-5" />
+                        業者を選択
+                    </CardTitle>
+                    <CardDescription>
+                        代理でエアコン持出し入力を行う業者を選択してください
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="業者を選択..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {vendors.map((vendor) => (
+                                <SelectItem key={vendor.id} value={String(vendor.id)}>
+                                    <div className="flex items-center gap-2">
+                                        <span>{vendor.name}</span>
+                                        {vendor.accessCompanyName && (
+                                            <span className="text-xs text-muted-foreground">
+                                                ({vendor.accessCompanyName})
+                                            </span>
+                                        )}
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    {selectedVendor && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start gap-3">
+                                <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+                                <div>
+                                    <p className="font-medium text-blue-900">
+                                        {selectedVendor.name} として入力します
+                                    </p>
+                                    <p className="text-sm text-blue-700 mt-1">
+                                        この操作は「代理入力」として記録され、管理者の操作ログに残ります。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <Button
+                        onClick={handleStartProxy}
+                        disabled={!selectedVendor}
+                        className="w-full"
+                        size="lg"
+                    >
+                        <Fan className="w-4 h-4 mr-2" />
+                        エアコン代理入力を開始
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}

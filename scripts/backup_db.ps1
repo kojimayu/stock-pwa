@@ -9,7 +9,35 @@ param(
 
 # 日時フォーマット
 $Date = Get-Date -Format "yyyyMMdd_HHmmss"
-$SourceDB = Join-Path $ProjectRoot "prisma\dev.db"
+
+# .env から DATABASE_URL を動的に取得
+$EnvFile = Join-Path $ProjectRoot ".env"
+$DatabaseUrl = $null
+if (Test-Path $EnvFile) {
+    $EnvContent = Get-Content $EnvFile | Where-Object { $_ -match '^DATABASE_URL=' }
+    if ($EnvContent) {
+        # DATABASE_URL="file:./dev.db" or "file:F:/path/to/dev.db" の形式をパース
+        $DatabaseUrl = ($EnvContent -replace '^DATABASE_URL=["'']?', '' -replace '["'']?$', '')
+    }
+}
+
+if ($DatabaseUrl -and $DatabaseUrl -match '^file:(.+)$') {
+    $DbRelPath = $Matches[1]
+    if ([System.IO.Path]::IsPathRooted($DbRelPath)) {
+        # 絶対パス (例: file:F:/Antigravity/stock-pwa/dev.db)
+        $SourceDB = $DbRelPath
+    } else {
+        # 相対パス (例: file:./dev.db)
+        $DbRelPath = $DbRelPath -replace '^\./', ''
+        $SourceDB = Join-Path $ProjectRoot $DbRelPath
+    }
+    Write-Host "[$(Get-Date)] .env から取得: DATABASE_URL=$DatabaseUrl" -ForegroundColor Cyan
+    Write-Host "[$(Get-Date)] バックアップ対象: $SourceDB" -ForegroundColor Cyan
+} else {
+    # フォールバック: デフォルトパス
+    $SourceDB = Join-Path $ProjectRoot "dev.db"
+    Write-Host "[$(Get-Date)] WARNING: .env から DATABASE_URL を取得できませんでした。デフォルトパスを使用します: $SourceDB" -ForegroundColor Yellow
+}
 $BackupFile = Join-Path $BackupFolder "dev_$Date.db"
 
 # ソースファイル存在確認

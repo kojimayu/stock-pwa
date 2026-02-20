@@ -3,6 +3,13 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+// エアコン商品一覧取得（発注管理用、シンプル版）
+export async function getAirconProducts() {
+    return prisma.airconProduct.findMany({
+        orderBy: { code: "asc" },
+    });
+}
+
 // エアコン商品一覧取得（業者保有在庫つき）
 export async function getAirconStockWithVendorBreakdown() {
     const products = await prisma.airconProduct.findMany({
