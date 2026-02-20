@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { OfflineAlert } from "@/components/kiosk/offline-alert";
+import { VersionChecker } from "@/components/version-checker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <OfflineAlert />
+        <VersionChecker />
         {children}
         <Toaster position="top-center" richColors />
       </body>

@@ -324,19 +324,6 @@ export function ShopInterface({
                     </div>
                 </aside>
 
-                {/* カテゴリーを開くタブ（サイドバーが閉じている時のみ表示） */}
-                {!isCategoryOpen && (
-                    <button
-                        onClick={() => setIsCategoryOpen(true)}
-                        className="hidden md:flex items-center gap-1 fixed left-0 top-1/3 z-40 bg-slate-800 text-white px-2 py-3 rounded-r-lg shadow-lg hover:bg-slate-700 transition-all hover:px-3 writing-mode-vertical"
-                        title="カテゴリーを開く"
-                        style={{ writingMode: 'vertical-rl' }}
-                    >
-                        <Search className="w-4 h-4 mb-1 rotate-90" />
-                        <span className="text-xs font-bold tracking-widest">カテゴリー</span>
-                    </button>
-                )}
-
                 {/* 
                    ===============================================
                    Center Column: Product List
@@ -345,6 +332,16 @@ export function ShopInterface({
                 <main
                     className={`flex-1 flex flex-col transition-all duration-300 min-w-0 ${isCategoryOpen ? 'md:ml-72' : 'md:ml-0'} md:mr-[400px] ${isInventoryActive ? 'opacity-50 pointer-events-none grayscale' : ''}`}
                 >
+                    {/* カテゴリーを開くバー（サイドバーが閉じている時のみ、デスクトップのみ） */}
+                    {!isCategoryOpen && (
+                        <button
+                            onClick={() => setIsCategoryOpen(true)}
+                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-100 border-b text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors sticky top-[60px] z-20"
+                        >
+                            <Search className="w-4 h-4" />
+                            <span className="text-sm font-bold">カテゴリーを開く</span>
+                        </button>
+                    )}
 
                     {/* Mobile Filters */}
                     <div className="md:hidden sticky top-[60px] z-30 bg-slate-50 border-b shadow-sm">
