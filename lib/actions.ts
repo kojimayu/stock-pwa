@@ -1126,6 +1126,15 @@ export async function deleteProduct(id: number) {
 export async function adjustStock(productId: number, type: string, quantity: number, reason: string) {
     // Transactional update
     await prisma.$transaction(async (tx) => {
+        // OUT（出庫）の場合は在庫チェック
+        if (type === 'OUT') {
+            const product = await tx.product.findUnique({ where: { id: productId } });
+            if (!product) throw new Error(`商品ID ${productId} が見つかりません`);
+            if (product.stock < quantity) {
+                throw new Error(`在庫不足: 現在 ${product.stock}個、出庫 ${quantity}個は不可`);
+            }
+        }
+
         // 1. Create Log
         await tx.inventoryLog.create({
             data: {
@@ -1136,12 +1145,13 @@ export async function adjustStock(productId: number, type: string, quantity: num
             },
         });
 
-        // 2. Update Product Stock
+        // 2. Update Product Stock（IN=加算、OUT=減算）
+        const delta = type === 'OUT' ? -quantity : quantity;
         await tx.product.update({
             where: { id: productId },
             data: {
                 stock: {
-                    increment: quantity,
+                    increment: delta,
                 },
             },
         });
@@ -1779,6 +1789,14 @@ export async function getInventoryCounts() {
 }
 
 export async function createInventoryCount(note?: string) {
+    // 重複開始ガード: 進行中の棚卸しがあれば開始不可
+    const activeCount = await prisma.inventoryCount.findFirst({
+        where: { status: 'IN_PROGRESS' },
+    });
+    if (activeCount) {
+        throw new Error(`棚卸し #${activeCount.id} が進行中です。完了またはキャンセルしてから新規開始してください。`);
+    }
+
     // 1. Snapshot current stock as 'expectedStock'
     const products = await prisma.product.findMany();
 
