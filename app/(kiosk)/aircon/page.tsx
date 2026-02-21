@@ -37,6 +37,7 @@ export default function AirconPage() {
     const [isManualInput, setIsManualInput] = useState(false);
     const [saving, setSaving] = useState(false);
     const [selectedType, setSelectedType] = useState<"SET" | "INDOOR" | "OUTDOOR">("SET");
+    const [note, setNote] = useState("");
 
     useEffect(() => {
         if (!vendor) {
@@ -124,7 +125,8 @@ export default function AirconPage() {
                         items: models,
                         vendorId: vendor.id,
                         vendorUserId: vendorUser?.id,
-                        type: type
+                        type: type,
+                        note: note || null
                     }),
                 });
                 const data = await res.json();
@@ -274,6 +276,14 @@ export default function AirconPage() {
                                                 <span className="text-slate-500">発注</span>
                                                 <div>{renderCapacities()}</div>
                                             </div>
+                                        </div>
+                                        <div>
+                                            <Input
+                                                placeholder="メモ（新築物件名、備考など）"
+                                                value={note}
+                                                onChange={(e) => setNote(e.target.value)}
+                                                className="text-sm h-9"
+                                            />
                                         </div>
                                         <div className="bg-amber-100 border border-amber-300 text-amber-800 text-xs p-2 rounded">
                                             ⚠ 依頼書と照合してください

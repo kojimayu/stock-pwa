@@ -47,6 +47,7 @@ export function ProxyAirconForm({ vendor, onComplete }: ProxyAirconFormProps) {
     const [isManualInput, setIsManualInput] = useState(false);
     const [saving, setSaving] = useState(false);
     const [selectedType, setSelectedType] = useState<"SET" | "INDOOR" | "OUTDOOR">("SET");
+    const [note, setNote] = useState("");
 
     // 管理No検索
     const handleSearch = async () => {
@@ -130,6 +131,7 @@ export function ProxyAirconForm({ vendor, onComplete }: ProxyAirconFormProps) {
                         vendorId: vendor.id,
                         type: type,
                         isProxyInput: true, // 代理入力フラグ
+                        note: note || null,
                         // 代理入力用：引取日を指定
                         transactionDate: transactionDate,
                     }),
@@ -273,6 +275,14 @@ export function ProxyAirconForm({ vendor, onComplete }: ProxyAirconFormProps) {
                                                 <span className="text-slate-500">発注</span>
                                                 <div>{renderCapacities()}</div>
                                             </div>
+                                        </div>
+                                        <div>
+                                            <Input
+                                                placeholder="メモ（新築物件名、備考など）"
+                                                value={note}
+                                                onChange={(e) => setNote(e.target.value)}
+                                                className="text-sm h-9"
+                                            />
                                         </div>
                                     </div>
                                 ) : (

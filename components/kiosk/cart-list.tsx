@@ -34,6 +34,11 @@ export function CartList() {
                                 </Badge>
                             )}
                         </h3>
+                        {(item.subCategory || item.category) && (
+                            <span className="text-[11px] text-slate-500">
+                                {item.subCategory || item.category}
+                            </span>
+                        )}
                     </div>
 
                     <div className="flex items-center space-x-4">

@@ -12,6 +12,8 @@ export type CartItem = {
     quantityPerBox?: number;
     manufacturer?: string;
     unit?: string;
+    category?: string;
+    subCategory?: string;
 };
 
 export type Vendor = {

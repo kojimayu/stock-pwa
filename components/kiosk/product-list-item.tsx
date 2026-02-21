@@ -36,6 +36,8 @@ export function ProductListItem({ product }: ProductListItemProps) {
             quantityPerBox: isBox ? product.quantityPerBox : undefined,
             manufacturer: product.manufacturer || undefined,
             unit: product.unit || '個',
+            category: product.category || undefined,
+            subCategory: product.subCategory || undefined,
         });
         toast.success(`${product.name} を ${quantity}個 カートに追加しました`);
         setIsDialogOpen(false);

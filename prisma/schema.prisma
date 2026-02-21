@@ -155,6 +155,7 @@ model AirConditionerLog {
   airconProductId Int?
   isReturned      Boolean        @default(false)
   isProxyInput    Boolean        @default(false)
+  note            String?        // メモ欄（新築物件名等）
   returnedAt      DateTime?
   createdAt       DateTime       @default(now())
   airconProduct   AirconProduct? @relation(fields: [airconProductId], references: [id])
