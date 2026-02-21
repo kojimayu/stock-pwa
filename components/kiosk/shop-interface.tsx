@@ -60,11 +60,8 @@ export function ShopInterface({
     const [showCollapseHint, setShowCollapseHint] = useState(false);
     const hintTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // 初回表示時のサイドバー折りたたみヒントアニメーション
+    // ページ表示時のサイドバー折りたたみヒントアニメーション（毎回表示）
     useEffect(() => {
-        const hintShown = localStorage.getItem("sidebar-collapse-hint-shown");
-        if (hintShown) return;
-
         // 1.5秒後にサイドバーを一瞬閉じる
         hintTimerRef.current = setTimeout(() => {
             setIsCategoryOpen(false);
@@ -76,7 +73,6 @@ export function ShopInterface({
                 // パルスアニメーションを3秒間表示
                 setTimeout(() => {
                     setShowCollapseHint(false);
-                    localStorage.setItem("sidebar-collapse-hint-shown", "1");
                 }, 3000);
             }, 800);
         }, 1500);
@@ -276,13 +272,15 @@ export function ShopInterface({
                                 <X className="w-4 h-4" />
                             </button>
                         )}
-                        <button
-                            onClick={handleVoiceSearch}
-                            className={`p-1.5 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                            title="音声で検索"
-                        >
-                            <Mic className="w-4 h-4" />
-                        </button>
+                        {(typeof window !== 'undefined' && (window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost')) && (
+                            <button
+                                onClick={handleVoiceSearch}
+                                className={`p-1.5 rounded-full transition-colors ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                title="音声で検索"
+                            >
+                                <Mic className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
 
