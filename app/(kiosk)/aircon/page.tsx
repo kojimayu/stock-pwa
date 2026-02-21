@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, ChevronLeft, Search, Check, Trash2, FileText } from "lucide-react";
 import { LogoutButton } from "@/components/kiosk/logout-button";
+import { checkManagementNoDuplicates } from "@/lib/aircon-actions";
 
 interface AccessJobInfo {
     管理No: string;
@@ -67,6 +68,21 @@ export default function AirconPage() {
             setSelectedItems([]);
             setManualInputModel("");
             setIsManualInput(false);
+
+            // 管理番号の重複チェック（注意喚起のみ）
+            try {
+                const dupResult = await checkManagementNoDuplicates(managementNo);
+                if (dupResult.hasDuplicates) {
+                    const count = dupResult.logs.length;
+                    const vendors = [...new Set(dupResult.logs.map(l => l.vendorName))].join("、");
+                    toast.warning(
+                        `⚠️ この管理Noは既に ${count}台 持出し済みです（${vendors}）。追加持出しの場合はそのまま続行してください。`,
+                        { duration: 8000 }
+                    );
+                }
+            } catch (e) {
+                // 重複チェック失敗は無視（持出し自体はブロックしない）
+            }
 
         } catch (e) {
             toast.error("検索エラーが発生しました");

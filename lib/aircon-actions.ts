@@ -432,6 +432,40 @@ export async function updateAirconLogInfo(logId: number, data: { managementNo?: 
     return { success: true };
 }
 
+// 管理番号の既存持出しログを検索（重複チェック用・注意喚起のみ）
+export async function checkManagementNoDuplicates(managementNo: string) {
+    if (!managementNo || managementNo === "INTERNAL") {
+        return { hasDuplicates: false, logs: [] };
+    }
+
+    const existingLogs = await prisma.airConditionerLog.findMany({
+        where: {
+            managementNo,
+            isReturned: false,
+        },
+        include: {
+            vendor: { select: { name: true } },
+            airconProduct: { select: { code: true, capacity: true } },
+        },
+        orderBy: { createdAt: "desc" },
+    });
+
+    if (existingLogs.length === 0) {
+        return { hasDuplicates: false, logs: [] };
+    }
+
+    return {
+        hasDuplicates: true,
+        logs: existingLogs.map(log => ({
+            id: log.id,
+            vendorName: log.vendor?.name || "不明",
+            productCode: log.airconProduct?.code || log.modelNumber,
+            capacity: log.airconProduct?.capacity || "",
+            date: log.createdAt.toISOString(),
+        })),
+    };
+}
+
 // ===============================
 // エアコン棚卸
 // ===============================
