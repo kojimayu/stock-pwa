@@ -51,6 +51,9 @@ type VendorStockBreakdown = {
     id: number;
     name: string;
     count: number;
+    set: number;
+    indoor: number;
+    outdoor: number;
 };
 
 type AirconProduct = {
@@ -64,6 +67,7 @@ type AirconProduct = {
     totalStock: number;
     minStock: number;
     vendorBreakdown: VendorStockBreakdown[];
+    typeBreakdown: { set: number; indoor: number; outdoor: number };
 };
 
 // 棚卸アイテムの型
@@ -405,6 +409,7 @@ export default function AirconInventoryPage() {
                                     <TableHead>容量</TableHead>
                                     <TableHead className="text-center bg-blue-50/50">倉庫在庫</TableHead>
                                     <TableHead className="text-center bg-orange-50/50">業者持出</TableHead>
+                                    <TableHead className="text-center bg-purple-50/50">持出し内訳</TableHead>
                                     <TableHead className="text-center bg-slate-50/50 font-bold">総在庫</TableHead>
                                     <TableHead className="text-center">発注サフィックス</TableHead>
                                     {activeInventory && (
@@ -462,15 +467,20 @@ export default function AirconInventoryPage() {
                                                                 {product.vendorStock}
                                                             </Button>
                                                         </PopoverTrigger>
-                                                        <PopoverContent className="w-64 p-3">
+                                                        <PopoverContent className="w-72 p-3">
                                                             <div className="space-y-2">
                                                                 <h4 className="font-medium text-sm border-b pb-1 mb-2">保有業者内訳</h4>
                                                                 {product.vendorBreakdown.map((v) => (
-                                                                    <div key={v.id} className="flex justify-between items-center text-sm">
-                                                                        <span className="truncate max-w-[150px]">{v.name}</span>
-                                                                        <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                                                                            {v.count}台
-                                                                        </Badge>
+                                                                    <div key={v.id} className="flex justify-between items-center text-sm gap-2">
+                                                                        <span className="truncate max-w-[120px]">{v.name}</span>
+                                                                        <div className="flex gap-1">
+                                                                            {v.set > 0 && <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">S{v.set}</Badge>}
+                                                                            {v.indoor > 0 && <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">内{v.indoor}</Badge>}
+                                                                            {v.outdoor > 0 && <Badge variant="secondary" className="bg-orange-100 text-orange-700 text-xs">外{v.outdoor}</Badge>}
+                                                                            <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+                                                                                計{v.count}
+                                                                            </Badge>
+                                                                        </div>
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -480,10 +490,73 @@ export default function AirconInventoryPage() {
                                                     <span className="text-slate-400">-</span>
                                                 )}
                                             </TableCell>
+                                            <TableCell className="bg-purple-50/30">
+                                                {(() => {
+                                                    const { set, indoor, outdoor } = product.typeBreakdown;
+                                                    const hasAny = set > 0 || indoor > 0 || outdoor > 0;
+                                                    if (!hasAny) return <span className="text-slate-400 text-center block">-</span>;
+
+                                                    // 内機/外機のバラ持出しによる倉庫の余り計算
+                                                    // 内機だけ持出し → 外機が倉庫に余る、外機だけ持出し → 内機が倉庫に余る
+                                                    const extraIndoor = outdoor > indoor ? outdoor - indoor : 0; // 外機が多く出た→内機余り
+                                                    const extraOutdoor = indoor > outdoor ? indoor - outdoor : 0; // 内機が多く出た→外機余り
+
+                                                    return (
+                                                        <div className="text-xs space-y-0.5 whitespace-nowrap">
+                                                            {set > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="inline-block w-8 text-blue-700 font-medium">SET</span>
+                                                                    <span className="font-bold text-blue-800">{set}</span>
+                                                                </div>
+                                                            )}
+                                                            {indoor > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="inline-block w-8 text-green-700 font-medium">内機</span>
+                                                                    <span className="font-bold text-green-800">{indoor}</span>
+                                                                </div>
+                                                            )}
+                                                            {outdoor > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="inline-block w-8 text-orange-700 font-medium">外機</span>
+                                                                    <span className="font-bold text-orange-800">{outdoor}</span>
+                                                                </div>
+                                                            )}
+                                                            {(extraIndoor > 0 || extraOutdoor > 0) && (
+                                                                <div className="mt-1 pt-1 border-t border-purple-200">
+                                                                    {extraOutdoor > 0 && (
+                                                                        <div className="text-amber-600 font-medium">
+                                                                            → 外機 {extraOutdoor}台 倉庫余り
+                                                                        </div>
+                                                                    )}
+                                                                    {extraIndoor > 0 && (
+                                                                        <div className="text-amber-600 font-medium">
+                                                                            → 内機 {extraIndoor}台 倉庫余り
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </TableCell>
                                             <TableCell className="text-center bg-slate-50/30">
-                                                <span className="font-bold text-lg text-slate-900">
-                                                    {product.totalStock}
-                                                </span>
+                                                <div>
+                                                    <span className="font-bold text-lg text-slate-900">
+                                                        {product.totalStock}
+                                                    </span>
+                                                    {(() => {
+                                                        const { indoor, outdoor } = product.typeBreakdown;
+                                                        const extraOutdoor = indoor > outdoor ? indoor - outdoor : 0;
+                                                        const extraIndoor = outdoor > indoor ? outdoor - indoor : 0;
+                                                        if (extraOutdoor === 0 && extraIndoor === 0) return null;
+                                                        return (
+                                                            <div className="text-xs text-amber-600 mt-0.5">
+                                                                {extraOutdoor > 0 && `(内含: 外機${extraOutdoor})`}
+                                                                {extraIndoor > 0 && `(内含: 内機${extraIndoor})`}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center justify-center gap-1">

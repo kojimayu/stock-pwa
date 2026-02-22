@@ -96,6 +96,11 @@ export function VersionChecker() {
             }
         };
 
+        // 開発環境ではバージョンチェックを無効化（HMRでリロードループになるため）
+        if (process.env.NODE_ENV === "development") {
+            return;
+        }
+
         // 初回チェック（3秒後に開始、読み込み直後は避ける）
         const initialTimer = setTimeout(() => {
             checkSW();

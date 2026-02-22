@@ -15,7 +15,7 @@ function getGitInfo() {
 }
 
 const gitInfo = getGitInfo();
-const buildDate = new Date().toISOString();
+const buildDate = process.env.NODE_ENV === "development" ? "dev" : new Date().toISOString();
 
 const pwaConfig = withPWA({
   dest: "public",

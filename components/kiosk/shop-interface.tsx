@@ -32,6 +32,7 @@ interface ShopInterfaceProps {
 }
 
 import { getVendorReturnableProducts } from "@/lib/return-actions"; // Import action
+import { logLogout } from "@/lib/actions";
 
 interface ShopInterfaceProps {
     products: Product[];
@@ -228,6 +229,9 @@ export function ShopInterface({
             }
         } else {
             if (confirm("ログアウトしますか？カートの中身は破棄されます。")) {
+                if (vendor) {
+                    logLogout(vendor.id, vendor.name, 'MANUAL', vendorUser?.name, vendorUser?.id).catch(console.error);
+                }
                 clearCart();
                 router.push("/");
             }

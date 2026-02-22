@@ -33,7 +33,7 @@ export async function deleteAirconOrder(orderId: number) {
     return { success: true };
 }
 
-// エアコン商品一覧取得（業者保有在庫つき）
+// エアコン商品一覧取得（業者保有在庫つき・SET/INDOOR/OUTDOOR別集計）
 export async function getAirconStockWithVendorBreakdown() {
     const products = await prisma.airconProduct.findMany({
         orderBy: { code: "asc" },
@@ -44,26 +44,45 @@ export async function getAirconStockWithVendorBreakdown() {
             logs: {
                 where: {
                     isReturned: false,
-                    managementNo: null // 管理番号がないもの＝業者在庫
                 },
                 include: { vendor: true }
             }
         }
     });
 
-    // 業者保有在庫の集計を行う
+    // 物件未紐づけ（管理番号なし）の持出しを集計する
+    // 管理番号ありは使用済み（工事完了）として在庫から減算済みのため除外
     return products.map(product => {
-        const vendorStockMap = new Map<number, { id: number, name: string, count: number }>();
+        const vendorStockMap = new Map<number, { id: number, name: string, count: number, set: number, indoor: number, outdoor: number }>();
         let totalVendorStock = 0;
+        // 管理番号なしのタイプ別集計（借りている台数）
+        const typeBreakdown = { set: 0, indoor: 0, outdoor: 0 };
 
         product.logs.forEach(log => {
-            if (!log.vendor) return;
-            const vendorId = log.vendor.id;
-            if (!vendorStockMap.has(vendorId)) {
-                vendorStockMap.set(vendorId, { id: vendorId, name: log.vendor.name, count: 0 });
+            // 管理番号なし or INTERNAL = 物件未紐づけ = 借りている在庫のみ対象
+            // INTERNALは「管理Noなし（予備・自社在庫）」のプレースホルダー
+            if (log.managementNo && log.managementNo !== 'INTERNAL') return;
+
+            const logType = (log.type || 'SET') as 'SET' | 'INDOOR' | 'OUTDOOR';
+
+            // タイプ別集計
+            if (logType === 'SET') typeBreakdown.set++;
+            else if (logType === 'INDOOR') typeBreakdown.indoor++;
+            else if (logType === 'OUTDOOR') typeBreakdown.outdoor++;
+
+            // 業者別集計
+            if (log.vendor) {
+                const vendorId = log.vendor.id;
+                if (!vendorStockMap.has(vendorId)) {
+                    vendorStockMap.set(vendorId, { id: vendorId, name: log.vendor.name, count: 0, set: 0, indoor: 0, outdoor: 0 });
+                }
+                const entry = vendorStockMap.get(vendorId)!;
+                entry.count++;
+                if (logType === 'SET') entry.set++;
+                else if (logType === 'INDOOR') entry.indoor++;
+                else if (logType === 'OUTDOOR') entry.outdoor++;
+                totalVendorStock++;
             }
-            vendorStockMap.get(vendorId)!.count++;
-            totalVendorStock++;
         });
 
         const vendorBreakdown = Array.from(vendorStockMap.values()).sort((a, b) => b.count - a.count);
@@ -73,7 +92,8 @@ export async function getAirconStockWithVendorBreakdown() {
             logs: undefined, // フロントエンドには渡さない
             vendorStock: totalVendorStock,
             totalStock: product.stock + totalVendorStock,
-            vendorBreakdown
+            vendorBreakdown,
+            typeBreakdown, // SET/INDOOR/OUTDOOR別の持出し数
         };
     });
 }
