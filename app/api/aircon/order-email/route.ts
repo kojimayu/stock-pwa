@@ -57,6 +57,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "発注が見つかりません" }, { status: 404 });
         }
 
+        // 🔒 単価チェック: 発注単価が0の商品がある場合はメール送信をブロック
+        const itemsWithoutPrice = order.items.filter(item => !item.product.orderPrice || item.product.orderPrice <= 0);
+        if (itemsWithoutPrice.length > 0) {
+            const names = itemsWithoutPrice.map(item => `${item.product.code}(${item.product.name})`).join(", ");
+            return NextResponse.json({
+                error: `発注単価が未設定の商品があります: ${names}。エアコン在庫管理の発注設定で単価を入力してください。`,
+            }, { status: 400 });
+        }
+
         // メール設定取得
         const settings = await getOrderEmailSettings();
         let toEmail = JSON.parse(settings["aircon_order_to"] || "{}").email;
