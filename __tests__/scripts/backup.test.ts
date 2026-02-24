@@ -27,21 +27,33 @@ const BACKUP_FOLDERS = [
 ];
 
 // 最新のバックアップDBファイルを探す
+// ファイル名に含まれるタイムスタンプから日時を判定する
+// （OneDrive/SharePoint同期でファイルの更新日時が書き換わるため）
 function findLatestBackup(): { filePath: string; folder: string; ageHours: number; fileName: string } | null {
     for (const folder of BACKUP_FOLDERS) {
         if (!fs.existsSync(folder)) continue;
 
         const files = fs.readdirSync(folder)
             .filter(f => /^dev_\d{8}_\d{6}\.db$/.test(f))
-            .map(f => ({
-                name: f,
-                path: path.join(folder, f),
-                mtime: fs.statSync(path.join(folder, f)).mtimeMs,
-            }))
-            .sort((a, b) => b.mtime - a.mtime);
+            .map(f => {
+                // ファイル名から日時を抽出: dev_YYYYMMDD_HHmmss.db
+                const match = f.match(/^dev_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.db$/);
+                let timestamp = 0;
+                if (match) {
+                    const [, year, month, day, hour, min, sec] = match;
+                    timestamp = new Date(`${year}-${month}-${day}T${hour}:${min}:${sec}+09:00`).getTime();
+                }
+                return {
+                    name: f,
+                    path: path.join(folder, f),
+                    timestamp,
+                };
+            })
+            .filter(f => f.timestamp > 0)
+            .sort((a, b) => b.timestamp - a.timestamp);
 
         if (files.length > 0) {
-            const ageHours = (Date.now() - files[0].mtime) / (1000 * 60 * 60);
+            const ageHours = (Date.now() - files[0].timestamp) / (1000 * 60 * 60);
             return { filePath: files[0].path, folder, ageHours, fileName: files[0].name };
         }
     }
