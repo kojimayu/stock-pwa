@@ -590,8 +590,15 @@ export default function AirconInventoryPage() {
                                                             min={0}
                                                             className="w-20 mx-auto text-center font-bold text-lg"
                                                             value={actualStocks[invItem.id] ?? invItem.actualStock}
+                                                            onFocus={(e) => e.target.select()}
                                                             onChange={(e) => {
-                                                                const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                                const raw = e.target.value;
+                                                                // 空文字は0として扱う（入力中は空を許可）
+                                                                if (raw === '') {
+                                                                    setActualStocks({ ...actualStocks, [invItem.id]: 0 });
+                                                                    return;
+                                                                }
+                                                                const val = Math.max(0, parseInt(raw, 10) || 0);
                                                                 setActualStocks({ ...actualStocks, [invItem.id]: val });
                                                             }}
                                                             onBlur={() => {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { syncAirconToMaterialStock } from '@/lib/aircon-actions';
+import { syncAirconToMaterialStock, getActiveAirconInventory } from '@/lib/aircon-actions';
 
 export async function POST(request: Request) {
     try {
@@ -22,6 +22,15 @@ export async function POST(request: Request) {
             return NextResponse.json(
                 { error: 'Missing required fields or empty items' },
                 { status: 400 }
+            );
+        }
+
+        // 🔒 エアコン棚卸中チェック: 棚卸進行中はエアコン持出しをブロック
+        const activeInventory = await getActiveAirconInventory();
+        if (activeInventory) {
+            return NextResponse.json(
+                { error: '現在エアコン棚卸中のため、持出し処理は利用できません' },
+                { status: 403 }
             );
         }
 
