@@ -28,7 +28,7 @@ describe('getAirconStockWithVendorBreakdown — 持出し内訳集計', () => {
         const products = await getAirconStockWithVendorBreakdown();
         const product = products[0];
 
-        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 0, outdoor: 0 });
+        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 0, outdoor: 0, purchase: 0 });
         expect(product.vendorStock).toBe(0);
         expect(product.totalStock).toBe(5);
     });
@@ -52,7 +52,7 @@ describe('getAirconStockWithVendorBreakdown — 持出し内訳集計', () => {
         const product = products.find(p => p.id === aircon.id)!;
 
         // 管理番号ありは内訳に含まれない
-        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 0, outdoor: 0 });
+        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 0, outdoor: 0, purchase: 0 });
         expect(product.vendorStock).toBe(0);
     });
 
@@ -74,7 +74,7 @@ describe('getAirconStockWithVendorBreakdown — 持出し内訳集計', () => {
         const products = await getAirconStockWithVendorBreakdown();
         const product = products.find(p => p.id === aircon.id)!;
 
-        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 1, outdoor: 0 });
+        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 1, outdoor: 0, purchase: 0 });
         expect(product.vendorStock).toBe(1);
     });
 
@@ -99,7 +99,7 @@ describe('getAirconStockWithVendorBreakdown — 持出し内訳集計', () => {
         const products = await getAirconStockWithVendorBreakdown();
         const product = products.find(p => p.id === aircon.id)!;
 
-        expect(product.typeBreakdown).toEqual({ set: 2, indoor: 1, outdoor: 3 });
+        expect(product.typeBreakdown).toEqual({ set: 2, indoor: 1, outdoor: 3, purchase: 0 });
         expect(product.vendorStock).toBe(6);
     });
 
@@ -174,7 +174,7 @@ describe('getAirconStockWithVendorBreakdown — 持出し内訳集計', () => {
         const product = products.find(p => p.id === aircon.id)!;
 
         // 返却済みSETは除外、未返却INDOORのみ
-        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 1, outdoor: 0 });
+        expect(product.typeBreakdown).toEqual({ set: 0, indoor: 1, outdoor: 0, purchase: 0 });
         expect(product.vendorStock).toBe(1);
     });
 
@@ -204,7 +204,7 @@ describe('getAirconStockWithVendorBreakdown — 持出し内訳集計', () => {
         const product = products.find(p => p.id === aircon.id)!;
 
         // 管理番号ありの2件は除外、null+INTERNALの2件のみ
-        expect(product.typeBreakdown).toEqual({ set: 1, indoor: 1, outdoor: 0 });
+        expect(product.typeBreakdown).toEqual({ set: 1, indoor: 1, outdoor: 0, purchase: 0 });
         expect(product.vendorStock).toBe(2);
     });
 });

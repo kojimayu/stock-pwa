@@ -1311,6 +1311,40 @@ export async function createTransaction(
                         reason: `Transaction #${transaction.id}${item.isBox ? ' (Box)' : ''}`,
                     },
                 });
+
+                // エアコン連携: 紐づきエアコン商品がある場合、エアコン在庫も減算+ログ作成
+                const productWithAircon = await tx.product.findUnique({
+                    where: { id: item.productId },
+                    select: { airconProductId: true, airconProduct: { select: { id: true, code: true, stock: true } } }
+                });
+                if (productWithAircon?.airconProductId && productWithAircon.airconProduct) {
+                    const aircon = productWithAircon.airconProduct;
+                    // エアコン在庫を減算
+                    await tx.airconProduct.update({
+                        where: { id: aircon.id },
+                        data: { stock: { decrement: quantityToDeduct } },
+                    });
+                    // エアコンログを作成（買取記録）
+                    await tx.airConditionerLog.create({
+                        data: {
+                            managementNo: null,
+                            modelNumber: aircon.code,
+                            vendorId: vendorId,
+                            vendorUserId: vendorUserId,
+                            airconProductId: aircon.id,
+                            type: 'PURCHASE',
+                            note: `材料買取 TX#${transaction.id}`,
+                        },
+                    });
+                    // 材料在庫をエアコン在庫と同期
+                    const updatedAircon = await tx.airconProduct.findUnique({ where: { id: aircon.id }, select: { stock: true } });
+                    if (updatedAircon) {
+                        await tx.product.update({
+                            where: { id: item.productId },
+                            data: { stock: updatedAircon.stock },
+                        });
+                    }
+                }
             }
 
             // 処理後の在庫を取得（在庫確認ダイアログ用）

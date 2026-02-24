@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **材料⇔エアコン在庫連携** (2026-02-24): 材料マスタのエアコン商品（RSAJ22等）をエアコンマスタ（RAS-AJ22等）と紐づけ。材料チェックアウト時にエアコン在庫を自動減算し、PURCHASEログ（買取記録）を作成。エアコン在庫変動時は材料在庫も自動同期。ProductモデルにairconProductIdフィールド追加。
+
 ### Fixed
 - **エアコンデータ表示エラー修正** (2026-02-21): AirConditionerLog.noteカラムがDBに未反映だった問題を修正。DATABASE_URLの参照先DB（ルートdev.db）にALTER TABLEで追加。
 - **商品選択画面のログアウト記録漏れ** (2026-02-22): shop-interface.tsxのログアウトボタンでlogLogout()が未呼出しだったバグを修正。

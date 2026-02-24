@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { syncAirconToMaterialStock } from '@/lib/aircon-actions';
 
 export async function POST(request: Request) {
     try {
@@ -74,6 +75,9 @@ export async function POST(request: Request) {
             }
             return logs;
         });
+
+        // 材料在庫を同期（エアコン在庫変動分を反映）
+        await syncAirconToMaterialStock();
 
         return NextResponse.json({ success: true, count: result.length });
 

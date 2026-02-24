@@ -3,6 +3,36 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+/**
+ * エアコン在庫が変動した際に、紐づく材料商品(Product)の在庫を同期する
+ * @param airconProductId 変動したエアコン商品のID（省略時は全エアコン商品を同期）
+ */
+export async function syncAirconToMaterialStock(airconProductId?: number) {
+    const condition = airconProductId
+        ? { airconProductId }
+        : { airconProductId: { not: null } };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const linkedProducts = await prisma.product.findMany({
+        where: condition as any,
+        select: { id: true, airconProductId: true, stock: true },
+    });
+
+    for (const lp of linkedProducts) {
+        if (!lp.airconProductId) continue;
+        const aircon = await prisma.airconProduct.findUnique({
+            where: { id: lp.airconProductId },
+            select: { stock: true },
+        });
+        if (aircon && aircon.stock !== lp.stock) {
+            await prisma.product.update({
+                where: { id: lp.id },
+                data: { stock: aircon.stock },
+            });
+        }
+    }
+}
+
 // エアコン商品一覧取得（発注管理用、シンプル版）
 export async function getAirconProducts() {
     return prisma.airconProduct.findMany({
@@ -53,34 +83,37 @@ export async function getAirconStockWithVendorBreakdown() {
     // 物件未紐づけ（管理番号なし）の持出しを集計する
     // 管理番号ありは使用済み（工事完了）として在庫から減算済みのため除外
     return products.map(product => {
-        const vendorStockMap = new Map<number, { id: number, name: string, count: number, set: number, indoor: number, outdoor: number }>();
+        const vendorStockMap = new Map<number, { id: number, name: string, count: number, set: number, indoor: number, outdoor: number, purchase: number }>();
         let totalVendorStock = 0;
-        // 管理番号なしのタイプ別集計（借りている台数）
-        const typeBreakdown = { set: 0, indoor: 0, outdoor: 0 };
+        // 管理番号なしのタイプ別集計（借りている台数・買取含む）
+        const typeBreakdown = { set: 0, indoor: 0, outdoor: 0, purchase: 0 };
 
         product.logs.forEach(log => {
             // 管理番号なし or INTERNAL = 物件未紐づけ = 借りている在庫のみ対象
             // INTERNALは「管理Noなし（予備・自社在庫）」のプレースホルダー
+            // PURCHASEは常に管理番号なしだが念のためチェック
             if (log.managementNo && log.managementNo !== 'INTERNAL') return;
 
-            const logType = (log.type || 'SET') as 'SET' | 'INDOOR' | 'OUTDOOR';
+            const logType = (log.type || 'SET') as 'SET' | 'INDOOR' | 'OUTDOOR' | 'PURCHASE';
 
             // タイプ別集計
             if (logType === 'SET') typeBreakdown.set++;
             else if (logType === 'INDOOR') typeBreakdown.indoor++;
             else if (logType === 'OUTDOOR') typeBreakdown.outdoor++;
+            else if (logType === 'PURCHASE') typeBreakdown.purchase++;
 
             // 業者別集計
             if (log.vendor) {
                 const vendorId = log.vendor.id;
                 if (!vendorStockMap.has(vendorId)) {
-                    vendorStockMap.set(vendorId, { id: vendorId, name: log.vendor.name, count: 0, set: 0, indoor: 0, outdoor: 0 });
+                    vendorStockMap.set(vendorId, { id: vendorId, name: log.vendor.name, count: 0, set: 0, indoor: 0, outdoor: 0, purchase: 0 });
                 }
                 const entry = vendorStockMap.get(vendorId)!;
                 entry.count++;
                 if (logType === 'SET') entry.set++;
                 else if (logType === 'INDOOR') entry.indoor++;
                 else if (logType === 'OUTDOOR') entry.outdoor++;
+                else if (logType === 'PURCHASE') entry.purchase++;
                 totalVendorStock++;
             }
         });
@@ -335,6 +368,9 @@ export async function receiveAirconOrderItem(itemId: number, quantity: number) {
         }
     });
 
+    // 材料在庫を同期
+    await syncAirconToMaterialStock(item.productId);
+
     revalidatePath("/admin/aircon-orders");
     revalidatePath("/admin/aircon-inventory");
     return { success: true };
@@ -582,6 +618,9 @@ export async function completeAirconInventory(id: number, confirmedBy: string) {
             },
         });
     });
+
+    // 材料在庫を同期
+    await syncAirconToMaterialStock();
 
     revalidatePath("/admin/aircon-inventory");
     return { success: true };

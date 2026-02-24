@@ -58,6 +58,8 @@ model Product {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   usageCount     Int                  @default(0)
+  airconProductId Int?                 // エアコンマスタとの紐づけ（買取連携用）
+  airconProduct  AirconProduct?       @relation(fields: [airconProductId], references: [id])
   countItems     InventoryCountItem[]
   inventoryLogs  InventoryLog[]
   orderItems     OrderItem[]
@@ -177,6 +179,7 @@ model AirconProduct {
   logs           AirConditionerLog[]
   orderItems     AirconOrderItem[]
   inventoryItems AirconInventoryCountItem[]
+  linkedProducts Product[]            // 材料マスタとの紐づけ
 }
 
 // 納品先拠点
