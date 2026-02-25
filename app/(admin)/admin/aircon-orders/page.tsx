@@ -298,6 +298,24 @@ export default function AirconOrdersPage() {
         }
     };
 
+    // メール送信なしで発注確定（登録のみ）
+    const handleConfirmOrderWithoutEmail = async () => {
+        if (!emailTargetOrder) return;
+        setSendingEmail(true);
+        try {
+            await handleStatusChange(emailTargetOrder.id, "ORDERED");
+            toast.success(`発注を確定しました（メール送信なし: ${emailTargetOrder.orderNumber}）`);
+            setConfirmEmailDialogOpen(false);
+            setEmailTargetOrder(null);
+            fetchData();
+        } catch (err) {
+            console.error("発注確定エラー:", err);
+            toast.error("発注確定に失敗しました");
+        } finally {
+            setSendingEmail(false);
+        }
+    };
+
     if (loading) {
         return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div>;
     }
@@ -562,12 +580,12 @@ export default function AirconOrdersPage() {
                 </div>
             )}
 
-            {/* メール送信確認ダイアログ */}
+            {/* 発注確定ダイアログ（メール送信する/しないを選択） */}
             <Dialog open={confirmEmailDialogOpen} onOpenChange={setConfirmEmailDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>発注メール送信の確認</DialogTitle>
-                        <DialogDescription>以下の内容で発注メールを送信します。</DialogDescription>
+                        <DialogTitle>発注確定</DialogTitle>
+                        <DialogDescription>発注内容を確認し、確定方法を選択してください。</DialogDescription>
                     </DialogHeader>
                     {emailTargetOrder && (
                         <div className="space-y-3 text-sm">
@@ -588,26 +606,29 @@ export default function AirconOrdersPage() {
                                     ))}
                                 </ul>
                             </div>
-                            {isTestMode ? (
+                            {isTestMode && (
                                 <div className="p-3 bg-green-50 rounded text-green-800 text-xs border border-green-200">
-                                    🧪 テストモード: メールは <strong>y.kojima@plus-company.co.jp</strong> のみに送信されます。日立担当者には届きません。
-                                </div>
-                            ) : (
-                                <div className="p-3 bg-yellow-50 rounded text-yellow-800 text-xs">
-                                    ⚠️ 送信すると、日立の担当者にメールが届きます。発注内容を確認してから送信してください。
+                                    🧪 テストモード: メールは <strong>y.kojima@plus-company.co.jp</strong> のみに送信されます。
                                 </div>
                             )}
                         </div>
                     )}
-                    <DialogFooter>
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
                         <Button variant="outline" onClick={() => setConfirmEmailDialogOpen(false)} disabled={sendingEmail}>
                             キャンセル
+                        </Button>
+                        <Button variant="secondary" onClick={handleConfirmOrderWithoutEmail} disabled={sendingEmail}>
+                            {sendingEmail ? (
+                                <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 処理中...</>
+                            ) : (
+                                <><CheckCircle className="h-4 w-4 mr-1" /> 登録のみ（メールなし）</>
+                            )}
                         </Button>
                         <Button onClick={handleSendEmail} disabled={sendingEmail}>
                             {sendingEmail ? (
                                 <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 送信中...</>
                             ) : (
-                                <><Mail className="h-4 w-4 mr-1" /> 送信する</>
+                                <><Mail className="h-4 w-4 mr-1" /> メール送信して確定</>
                             )}
                         </Button>
                     </DialogFooter>
