@@ -5,18 +5,26 @@ import { useEffect, useRef, useCallback } from "react";
 // ビルド時のバージョン（クライアント側に埋め込まれる）
 const CLIENT_BUILD_DATE = process.env.NEXT_PUBLIC_BUILD_DATE || "unknown";
 
-// チェック間隔（5分）
-const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+// チェック間隔（1分 — サーバー変更の検知を速くするため）
+const CHECK_INTERVAL_MS = 1 * 60 * 1000;
+
+// サーバーダウン検知後のリトライ間隔（10秒）
+const RECOVERY_INTERVAL_MS = 10 * 1000;
 
 /**
- * PWA自動更新チェッカー
+ * PWA自動更新 & エラー回復チェッカー
  * - ページ読み込み時にService Workerの更新をチェック
- * - 5分ごとに /api/version と比較
+ * - 1分ごとに /api/version と比較
  * - 入力中（フォーカスがinput/textarea/select）はリロードしない
  * - 入力が終了した後に安全にリロード
+ * - サーバーダウン検知 → 復帰時に自動リロード
+ * - ネットワーク復帰（online イベント）で自動リロード
  */
 export function VersionChecker() {
     const pendingUpdate = useRef(false);
+    const serverDown = useRef(false);  // サーバーダウン状態フラグ
+    const failCount = useRef(0);       // 連続失敗カウント
+    const recoveryTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // ユーザーが入力中かどうかを判定
     const isUserTyping = useCallback(() => {
@@ -40,6 +48,33 @@ export function VersionChecker() {
         console.log("[VersionChecker] 新しいバージョンを検出、リロードします");
         window.location.reload();
     }, [isUserTyping]);
+
+    // サーバー復帰チェック（ダウン状態からの回復用）
+    const startRecoveryPolling = useCallback(() => {
+        if (recoveryTimer.current) return; // 既に動作中
+
+        console.log("[VersionChecker] 🔴 サーバーダウン検知、回復ポーリング開始（10秒間隔）");
+        serverDown.current = true;
+
+        recoveryTimer.current = setInterval(async () => {
+            try {
+                const res = await fetch("/api/version", { cache: "no-store" });
+                if (res.ok) {
+                    console.log("[VersionChecker] 🟢 サーバー復帰検知、リロードします");
+                    if (recoveryTimer.current) {
+                        clearInterval(recoveryTimer.current);
+                        recoveryTimer.current = null;
+                    }
+                    serverDown.current = false;
+                    failCount.current = 0;
+                    window.location.reload();
+                }
+            } catch {
+                // まだダウン中
+                console.log("[VersionChecker] ⏳ サーバーまだ応答なし...");
+            }
+        }, RECOVERY_INTERVAL_MS);
+    }, []);
 
     useEffect(() => {
         // フォーカスが外れた時に、保留中の更新があればリロード
@@ -73,11 +108,20 @@ export function VersionChecker() {
             }
         };
 
-        // 2. バージョンAPIとの比較チェック
+        // 2. バージョンAPIとの比較チェック（+ サーバーダウン検知）
         const checkVersion = async () => {
             try {
                 const res = await fetch("/api/version", { cache: "no-store" });
-                if (!res.ok) return;
+                if (!res.ok) {
+                    failCount.current++;
+                    if (failCount.current >= 2) {
+                        startRecoveryPolling();
+                    }
+                    return;
+                }
+
+                // 成功 → カウントリセット
+                failCount.current = 0;
                 const data = await res.json();
 
                 if (
@@ -92,7 +136,11 @@ export function VersionChecker() {
                     safeReload();
                 }
             } catch {
-                // ネットワークエラーは無視（オフライン時など）
+                // fetch自体が失敗（ネットワークエラー / サーバーダウン）
+                failCount.current++;
+                if (failCount.current >= 2) {
+                    startRecoveryPolling();
+                }
             }
         };
 
@@ -107,7 +155,7 @@ export function VersionChecker() {
             checkVersion();
         }, 3000);
 
-        // 定期チェック（5分ごと）
+        // 定期チェック（1分ごと）
         const interval = setInterval(() => {
             checkSW();
             checkVersion();
@@ -122,12 +170,26 @@ export function VersionChecker() {
         };
         document.addEventListener("visibilitychange", handleVisibilityChange);
 
+        // ネットワーク復帰時にリロード（WiFi切断→復帰など）
+        const handleOnline = () => {
+            console.log("[VersionChecker] 🌐 ネットワーク復帰検知");
+            // 少し待ってからチェック（接続安定化を待つ）
+            setTimeout(() => {
+                checkVersion();
+            }, 2000);
+        };
+        window.addEventListener("online", handleOnline);
+
         return () => {
             clearTimeout(initialTimer);
             clearInterval(interval);
+            if (recoveryTimer.current) {
+                clearInterval(recoveryTimer.current);
+            }
             document.removeEventListener("visibilitychange", handleVisibilityChange);
+            window.removeEventListener("online", handleOnline);
         };
-    }, [safeReload]);
+    }, [safeReload, startRecoveryPolling]);
 
     // UIは不要（バックグラウンドで動作）
     return null;
