@@ -15,7 +15,8 @@ export async function POST(request: Request) {
             vendorUserId, // Added: Handle vendorUserId from request
             type = 'SET',  // Added: Default type to 'SET'
             isProxyInput = false, // 代理入力フラグ
-            note = null // メモ欄
+            note = null, // メモ欄
+            transactionDate = null // 代理入力用：引取日
         } = body;
 
         if (!managementNo || !items || !Array.isArray(items) || items.length === 0 || !vendorId) {
@@ -89,7 +90,8 @@ export async function POST(request: Request) {
                         vendorUserId: vendorUserId ? Number(vendorUserId) : null,
                         type: type,
                         isProxyInput: Boolean(isProxyInput),
-                        note: note || null
+                        note: note || null,
+                        ...(transactionDate ? { createdAt: new Date(transactionDate) } : {}),
                     },
                 });
                 logs.push(log);
