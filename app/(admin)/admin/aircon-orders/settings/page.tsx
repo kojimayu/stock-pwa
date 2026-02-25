@@ -25,6 +25,8 @@ interface AirconProd {
     suffix: string;
     capacity: string;
     orderPrice: number;
+    priceA: number;
+    priceB: number;
 }
 
 interface EmailContact {
@@ -60,7 +62,7 @@ export default function AirconOrderSettingsPage() {
 
     // 単価管理
     const [products, setProducts] = useState<AirconProd[]>([]);
-    const [priceEdits, setPriceEdits] = useState<Record<number, string>>({});
+    const [priceEdits, setPriceEdits] = useState<Record<number, { orderPrice: string; priceA: string; priceB: string }>>({});
     const [priceLocked, setPriceLocked] = useState(true);
     const [savingPrices, setSavingPrices] = useState(false);
 
@@ -88,9 +90,13 @@ export default function AirconOrderSettingsPage() {
             setLocations(locs);
             setProducts(prods as unknown as AirconProd[]);
             // 現在の単価を編集用にセット
-            const edits: Record<number, string> = {};
+            const edits: Record<number, { orderPrice: string; priceA: string; priceB: string }> = {};
             (prods as unknown as AirconProd[]).forEach(p => {
-                edits[p.id] = String(p.orderPrice || 0);
+                edits[p.id] = {
+                    orderPrice: String(p.orderPrice || 0),
+                    priceA: String(p.priceA || 0),
+                    priceB: String(p.priceB || 0),
+                };
             });
             setPriceEdits(edits);
         } catch {
@@ -164,9 +170,17 @@ export default function AirconOrderSettingsPage() {
         setSavingPrices(true);
         try {
             for (const product of products) {
-                const newPrice = parseInt(priceEdits[product.id] || "0") || 0;
-                if (newPrice !== product.orderPrice) {
-                    await updateAirconProductPrice(product.id, newPrice);
+                const edits = priceEdits[product.id];
+                if (!edits) continue;
+                const newOrderPrice = parseInt(edits.orderPrice || "0") || 0;
+                const newPriceA = parseInt(edits.priceA || "0") || 0;
+                const newPriceB = parseInt(edits.priceB || "0") || 0;
+                if (newOrderPrice !== product.orderPrice || newPriceA !== product.priceA || newPriceB !== product.priceB) {
+                    await updateAirconProductPrice(product.id, {
+                        orderPrice: newOrderPrice,
+                        priceA: newPriceA,
+                        priceB: newPriceB,
+                    });
                 }
             }
             toast.success("単価を保存しました");
@@ -346,13 +360,15 @@ export default function AirconOrderSettingsPage() {
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    <div className="grid grid-cols-[1fr_120px_100px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                    <div className="grid grid-cols-[1fr_80px_100px_100px_100px] gap-2 text-xs font-medium text-muted-foreground px-1">
                         <span>品番 / 商品名</span>
                         <span>容量</span>
-                        <span className="text-right">単価（税抜）</span>
+                        <span className="text-right">発注単価</span>
+                        <span className="text-right">売価A（通常）</span>
+                        <span className="text-right">売価B（特別）</span>
                     </div>
                     {products.map(product => (
-                        <div key={product.id} className="grid grid-cols-[1fr_120px_100px] gap-2 items-center p-2 rounded border">
+                        <div key={product.id} className="grid grid-cols-[1fr_80px_100px_100px_100px] gap-2 items-center p-2 rounded border">
                             <div className="text-sm">
                                 <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}{product.suffix}</span>
                                 {product.name}
@@ -363,8 +379,26 @@ export default function AirconOrderSettingsPage() {
                                 min={0}
                                 step={100}
                                 className="h-8 text-right"
-                                value={priceEdits[product.id] || "0"}
-                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: e.target.value })}
+                                value={priceEdits[product.id]?.orderPrice || "0"}
+                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], orderPrice: e.target.value } })}
+                                disabled={priceLocked}
+                            />
+                            <Input
+                                type="number"
+                                min={0}
+                                step={100}
+                                className="h-8 text-right"
+                                value={priceEdits[product.id]?.priceA || "0"}
+                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], priceA: e.target.value } })}
+                                disabled={priceLocked}
+                            />
+                            <Input
+                                type="number"
+                                min={0}
+                                step={100}
+                                className="h-8 text-right"
+                                value={priceEdits[product.id]?.priceB || "0"}
+                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], priceB: e.target.value } })}
                                 disabled={priceLocked}
                             />
                         </div>

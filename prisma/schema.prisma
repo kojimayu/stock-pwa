@@ -17,6 +17,7 @@ model Vendor {
   accessCompanyName  String?
   showPriceInEmail   Boolean             @default(true)
   isActive           Boolean             @default(true)
+  priceTier          String              @default("A") // 価格ランク（A=通常, B=特別, C=将来用）
   users              VendorUser[]
   airConditionerLogs AirConditionerLog[]
   transactions       Transaction[]
@@ -175,6 +176,9 @@ model AirconProduct {
   stock      Int                 @default(0)
   minStock   Int                 @default(0)
   orderPrice Int                 @default(0) // 発注単価（税抜）
+  priceA     Int                 @default(0) // 販売単価A（通常）
+  priceB     Int                 @default(0) // 販売単価B（特別）
+  priceC     Int                 @default(0) // 販売単価C（将来用）
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
   logs           AirConditionerLog[]

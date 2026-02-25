@@ -30,6 +30,7 @@ type Vendor = {
     name: string;
     email?: string | null;
     isActive?: boolean;
+    priceTier?: string;
     users: VendorUser[];
 };
 
@@ -221,6 +222,7 @@ export function VendorList({ vendors }: VendorListProps) {
                             <TableHead className="w-[60px] text-center">有効</TableHead>
                             <TableHead className="w-[60px]">ID</TableHead>
                             <TableHead>名前</TableHead>
+                            <TableHead className="text-center">AC価格</TableHead>
                             <TableHead>担当者数</TableHead>
                             <TableHead>メール</TableHead>
                             <TableHead className="text-right">操作</TableHead>
@@ -251,6 +253,11 @@ export function VendorList({ vendors }: VendorListProps) {
                                     </TableCell>
                                     <TableCell>{vendor.id}</TableCell>
                                     <TableCell className="font-bold">{vendor.name}</TableCell>
+                                    <TableCell className="text-center">
+                                        <Badge variant={vendor.priceTier === "B" ? "default" : "secondary"} className={vendor.priceTier === "B" ? "bg-purple-600" : ""}>
+                                            {vendor.priceTier || "A"}
+                                        </Badge>
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             <Badge variant="secondary" className="font-normal">
@@ -275,7 +282,7 @@ export function VendorList({ vendors }: VendorListProps) {
                                 {/* 展開行：担当者リスト */}
                                 {expandedVendorId === vendor.id && (
                                     <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                                        <TableCell colSpan={7} className="p-0">
+                                        <TableCell colSpan={8} className="p-0">
                                             <div className="p-4 pl-12 space-y-4">
                                                 <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
                                                     <User className="w-4 h-4" />
@@ -340,7 +347,7 @@ export function VendorList({ vendors }: VendorListProps) {
                         ))}
                         {vendors.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={8} className="text-center py-10 text-slate-500">
                                     業者が登録されていません
                                 </TableCell>
                             </TableRow>

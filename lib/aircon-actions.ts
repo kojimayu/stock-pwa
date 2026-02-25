@@ -40,13 +40,22 @@ export async function getAirconProducts() {
     });
 }
 
-// エアコン商品の発注単価を更新
-export async function updateAirconProductPrice(productId: number, orderPrice: number) {
+// エアコン商品の単価を更新（発注単価 + 販売単価A/B/C）
+export async function updateAirconProductPrice(
+    productId: number,
+    prices: { orderPrice?: number; priceA?: number; priceB?: number; priceC?: number }
+) {
     await prisma.airconProduct.update({
         where: { id: productId },
-        data: { orderPrice },
+        data: {
+            ...(prices.orderPrice !== undefined && { orderPrice: prices.orderPrice }),
+            ...(prices.priceA !== undefined && { priceA: prices.priceA }),
+            ...(prices.priceB !== undefined && { priceB: prices.priceB }),
+            ...(prices.priceC !== undefined && { priceC: prices.priceC }),
+        },
     });
     revalidatePath("/admin/aircon-orders/settings");
+    revalidatePath("/admin/aircon-inventory");
     return { success: true };
 }
 
@@ -542,7 +551,7 @@ export async function createAirconInventory(note?: string) {
     }
 
     // 全エアコン商品の現在在庫をスナップショット
-    const products = await prisma.airconProduct.findMany();
+    const products = await prisma.airconProduct.findMany({ orderBy: { code: "asc" } });
 
     const inventory = await prisma.airconInventoryCount.create({
         data: {
@@ -686,6 +695,7 @@ export async function getAirconInventoryHistory() {
 export async function getAirconStockLevels(): Promise<Record<string, number>> {
     const products = await prisma.airconProduct.findMany({
         select: { code: true, stock: true },
+        orderBy: { code: "asc" },
     });
     const result: Record<string, number> = {};
     products.forEach(p => { result[p.code] = p.stock; });

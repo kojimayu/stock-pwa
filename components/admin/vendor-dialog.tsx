@@ -33,7 +33,7 @@ interface VendorDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     // pinCode removed
-    vendor?: { id: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean } | null;
+    vendor?: { id: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean; priceTier?: string } | null;
     onSuccess: () => void;
 }
 
@@ -54,6 +54,9 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
     // Price in email setting
     const [showPriceInEmail, setShowPriceInEmail] = useState(true);
 
+    // Price tier setting
+    const [priceTier, setPriceTier] = useState("A");
+
     // Initialize/Update state when vendor prop changes
     useEffect(() => {
         if (vendor?.accessCompanyName) {
@@ -64,6 +67,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
         // Initialize showPriceInEmail 
         // Default to false (OFF) for new vendors, use existing value for edits
         setShowPriceInEmail(vendor?.showPriceInEmail ?? false);
+        setPriceTier(vendor?.priceTier ?? "A");
     }, [vendor, open]);
 
     // Fetch Access Vendors when dialog opens
@@ -105,6 +109,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                 email: formData.get("email") as string || null,
                 accessCompanyName: selectedAccessVendor === "_none" || !selectedAccessVendor ? null : selectedAccessVendor,
                 showPriceInEmail,
+                priceTier,
             });
             toast.success(vendor ? "業者情報を更新しました" : "業者を追加しました");
             onSuccess();
@@ -250,6 +255,27 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                                 </label>
                                 <p className="text-xs text-muted-foreground mt-1">
                                     材料買取の業者はON、手間請けの業者はOFFにしてください。
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* エアコン価格ランク */}
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label className="text-right text-sm font-medium">
+                                AC価格ランク
+                            </label>
+                            <div className="col-span-3">
+                                <select
+                                    value={priceTier}
+                                    onChange={(e) => setPriceTier(e.target.value)}
+                                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                >
+                                    <option value="A">A（通常価格）</option>
+                                    <option value="B">B（特別価格）</option>
+                                    <option value="C">C（将来用）</option>
+                                </select>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    エアコン販売時に適用する価格ランクを選択します。
                                 </p>
                             </div>
                         </div>
