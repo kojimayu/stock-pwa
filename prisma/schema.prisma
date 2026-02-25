@@ -157,6 +157,7 @@ model AirConditionerLog {
   airconProductId Int?
   isReturned      Boolean        @default(false)
   isProxyInput    Boolean        @default(false)
+  isTemporaryLoan Boolean        @default(false) // 一時貸出フラグ（管理No付きでも業者持出しにカウント）
   note            String?        // メモ欄（新築物件名等）
   returnedAt      DateTime?
   createdAt       DateTime       @default(now())

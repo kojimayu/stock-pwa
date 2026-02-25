@@ -541,19 +541,30 @@ export default function AirconInventoryPage() {
                                             </TableCell>
                                             <TableCell className="text-center bg-slate-50/30">
                                                 <div>
-                                                    <span className="font-bold text-lg text-slate-900">
-                                                        {product.totalStock}
-                                                    </span>
                                                     {(() => {
-                                                        const { indoor, outdoor } = product.typeBreakdown;
+                                                        const { set, indoor, outdoor } = product.typeBreakdown;
+                                                        // 内機/外機の差分 = 倉庫に余っている端数
                                                         const extraOutdoor = indoor > outdoor ? indoor - outdoor : 0;
                                                         const extraIndoor = outdoor > indoor ? outdoor - indoor : 0;
-                                                        if (extraOutdoor === 0 && extraIndoor === 0) return null;
+                                                        const setCount = product.totalStock - extraOutdoor - extraIndoor;
+
                                                         return (
-                                                            <div className="text-xs text-amber-600 mt-0.5">
-                                                                {extraOutdoor > 0 && `(内含: 外機${extraOutdoor})`}
-                                                                {extraIndoor > 0 && `(内含: 内機${extraIndoor})`}
-                                                            </div>
+                                                            <>
+                                                                <span className="font-bold text-lg text-slate-900">
+                                                                    {setCount}
+                                                                </span>
+                                                                <span className="text-xs text-slate-500 ml-0.5">セット</span>
+                                                                {extraOutdoor > 0 && (
+                                                                    <div className="text-xs text-amber-600 mt-0.5">
+                                                                        + 外機のみ {extraOutdoor}台
+                                                                    </div>
+                                                                )}
+                                                                {extraIndoor > 0 && (
+                                                                    <div className="text-xs text-amber-600 mt-0.5">
+                                                                        + 内機のみ {extraIndoor}台
+                                                                    </div>
+                                                                )}
+                                                            </>
                                                         );
                                                     })()}
                                                 </div>

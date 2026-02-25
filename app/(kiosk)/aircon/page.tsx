@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, ChevronLeft, Search, Check, Trash2, FileText } from "lucide-react";
 import { LogoutButton } from "@/components/kiosk/logout-button";
-import { checkManagementNoDuplicates } from "@/lib/aircon-actions";
+import { checkManagementNoDuplicates, getAirconStockLevels } from "@/lib/aircon-actions";
 
 interface AccessJobInfo {
     管理No: string;
@@ -38,12 +38,35 @@ export default function AirconPage() {
     const [saving, setSaving] = useState(false);
     const [selectedType, setSelectedType] = useState<"SET" | "INDOOR" | "OUTDOOR">("SET");
     const [note, setNote] = useState("");
+    const [stockLevels, setStockLevels] = useState<Record<string, number>>({});
 
     useEffect(() => {
         if (!vendor) {
             router.push("/");
         }
+        getAirconStockLevels().then(setStockLevels);
     }, [vendor, router]);
+
+    // 指定機種+タイプの選択済み数を取得
+    const getSelectedCount = (model: string, type: string) => {
+        return selectedItems.filter(s => {
+            const item = JSON.parse(s);
+            return item.model === model && item.type === type;
+        }).length;
+    };
+    // 機種のベースコードから在庫数取得
+    const getStock = (model: string) => {
+        const match = model.match(/^(RAS-AJ\d{2})/);
+        const code = match ? match[1] : model;
+        return stockLevels[code] ?? 999;
+    };
+    // 指定機種の全タイプ合計選択数
+    const getTotalSelectedForModel = (model: string) => {
+        return selectedItems.filter(s => {
+            const item = JSON.parse(s);
+            return item.model === model;
+        }).length;
+    };
 
     if (!vendor) return null;
 
@@ -315,34 +338,63 @@ export default function AirconPage() {
                                     <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                                         ↓ 下の機種ボタンで追加
                                     </div>
-                                ) : (
-                                    <ul className="space-y-1">
-                                        {selectedItems.map((itemStr, index) => {
-                                            const item = parseItem(itemStr);
-                                            return (
-                                                <li key={index} className="flex justify-between items-center bg-slate-50 border p-2 rounded">
+                                ) : (() => {
+                                    // 同じmodel+typeをグループ化
+                                    const groups: { model: string; type: string; count: number }[] = [];
+                                    selectedItems.forEach(s => {
+                                        const { model, type } = JSON.parse(s);
+                                        const existing = groups.find(g => g.model === model && g.type === type);
+                                        if (existing) existing.count++;
+                                        else groups.push({ model, type, count: 1 });
+                                    });
+                                    const modelToLabel: Record<string, string> = {
+                                        'RAS-AJ2225S': '2.2kw', 'RAS-AJ2525S': '2.5kw',
+                                        'RAS-AJ2825S': '2.8kw', 'RAS-AJ3625S': '3.6kw',
+                                    };
+                                    return (
+                                        <ul className="space-y-1">
+                                            {groups.map((g) => (
+                                                <li key={`${g.model}-${g.type}`} className="flex justify-between items-center bg-slate-50 border p-2 rounded">
                                                     <div className="flex items-center gap-2">
-                                                        <span className={`text-[10px] px-1 rounded border ${item.type === 'SET' ? 'bg-slate-100 text-slate-600 border-slate-300' :
-                                                            item.type === 'INDOOR' ? 'bg-blue-100 text-blue-600 border-blue-300' :
+                                                        <span className={`text-[10px] px-1 rounded border ${g.type === 'SET' ? 'bg-slate-100 text-slate-600 border-slate-300' :
+                                                            g.type === 'INDOOR' ? 'bg-blue-100 text-blue-600 border-blue-300' :
                                                                 'bg-orange-100 text-orange-600 border-orange-300'
                                                             }`}>
-                                                            {item.type === 'SET' ? 'セット' : item.type === 'INDOOR' ? '内機' : '外機'}
+                                                            {g.type === 'SET' ? 'セット' : g.type === 'INDOOR' ? '内機' : '外機'}
                                                         </span>
-                                                        <span className="font-mono font-medium">{item.model}</span>
+                                                        <span className="font-bold">{modelToLabel[g.model] || g.model}</span>
                                                     </div>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => removeItem(index)}
-                                                        className="h-7 px-2"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
+                                                    <div className="flex items-center gap-1">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0 text-lg font-bold"
+                                                            onClick={() => {
+                                                                const idx = selectedItems.findIndex(s => {
+                                                                    const item = JSON.parse(s);
+                                                                    return item.model === g.model && item.type === g.type;
+                                                                });
+                                                                if (idx >= 0) removeItem(idx);
+                                                            }}
+                                                        >
+                                                            −
+                                                        </Button>
+                                                        <span className="w-8 text-center text-lg font-bold text-blue-700">{g.count}</span>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-8 w-8 p-0 text-lg font-bold"
+                                                            onClick={() => addItem(g.model)}
+                                                            disabled={getTotalSelectedForModel(g.model) >= getStock(g.model)}
+                                                        >
+                                                            ＋
+                                                        </Button>
+                                                    </div>
                                                 </li>
-                                            );
-                                        })}
-                                    </ul>
-                                )}
+                                            ))}
+                                        </ul>
+                                    );
+                                })()}
                             </CardContent>
                         </Card>
 
@@ -366,19 +418,25 @@ export default function AirconPage() {
                             </CardHeader>
                             <CardContent className="px-3 pb-3 pt-0 space-y-2">
                                 <div className="grid grid-cols-4 gap-2">
-                                    {PRESETS.map((p) => (
-                                        <Button
-                                            key={p.model}
-                                            variant="outline"
-                                            className={`h-12 text-sm font-bold flex flex-col gap-0 hover:bg-blue-50 hover:border-blue-400 ${selectedType === 'INDOOR' ? 'border-blue-200 bg-blue-50/50' :
-                                                selectedType === 'OUTDOOR' ? 'border-orange-200 bg-orange-50/50' : ''
-                                                }`}
-                                            onClick={() => addItem(p.model)}
-                                            disabled={!jobInfo}
-                                        >
-                                            <span className="text-base">{p.label}</span>
-                                        </Button>
-                                    ))}
+                                    {PRESETS.map((p) => {
+                                        const stock = getStock(p.model);
+                                        const totalSelected = getTotalSelectedForModel(p.model);
+                                        const atLimit = totalSelected >= stock;
+                                        return (
+                                            <Button
+                                                key={p.model}
+                                                variant="outline"
+                                                className={`h-14 text-sm font-bold flex flex-col gap-0 hover:bg-blue-50 hover:border-blue-400 ${selectedType === 'INDOOR' ? 'border-blue-200 bg-blue-50/50' :
+                                                    selectedType === 'OUTDOOR' ? 'border-orange-200 bg-orange-50/50' : ''
+                                                    } ${atLimit ? 'opacity-50' : ''}`}
+                                                onClick={() => addItem(p.model)}
+                                                disabled={!jobInfo || atLimit}
+                                            >
+                                                <span className="text-base">{p.label}</span>
+                                                <span className={`text-[10px] ${atLimit ? 'text-red-500' : 'text-slate-400'}`}>残{stock - totalSelected}</span>
+                                            </Button>
+                                        );
+                                    })}
                                 </div>
 
                                 {isManualInput ? (

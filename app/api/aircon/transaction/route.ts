@@ -34,26 +34,50 @@ export async function POST(request: Request) {
             );
         }
 
+        // 🔒 在庫事前チェック: 全商品の在庫を確認してから処理開始
+        // 品番→ベースコードのマッピングと必要数を集計
+        const stockRequirements = new Map<string, { code: string, needed: number, models: string[] }>();
+        for (const modelNumber of items) {
+            let baseCode = modelNumber.replace(/[A-Z]$/i, '');
+            const ajMatch = modelNumber.match(/^(RAS-AJ\d{2})/);
+            if (ajMatch) baseCode = ajMatch[1];
+
+            const existing = stockRequirements.get(baseCode);
+            if (existing) {
+                existing.needed++;
+                existing.models.push(modelNumber);
+            } else {
+                stockRequirements.set(baseCode, { code: baseCode, needed: 1, models: [modelNumber] });
+            }
+        }
+
+        // 在庫確認
+        const shortages: string[] = [];
+        for (const [baseCode, req] of stockRequirements) {
+            const product = await prisma.airconProduct.findFirst({ where: { code: baseCode } });
+            if (product && product.stock < req.needed) {
+                shortages.push(`${product.name || baseCode}: 在庫${product.stock}台に対し${req.needed}台指定`);
+            }
+        }
+        if (shortages.length > 0) {
+            return NextResponse.json(
+                { error: '在庫不足のため持出しできません', details: shortages.join('、') },
+                { status: 400 }
+            );
+        }
+
         const result = await prisma.$transaction(async (tx) => {
             const logs = [];
 
             for (const modelNumber of items) {
-                // 品番からエアコン商品を検索
-                // パターン1: RAS-AJ2225S -> RAS-AJ22 (標準的なパターン)
-                // パターン2: RAS-AJ22N -> RAS-AJ22 (サフィックス1文字)
                 let baseCode = modelNumber.replace(/[A-Z]$/i, '');
-
-                // より強力なマッチング (RAS-AJ + 2桁数字)
                 const ajMatch = modelNumber.match(/^(RAS-AJ\d{2})/);
-                if (ajMatch) {
-                    baseCode = ajMatch[1];
-                }
+                if (ajMatch) baseCode = ajMatch[1];
 
                 const airconProduct = await tx.airconProduct.findFirst({
                     where: { code: baseCode }
                 });
 
-                // エアコンログを作成
                 const log = await tx.airConditionerLog.create({
                     data: {
                         managementNo: String(managementNo),
@@ -61,21 +85,16 @@ export async function POST(request: Request) {
                         contractor,
                         modelNumber,
                         vendorId: Number(vendorId),
-                        airconProductId: airconProduct?.id || null, // 商品紐付け
-                        vendorUserId: vendorUserId ? Number(vendorUserId) : null, // Added: Save vendorUserId
-                        type: type, // Added: Save type
-                        isProxyInput: Boolean(isProxyInput), // 代理入力フラグ
-                        note: note || null // メモ欄
+                        airconProductId: airconProduct?.id || null,
+                        vendorUserId: vendorUserId ? Number(vendorUserId) : null,
+                        type: type,
+                        isProxyInput: Boolean(isProxyInput),
+                        note: note || null
                     },
                 });
                 logs.push(log);
 
-                // 在庫がある場合は減算
-                // 在庫がある場合は減算
                 if (airconProduct) {
-                    if (airconProduct.stock <= 0) {
-                        throw new Error(`在庫切れ: ${airconProduct.name || baseCode} (在庫: ${airconProduct.stock})`);
-                    }
                     await tx.airconProduct.update({
                         where: { id: airconProduct.id },
                         data: { stock: { decrement: 1 } }

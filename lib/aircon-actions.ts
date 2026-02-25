@@ -85,22 +85,25 @@ export async function getAirconStockWithVendorBreakdown() {
     return products.map(product => {
         const vendorStockMap = new Map<number, { id: number, name: string, count: number, set: number, indoor: number, outdoor: number, purchase: number }>();
         let totalVendorStock = 0;
-        // 管理番号なしのタイプ別集計（借りている台数・買取含む）
+        // 全ログのタイプ別集計（管理No有無問わず、未返却の全持出し）
         const typeBreakdown = { set: 0, indoor: 0, outdoor: 0, purchase: 0 };
 
         product.logs.forEach(log => {
-            // 管理番号なし or INTERNAL = 物件未紐づけ = 借りている在庫のみ対象
-            // INTERNALは「管理Noなし（予備・自社在庫）」のプレースホルダー
-            // PURCHASEは常に管理番号なしだが念のためチェック
-            if (log.managementNo && log.managementNo !== 'INTERNAL') return;
-
             const logType = (log.type || 'SET') as 'SET' | 'INDOOR' | 'OUTDOOR' | 'PURCHASE';
 
-            // タイプ別集計
+            // 管理No付き = 物件に紐づけ済み = 業者持出しにはカウントしない
+            // ただし isTemporaryLoan=true の場合は一時貸出なので業者持出しにカウント
+            if (log.managementNo && log.managementNo !== 'INTERNAL' && !log.isTemporaryLoan) return;
+
+            // PURCHASE（買取）はタイプ集計のみ、業者持出しにはカウントしない（返却しないため）
+            if (logType === 'PURCHASE') {
+                typeBreakdown.purchase++;
+                return;
+            }
+
             if (logType === 'SET') typeBreakdown.set++;
             else if (logType === 'INDOOR') typeBreakdown.indoor++;
             else if (logType === 'OUTDOOR') typeBreakdown.outdoor++;
-            else if (logType === 'PURCHASE') typeBreakdown.purchase++;
 
             // 業者別集計
             if (log.vendor) {
@@ -113,7 +116,6 @@ export async function getAirconStockWithVendorBreakdown() {
                 if (logType === 'SET') entry.set++;
                 else if (logType === 'INDOOR') entry.indoor++;
                 else if (logType === 'OUTDOOR') entry.outdoor++;
-                else if (logType === 'PURCHASE') entry.purchase++;
                 totalVendorStock++;
             }
         });
@@ -126,7 +128,7 @@ export async function getAirconStockWithVendorBreakdown() {
             vendorStock: totalVendorStock,
             totalStock: product.stock + totalVendorStock,
             vendorBreakdown,
-            typeBreakdown, // SET/INDOOR/OUTDOOR別の持出し数
+            typeBreakdown, // SET/INDOOR/OUTDOOR別の全持出し数
         };
     });
 }
@@ -676,3 +678,35 @@ export async function getAirconInventoryHistory() {
         },
     });
 }
+
+// エアコン在庫数を取得（持出し画面の上限制御用）
+export async function getAirconStockLevels(): Promise<Record<string, number>> {
+    const products = await prisma.airconProduct.findMany({
+        select: { code: true, stock: true },
+    });
+    const result: Record<string, number> = {};
+    products.forEach(p => { result[p.code] = p.stock; });
+    return result;
+}
+
+// エアコンログの管理No+顧客名+一時貸出フラグを更新（物件引き当て用）
+export async function updateAirconLogAssignment(
+    logIds: number[],
+    managementNo: string,
+    customerName: string,
+    contractor?: string,
+    isTemporaryLoan?: boolean
+) {
+    await prisma.airConditionerLog.updateMany({
+        where: { id: { in: logIds } },
+        data: {
+            managementNo,
+            customerName,
+            contractor: contractor || null,
+            isTemporaryLoan: isTemporaryLoan ?? false
+        },
+    });
+    revalidatePath("/admin/aircon-logs");
+    return { success: true };
+}
+

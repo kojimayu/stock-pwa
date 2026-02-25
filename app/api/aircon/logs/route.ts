@@ -1,19 +1,23 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const managementNo = searchParams.get('managementNo');
+
         const logs = await prisma.airConditionerLog.findMany({
+            where: managementNo ? { managementNo } : undefined,
             orderBy: { createdAt: 'desc' },
             include: {
                 vendor: {
                     select: { name: true }
                 },
-                vendorUser: { // Added: Include vendorUser name
+                vendorUser: {
                     select: { name: true }
                 }
             },
-            take: 500, // 最大500件
+            take: managementNo ? 10 : 500,
         });
 
         return NextResponse.json({ logs });

@@ -1324,7 +1324,7 @@ export async function createTransaction(
                         where: { id: aircon.id },
                         data: { stock: { decrement: quantityToDeduct } },
                     });
-                    // エアコンログを作成（買取記録）
+                    // エアコンログを作成（買取記録 — 日時はトランザクションと統一）
                     await tx.airConditionerLog.create({
                         data: {
                             managementNo: null,
@@ -1334,6 +1334,7 @@ export async function createTransaction(
                             airconProductId: aircon.id,
                             type: 'PURCHASE',
                             note: `材料買取 TX#${transaction.id}`,
+                            createdAt: transaction.date, // トランザクション日時と統一
                         },
                     });
                     // 材料在庫をエアコン在庫と同期
