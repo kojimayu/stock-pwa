@@ -63,7 +63,7 @@ describe('createAirconOrder — 発注作成', () => {
             { productId: product.id, quantity: 1 }
         ]);
 
-        expect(result.order.orderNumber).toMatch(/^AC-\d{4}-\d{3}$/);
+        expect(result.order.orderNumber).toMatch(/^\d{8}-\d{3}$/);
     });
 
     it('✅ 正常: 拠点と備考を指定して作成できる', async () => {

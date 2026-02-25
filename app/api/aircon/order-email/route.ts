@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderEmailSettings, markOrderEmailSent } from "@/lib/aircon-actions";
 import { prisma } from "@/lib/prisma";
+import { checkEmailSafety } from "@/lib/email-safety";
 
 // Graph APIでメール送信するための関数（lib/mail.tsと同じ認証方式）
 async function getAccessToken(): Promise<string> {
@@ -74,29 +75,30 @@ export async function POST(request: NextRequest) {
         const fromCompany = settings["aircon_order_from_company"] || "㈱プラスカンパニー";
         const fromAddress = process.env.SMTP_FROM_ADDRESS;
 
-        // 🔒 テストモード: 開発環境では自動有効 + メール宛先をテスト用アドレスに固定（事故防止）
-        const isDevMode = process.env.NODE_ENV === "development";
-        const isTestMode = isDevMode || process.env.TEST_MODE === "true";
-        const testEmailOverride = process.env.TEST_EMAIL_OVERRIDE;
+        // 🔒 メール送信安全ガード（テストモード自動判定・宛先リダイレクト）
+        const emailSafety = checkEmailSafety({
+            nodeEnv: process.env.NODE_ENV,
+            testMode: process.env.TEST_MODE,
+            testEmailOverride: process.env.TEST_EMAIL_OVERRIDE,
+            originalToEmail: toEmail,
+            originalCcEmails: ccEmails,
+        });
+        const isTestMode = emailSafety.isTestMode;
 
-        if (isTestMode) {
-            if (!testEmailOverride) {
-                // テストモードでリダイレクト先が未設定 → 送信をブロック
-                console.warn(`🚫 テストモード: TEST_EMAIL_OVERRIDE が未設定のためメール送信をブロック (${isDevMode ? "開発環境" : "TEST_MODE=true"})`);
-                // 送信記録は残す（UIの整合性のため）
-                await markOrderEmailSent(orderId, orderedBy || "テスト送信（ブロック）");
-                return NextResponse.json({
-                    success: true,
-                    orderNumber: order.orderNumber,
-                    isTestMode: true,
-                    blocked: true,
-                    message: "テストモード: TEST_EMAIL_OVERRIDE未設定のためメール送信をスキップしました"
-                });
-            }
-            console.log(`🧪 テストモード: メール宛先を ${testEmailOverride} に固定 (${isDevMode ? "開発環境" : "TEST_MODE=true"})`);
-            toEmail = testEmailOverride;
-            ccEmails = []; // CCも空にして安全確保
+        if (isTestMode && !emailSafety.allowed) {
+            console.warn(`🚫 ${emailSafety.reason}`);
+            await markOrderEmailSent(orderId, orderedBy || "テスト送信（ブロック）");
+            return NextResponse.json({
+                success: true,
+                orderNumber: order.orderNumber,
+                isTestMode: true,
+                blocked: true,
+                message: emailSafety.reason
+            });
         }
+
+        toEmail = emailSafety.toEmail;
+        ccEmails = emailSafety.ccEmails;
 
         if (!fromAddress) {
             return NextResponse.json({ error: "SMTP_FROM_ADDRESS が設定されていません" }, { status: 500 });

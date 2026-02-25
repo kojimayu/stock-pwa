@@ -261,16 +261,19 @@ export async function getAirconOrders() {
     });
 }
 
-// 発注番号の自動採番
+// 発注番号の自動採番（日付+連番: 20260225-001）
 async function generateOrderNumber(): Promise<string> {
-    const year = new Date().getFullYear();
-    const prefix = `AC-${year}-`;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    const prefix = `${y}${m}${d}-`;
     const latest = await prisma.airconOrder.findFirst({
         where: { orderNumber: { startsWith: prefix } },
         orderBy: { orderNumber: "desc" }
     });
     const seq = latest?.orderNumber
-        ? parseInt(latest.orderNumber.replace(prefix, ""), 10) + 1
+        ? parseInt(latest.orderNumber.split("-")[1], 10) + 1
         : 1;
     return `${prefix}${String(seq).padStart(3, "0")}`;
 }
