@@ -1487,13 +1487,17 @@ export async function returnTransaction(transactionId: number) {
 
     try {
         await prisma.$transaction(async (tx) => {
-            // 1. Fetch Transaction
+            // 1. Fetch Transaction (with vendor info for logging)
             const transaction = await tx.transaction.findUnique({
-                where: { id: transactionId }
+                where: { id: transactionId },
+                include: { vendor: true, vendorUser: true }
             });
 
             if (!transaction) throw new Error("取引が見つかりません");
             if (transaction.isReturned) throw new Error("既に戻し処理済みです");
+
+            // 元の明細を保存（ログ用）
+            const originalItems = transaction.items;
 
             // 2. Parse Items
             const items = JSON.parse(transaction.items) as { productId: number; quantity: number; isManual?: boolean; isBox?: boolean; quantityPerBox?: number }[];
@@ -1525,7 +1529,23 @@ export async function returnTransaction(transactionId: number) {
                 });
             }
 
-            // 4. Mark Transaction as Returned
+            // 4. Log the return operation with original details
+            const parsedOriginal = JSON.parse(originalItems) as { name?: string; quantity: number; price?: number; code?: string }[];
+            const itemSummary = parsedOriginal
+                .filter(i => i.quantity > 0)
+                .map(i => `${i.name || i.code || '不明'} x${i.quantity}`)
+                .join(', ');
+            const vendorInfo = `${transaction.vendor.name}${transaction.vendorUser ? '(' + transaction.vendorUser.name + ')' : ''}`;
+
+            await tx.operationLog.create({
+                data: {
+                    action: 'TRANSACTION_RETURN',
+                    target: `Transaction #${transactionId}`,
+                    details: `全量戻し | 業者: ${vendorInfo} | 元取引: ${transaction.date.toISOString()} | 金額: ${transaction.totalAmount}円 | 明細: ${itemSummary}`,
+                }
+            });
+
+            // 5. Mark Transaction as Returned
             await tx.transaction.update({
                 where: { id: transactionId },
                 data: {
@@ -1554,15 +1574,20 @@ export async function returnPartialTransaction(transactionId: number, returnItem
     try {
         await prisma.$transaction(async (tx) => {
             const transaction = await tx.transaction.findUnique({
-                where: { id: transactionId }
+                where: { id: transactionId },
+                include: { vendor: true, vendorUser: true }
             });
 
             if (!transaction) throw new Error("取引が見つかりません");
             if (transaction.isReturned) throw new Error("既に戻し処理済みです");
 
+            // 元の明細を保存（ログ用）
+            const originalItems = transaction.items;
+
             let items = JSON.parse(transaction.items) as { productId: number; quantity: number; price: number; name: string; isManual?: boolean; isBox?: boolean; quantityPerBox?: number; unit?: string }[];
             let totalAmount = transaction.totalAmount;
             let returnedAny = false;
+            const returnedDetails: string[] = []; // 戻し内容の記録
 
             // Process Returns
             for (const returnItem of returnItems) {
@@ -1602,6 +1627,7 @@ export async function returnPartialTransaction(transactionId: number, returnItem
 
                 items[itemIndex].quantity -= returnItem.returnQuantity;
                 returnedAny = true;
+                returnedDetails.push(`${item.name} x${returnItem.returnQuantity}`);
             }
 
             if (!returnedAny) {
@@ -1640,6 +1666,22 @@ export async function returnPartialTransaction(transactionId: number, returnItem
                     }
                 });
             }
+
+            // Operation Log: 部分戻しの記録
+            const vendorInfo = `${transaction.vendor.name}${transaction.vendorUser ? '(' + transaction.vendorUser.name + ')' : ''}`;
+            const parsedOriginal = JSON.parse(originalItems) as { name?: string; quantity: number; code?: string }[];
+            const originalSummary = parsedOriginal
+                .filter(i => i.quantity > 0)
+                .map(i => `${i.name || i.code || '不明'} x${i.quantity}`)
+                .join(', ');
+
+            await tx.operationLog.create({
+                data: {
+                    action: allReturned ? 'TRANSACTION_RETURN' : 'TRANSACTION_PARTIAL_RETURN',
+                    target: `Transaction #${transactionId}`,
+                    details: `${allReturned ? '全量戻し' : '部分戻し'} | 業者: ${vendorInfo} | 戻し内容: ${returnedDetails.join(', ')} | 元明細: ${originalSummary}`,
+                }
+            });
         });
 
         revalidatePath('/admin/transactions');
