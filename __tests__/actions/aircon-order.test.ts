@@ -141,9 +141,10 @@ describe('updateAirconOrderStatus — ステータス更新', () => {
 });
 
 describe('receiveAirconOrderItem — 入荷処理', () => {
-    it('✅ 正常: 入荷で在庫が増加する', async () => {
+    it('✅ 正常: 主倉庫への入荷で在庫が増加する', async () => {
         const product = await createTestAirconProduct({ stock: 0 });
-        const { order } = await createAirconOrder([{ productId: product.id, quantity: 3 }]);
+        const mainLoc = await createTestDeliveryLocation({ name: '本社', isMainWarehouse: true });
+        const { order } = await createAirconOrder([{ productId: product.id, quantity: 3 }], mainLoc.id);
         await updateAirconOrderStatus(order.id, 'ORDERED');
 
         const item = order.items[0];
@@ -153,9 +154,24 @@ describe('receiveAirconOrderItem — 入荷処理', () => {
         expect(updated?.stock).toBe(2);
     });
 
+    it('✅ 正常: 非主倉庫への入荷では在庫が増加しない', async () => {
+        const product = await createTestAirconProduct({ stock: 0 });
+        const subLoc = await createTestDeliveryLocation({ name: '支社', isMainWarehouse: false });
+        const { order } = await createAirconOrder([{ productId: product.id, quantity: 3 }], subLoc.id);
+
+        const item = order.items[0];
+        const result = await receiveAirconOrderItem(item.id, 2);
+
+        expect(result.success).toBe(true);
+        expect(result.isMainWarehouse).toBe(false);
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.stock).toBe(0); // 在庫は増えない
+    });
+
     it('✅ 正常: 全数入荷でステータスがRECEIVEDになる', async () => {
         const product = await createTestAirconProduct({ stock: 0 });
-        const { order } = await createAirconOrder([{ productId: product.id, quantity: 5 }]);
+        const mainLoc = await createTestDeliveryLocation({ name: '本社HQ', isMainWarehouse: true });
+        const { order } = await createAirconOrder([{ productId: product.id, quantity: 5 }], mainLoc.id);
 
         const item = order.items[0];
         await receiveAirconOrderItem(item.id, 5);
@@ -166,7 +182,8 @@ describe('receiveAirconOrderItem — 入荷処理', () => {
 
     it('✅ 正常: 一部入荷でステータスがPARTIALになる', async () => {
         const product = await createTestAirconProduct({ stock: 0 });
-        const { order } = await createAirconOrder([{ productId: product.id, quantity: 5 }]);
+        const mainLoc = await createTestDeliveryLocation({ name: '本社PARTIAL', isMainWarehouse: true });
+        const { order } = await createAirconOrder([{ productId: product.id, quantity: 5 }], mainLoc.id);
 
         const item = order.items[0];
         await receiveAirconOrderItem(item.id, 2);

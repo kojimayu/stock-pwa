@@ -223,7 +223,8 @@ export async function getAllVendors() {
             },
             users: {
                 orderBy: { name: 'asc' }
-            }
+            },
+            deliveryLocation: true,
         },
         orderBy: [
             { isActive: 'desc' },  // 有効な業者が先
@@ -231,6 +232,14 @@ export async function getAllVendors() {
         ]
     });
     return vendors;
+}
+
+// 納品先拠点一覧取得
+export async function getDeliveryLocations() {
+    return prisma.deliveryLocation.findMany({
+        where: { isActive: true },
+        orderBy: { name: 'asc' },
+    });
 }
 
 // 業者の有効/無効を切り替え
@@ -357,7 +366,7 @@ export async function getUniqueProductAttributes() {
     };
 }
 
-export async function upsertVendor(data: { id?: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean; priceTier?: string }) {
+export async function upsertVendor(data: { id?: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean; priceTier?: string; deliveryLocationId?: number | null }) {
     if (data.id) {
         // Update
         await prisma.vendor.update({
@@ -368,9 +377,10 @@ export async function upsertVendor(data: { id?: number; name: string; email?: st
                 accessCompanyName: data.accessCompanyName,
                 showPriceInEmail: data.showPriceInEmail ?? true,
                 priceTier: data.priceTier ?? "A",
+                deliveryLocationId: data.deliveryLocationId ?? null,
             },
         });
-        await logOperation("VENDOR_UPDATE", `Vendor: ${data.name} (ID: ${data.id})`, `Updated profile. AccessLink: ${data.accessCompanyName || 'None'}, PriceTier: ${data.priceTier || 'A'}`);
+        await logOperation("VENDOR_UPDATE", `Vendor: ${data.name} (ID: ${data.id})`, `Updated profile. AccessLink: ${data.accessCompanyName || 'None'}, PriceTier: ${data.priceTier || 'A'}, Location: ${data.deliveryLocationId || 'None'}`);
     } else {
         // Create
         const newVendor = await prisma.vendor.create({
@@ -380,6 +390,7 @@ export async function upsertVendor(data: { id?: number; name: string; email?: st
                 accessCompanyName: data.accessCompanyName,
                 showPriceInEmail: data.showPriceInEmail ?? true,
                 priceTier: data.priceTier ?? "A",
+                deliveryLocationId: data.deliveryLocationId ?? null,
                 isActive: true,
             },
         });

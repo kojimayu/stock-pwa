@@ -31,14 +31,17 @@ type Vendor = {
     email?: string | null;
     isActive?: boolean;
     priceTier?: string;
+    deliveryLocationId?: number | null;
+    deliveryLocation?: { id: number; name: string } | null;
     users: VendorUser[];
 };
 
 interface VendorListProps {
     vendors: Vendor[];
+    deliveryLocations?: { id: number; name: string }[];
 }
 
-export function VendorList({ vendors }: VendorListProps) {
+export function VendorList({ vendors, deliveryLocations }: VendorListProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
     const [importing, setImporting] = useState(false);
@@ -223,6 +226,7 @@ export function VendorList({ vendors }: VendorListProps) {
                             <TableHead className="w-[60px]">ID</TableHead>
                             <TableHead>名前</TableHead>
                             <TableHead className="text-center">AC価格</TableHead>
+                            <TableHead>拠点</TableHead>
                             <TableHead>担当者数</TableHead>
                             <TableHead>メール</TableHead>
                             <TableHead className="text-right">操作</TableHead>
@@ -257,6 +261,13 @@ export function VendorList({ vendors }: VendorListProps) {
                                         <Badge variant={vendor.priceTier === "B" ? "default" : "secondary"} className={vendor.priceTier === "B" ? "bg-purple-600" : ""}>
                                             {vendor.priceTier || "A"}
                                         </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {vendor.deliveryLocation ? (
+                                            <Badge variant="outline" className="font-normal">{vendor.deliveryLocation.name}</Badge>
+                                        ) : (
+                                            <span className="text-xs text-slate-400">-</span>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
@@ -360,6 +371,7 @@ export function VendorList({ vendors }: VendorListProps) {
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 vendor={editingVendor}
+                deliveryLocations={deliveryLocations}
                 onSuccess={() => router.refresh()}
             />
         </div>

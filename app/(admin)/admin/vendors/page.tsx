@@ -1,8 +1,11 @@
-import { getAllVendors } from "@/lib/actions";
+import { getAllVendors, getDeliveryLocations } from "@/lib/actions";
 import { VendorList } from "@/components/admin/vendor-list";
 
 export default async function VendorsPage() {
-    const vendors = await getAllVendors();
+    const [vendors, deliveryLocations] = await Promise.all([
+        getAllVendors(),
+        getDeliveryLocations(),
+    ]);
 
     return (
         <div className="space-y-6">
@@ -11,7 +14,7 @@ export default async function VendorsPage() {
                 <p className="text-muted-foreground">出庫作業を行う業者の登録・管理</p>
             </div>
 
-            <VendorList vendors={vendors} />
+            <VendorList vendors={vendors} deliveryLocations={deliveryLocations} />
         </div>
     );
 }

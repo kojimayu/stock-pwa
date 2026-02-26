@@ -18,9 +18,11 @@ model Vendor {
   showPriceInEmail   Boolean             @default(true)
   isActive           Boolean             @default(true)
   priceTier          String              @default("A") // 価格ランク（A=通常, B=特別, C=将来用）
+  deliveryLocationId Int?                // 所属する納品先拠点
   users              VendorUser[]
   airConditionerLogs AirConditionerLog[]
   transactions       Transaction[]
+  deliveryLocation   DeliveryLocation?   @relation(fields: [deliveryLocationId], references: [id])
 }
 
 model VendorUser {
@@ -189,12 +191,14 @@ model AirconProduct {
 
 // 納品先拠点
 model DeliveryLocation {
-  id        Int           @id @default(autoincrement())
-  name      String        // 例: "プラスカンパニー本社", "ZION"
-  address   String?       // 住所
-  isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  orders    AirconOrder[]
+  id              Int           @id @default(autoincrement())
+  name            String        // 例: "プラスカンパニー本社", "ZION"
+  address         String?       // 住所
+  isActive        Boolean       @default(true)
+  isMainWarehouse Boolean       @default(false) // 在庫管理の主拠点（入荷時にstock加算する拠点）
+  createdAt       DateTime      @default(now())
+  orders          AirconOrder[]
+  vendors         Vendor[]
 }
 
 model AirconOrder {

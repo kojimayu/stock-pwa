@@ -370,12 +370,19 @@ export async function updateAirconOrderStatus(orderId: number, status: string) {
 export async function receiveAirconOrderItem(itemId: number, quantity: number) {
     const item = await prisma.airconOrderItem.findUnique({
         where: { id: itemId },
-        include: { product: true, order: true }
+        include: {
+            product: true,
+            order: {
+                include: { deliveryLocation: true }
+            }
+        }
     });
 
     if (!item) {
         return { success: false, message: "発注明細が見つかりません" };
     }
+
+    const isMainWarehouse = item.order.deliveryLocation?.isMainWarehouse ?? false;
 
     await prisma.$transaction(async (tx) => {
         // 入荷数更新
@@ -384,11 +391,13 @@ export async function receiveAirconOrderItem(itemId: number, quantity: number) {
             data: { receivedQuantity: { increment: quantity } }
         });
 
-        // 在庫追加
-        await tx.airconProduct.update({
-            where: { id: item.productId },
-            data: { stock: { increment: quantity } }
-        });
+        // 在庫追加（主倉庫の場合のみ）
+        if (isMainWarehouse) {
+            await tx.airconProduct.update({
+                where: { id: item.productId },
+                data: { stock: { increment: quantity } }
+            });
+        }
 
         // 発注全体のステータスを確認・更新
         const updatedItems = await tx.airconOrderItem.findMany({
@@ -415,12 +424,14 @@ export async function receiveAirconOrderItem(itemId: number, quantity: number) {
         }
     });
 
-    // 材料在庫を同期
-    await syncAirconToMaterialStock(item.productId);
+    // 材料在庫を同期（主倉庫の場合のみ）
+    if (isMainWarehouse) {
+        await syncAirconToMaterialStock(item.productId);
+    }
 
     revalidatePath("/admin/aircon-orders");
     revalidatePath("/admin/aircon-inventory");
-    return { success: true };
+    return { success: true, isMainWarehouse };
 }
 
 // 発注メール送信記録

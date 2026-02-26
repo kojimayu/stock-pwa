@@ -32,8 +32,8 @@ import {
 interface VendorDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    // pinCode removed
-    vendor?: { id: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean; priceTier?: string } | null;
+    vendor?: { id: number; name: string; email?: string | null; accessCompanyName?: string | null; showPriceInEmail?: boolean; priceTier?: string; deliveryLocationId?: number | null } | null;
+    deliveryLocations?: { id: number; name: string }[];
     onSuccess: () => void;
 }
 
@@ -42,7 +42,7 @@ interface AccessVendor {
     name: string;
 }
 
-export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDialogProps) {
+export function VendorDialog({ open, onOpenChange, vendor, deliveryLocations, onSuccess }: VendorDialogProps) {
     const [loading, setLoading] = useState(false);
     const [accessVendors, setAccessVendors] = useState<AccessVendor[]>([]);
     const [loadingAccessVendors, setLoadingAccessVendors] = useState(false);
@@ -57,6 +57,9 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
     // Price tier setting
     const [priceTier, setPriceTier] = useState("A");
 
+    // Delivery location setting
+    const [deliveryLocationId, setDeliveryLocationId] = useState<number | null>(null);
+
     // Initialize/Update state when vendor prop changes
     useEffect(() => {
         if (vendor?.accessCompanyName) {
@@ -68,6 +71,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
         // Default to false (OFF) for new vendors, use existing value for edits
         setShowPriceInEmail(vendor?.showPriceInEmail ?? false);
         setPriceTier(vendor?.priceTier ?? "A");
+        setDeliveryLocationId(vendor?.deliveryLocationId ?? null);
     }, [vendor, open]);
 
     // Fetch Access Vendors when dialog opens
@@ -110,6 +114,7 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                 accessCompanyName: selectedAccessVendor === "_none" || !selectedAccessVendor ? null : selectedAccessVendor,
                 showPriceInEmail,
                 priceTier,
+                deliveryLocationId,
             });
             toast.success(vendor ? "業者情報を更新しました" : "業者を追加しました");
             onSuccess();
@@ -279,6 +284,30 @@ export function VendorDialog({ open, onOpenChange, vendor, onSuccess }: VendorDi
                                 </p>
                             </div>
                         </div>
+
+                        {/* 納品先拠点 */}
+                        {deliveryLocations && deliveryLocations.length > 0 && (
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <label className="text-right text-sm font-medium">
+                                    納品先拠点
+                                </label>
+                                <div className="col-span-3">
+                                    <select
+                                        value={deliveryLocationId ?? ""}
+                                        onChange={(e) => setDeliveryLocationId(e.target.value ? parseInt(e.target.value) : null)}
+                                        className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                                    >
+                                        <option value="">-- 未設定 --</option>
+                                        {deliveryLocations.map((loc) => (
+                                            <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        この業者が所属する納品先拠点を選択します。
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                     </div>
                     <DialogFooter>

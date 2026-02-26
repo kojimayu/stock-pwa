@@ -104,7 +104,7 @@ export function VendorHistoryList({ transactions, onRefresh }: VendorHistoryList
                                     {items.map((item, idx) => (
                                         <div key={idx} className="flex justify-between">
                                             <span className={item.quantity < 0 ? 'text-orange-600' : ''}>
-                                                {item.quantity < 0 ? '↩ ' : ''}{item.name}
+                                                {item.quantity < 0 ? '↩ ' : ''}{item.code && <span className="font-mono text-xs text-slate-400 mr-1">[{item.code}]</span>}{item.name}
                                             </span>
                                             <span className={`font-medium ${item.quantity < 0 ? 'text-orange-600' : ''}`}>
                                                 {item.quantity < 0 ? '-' : ''}{formatItemQuantity(item)}
