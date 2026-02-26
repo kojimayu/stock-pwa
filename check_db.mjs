@@ -1,0 +1,11 @@
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+const users = await prisma.adminUser.findMany({ select: { id: true, email: true, name: true } });
+console.log('AdminUser:', JSON.stringify(users, null, 2));
+const vendors = await prisma.vendor.count();
+console.log('Vendor count:', vendors);
+const products = await prisma.product.count();
+console.log('Product count:', products);
+const aircon = await prisma.airconProduct.count();
+console.log('AirconProduct count:', aircon);
+await prisma.$disconnect();
