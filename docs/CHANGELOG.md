@@ -12,7 +12,7 @@
 - **DB安全対策ドキュメント** (2026-02-26): `docs/DATABASE_SAFETY.md`と`.agent/workflows/db-safety.md`を新規作成。`prisma db push --accept-data-loss`禁止、バックアップ必須化等の安全ルールを整備。
 
 ### Fixed
-- **DB復元** (2026-02-26): `prisma db push --accept-data-loss`によるデータ消失を23時定期バックアップから復元。
+- **DB復元** (2026-02-26): テスト後の`$env:DATABASE_URL`汚染によりテストDBに接続し「データ消失」と誤診。実際にはdev.dbは無事。環境変数チェック手順を安全ガイドラインに追加。
 
 ### Removed
 - **エアコン発注設定の売価A/B** (2026-02-26): 発注設定画面から「売価A（通常）」「売価B（特別）」のカラムを削除。発注に無関係で紛らわしいため。発注単価のみ残す。

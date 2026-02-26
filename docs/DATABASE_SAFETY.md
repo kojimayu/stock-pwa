@@ -13,12 +13,25 @@
 | `taskkill /F /IM node.exe` | 関係のないNode.jsプロセスまで終了させる |
 | バックアップなしでの `dev.db` 直接操作 | 復元不可能になる |
 | `DROP TABLE` / `DELETE FROM` の直接実行 | データ消失 |
+| テスト後に `$env:DATABASE_URL` を未確認のまま操作 | テストDBと本番DBを取り違える |
 
 ---
 
 ## ✅ データベース操作の手順（チェックリスト）
 
 ### スキーマ変更時（カラム追加など）
+
+0. **[ ] 環境変数の確認（最重要）**
+   ```powershell
+   echo $env:DATABASE_URL
+   # 期待値: 空 または "file:F:/Antigravity/stock-pwa/dev.db"
+   # NG値: "file:./prisma/test-vitest.db" → テスト用！
+   ```
+   テスト実行後は `$env:DATABASE_URL` がテストDBを指している場合がある。
+   **必ずリセットするか、新しいターミナルで作業すること。**
+   ```powershell
+   Remove-Item Env:DATABASE_URL  # リセット
+   ```
 
 1. **[ ] バックアップ取得**（2箇所以上）
    ```powershell
@@ -98,4 +111,15 @@ node check_db.mjs
 
 | 日時 | 原因 | 影響 | 復元方法 |
 |------|------|------|---------|
-| 2026-02-26 | `prisma db push --accept-data-loss` | 全データ消失 | 23時定期バックアップから復元 |
+| 2026-02-26 | テスト後の `$env:DATABASE_URL` 汚染 | テストDBに接続し「データ消失」と誤診（dev.dbは無事） | 23時バックアップから復元（結果的に不要） |
+
+> **教訓**: `vitest run` は `$env:DATABASE_URL` を `test-vitest.db` に設定する。同じターミナルで本番操作するとテストDBに接続してしまう。**テスト後は必ず `Remove-Item Env:DATABASE_URL` でリセットすること。**
+
+---
+
+## 💡 備考: ファイル名について
+
+- `dev.db` = **本番データベース**（名前は紛らわしいが運用中のため変更注意）
+- `prisma/test-vitest.db` = テスト専用DB（テスト時に自動作成・クリーンアップ）
+- `.env` の `DATABASE_URL` = `file:F:/Antigravity/stock-pwa/dev.db`（本番を指す）
+
