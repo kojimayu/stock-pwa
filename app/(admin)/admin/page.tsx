@@ -1,79 +1,99 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Package, Fan, ClipboardList, AlertTriangle, ShoppingCart, TrendingDown } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { AlertTriangle, TrendingDown, CheckCircle2, ClipboardList, Package, Fan, Calendar } from "lucide-react";
+import { formatDate } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
-// 材料の発注アラート情報を取得
-// 材料の発注アラート情報を取得
 // 材料の発注アラート情報を取得
 async function getLowStockMaterials() {
-    // 1. 最低在庫設定がある商品をすべて取得
-    // ※Prismaで「カラム同士の比較(stock < minStock)」は直接できないため、JS側でフィルタリングする
     const candidates = await prisma.product.findMany({
-        where: {
-            minStock: { gt: 0 }
-        },
+        where: { minStock: { gt: 0 } },
         include: {
-            // 発注済みチェック用: ORDEREDかPARTIALの注文が含まれているか
             orderItems: {
-                where: {
-                    order: {
-                        status: { in: ["ORDERED", "PARTIAL"] }
-                    }
-                },
-                select: { id: true } // 存在確認だけで良いのでIDのみ取得
-            }
+                where: { order: { status: { in: ["ORDERED", "PARTIAL"] } } },
+                select: { id: true },
+            },
         },
-        orderBy: [
-            { stock: 'asc' },
-            { name: 'asc' }
-        ]
+        orderBy: [{ stock: "asc" }, { name: "asc" }],
     });
 
-    // 2. フィルタリング (在庫切れ or 最低在庫未満 どちらも対象)
-    // ・在庫 < 最低在庫
-    // ・かつ、発注済み(orderItems)がない
-    const lowStockProducts = candidates.filter(p =>
-        p.stock < p.minStock && p.orderItems.length === 0
-    );
-
-    // 3. 表示上限
-    return lowStockProducts.slice(0, 20);
+    return candidates
+        .filter((p) => p.stock < p.minStock && p.orderItems.length === 0)
+        .slice(0, 20);
 }
 
-// エアコン関連の統計を取得
-async function getAirconStats() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+// エアコン在庫を容量別に取得（AirconProductから直接）
+async function getAirconInventory() {
+    return prisma.airconProduct.findMany({
+        orderBy: { capacity: "asc" },
+        select: {
+            id: true,
+            code: true,
+            name: true,
+            capacity: true,
+            stock: true,
+            minStock: true,
+        },
+    });
+}
 
-    const [todayAirconLogs, pendingAirconOrders, recentAirconLogs, lowStockAircon] = await Promise.all([
-        // 本日のエアコン持出し数
-        prisma.airConditionerLog.count({
-            where: { createdAt: { gte: today } }
+// 発注状況を取得（材料 + エアコン）
+async function getPendingOrders() {
+    const [materialOrders, airconOrders] = await Promise.all([
+        prisma.order.findMany({
+            where: { status: { in: ["DRAFT", "ORDERED", "PARTIAL"] } },
+            include: { items: { include: { product: true } } },
+            orderBy: { createdAt: "desc" },
         }),
-        // 未完了のエアコン発注
         prisma.airconOrder.findMany({
             where: { status: { in: ["DRAFT", "ORDERED", "PARTIAL"] } },
             include: { items: { include: { product: true } } },
-            orderBy: { createdAt: "desc" }
-        }),
-        // 最近のエアコン持出し(5件)
-        prisma.airConditionerLog.findMany({
-            take: 5,
             orderBy: { createdAt: "desc" },
-            include: { vendor: true }
         }),
-        // エアコン在庫アラート
-        prisma.airconProduct.findMany({
-            where: { stock: { lte: prisma.airconProduct.fields.minStock } }
-        })
     ]);
+    return { materialOrders, airconOrders };
+}
 
-    return { todayAirconLogs, pendingAirconOrders, recentAirconLogs, lowStockAircon };
+// 納期アラート取得
+async function getDeliveryAlerts() {
+    const now = new Date();
+    const overdueOrders = await prisma.airconOrder.findMany({
+        where: {
+            status: { in: ["ORDERED", "PARTIAL"] },
+            expectedDeliveryDate: { lt: now },
+        },
+        include: { items: { include: { product: true } } },
+        orderBy: { expectedDeliveryDate: "asc" },
+    });
+    const noResponseOrders = await prisma.airconOrder.findMany({
+        where: {
+            status: { in: ["ORDERED", "PARTIAL"] },
+            expectedDeliveryDate: null,
+        },
+        orderBy: { orderedAt: "asc" },
+    });
+    return { overdueOrders, noResponseOrders };
+}
+
+// 最近のエアコン持出し（3件、グループ化）
+async function getRecentAirconLogs() {
+    return prisma.airConditionerLog.findMany({
+        take: 20, // グループ化の元データとして多めに取得
+        orderBy: { createdAt: "desc" },
+        include: {
+            vendor: true,
+            vendorUser: true,
+        },
+    });
 }
 
 const orderStatusLabel: Record<string, string> = {
@@ -84,274 +104,613 @@ const orderStatusLabel: Record<string, string> = {
     CANCELLED: "キャンセル",
 };
 
-export default async function AdminDashboardPage() {
-    const [lowStockMaterials, airconStats] = await Promise.all([
-        getLowStockMaterials(),
-        getAirconStats()
-    ]);
+const orderStatusColor: Record<string, string> = {
+    DRAFT: "bg-slate-100 text-slate-700",
+    ORDERED: "bg-blue-100 text-blue-700",
+    PARTIAL: "bg-amber-100 text-amber-700",
+};
 
-    // 発注が必要な材料（在庫0）
-    const criticalMaterials = lowStockMaterials.filter(p => p.stock === 0);
-    // 在庫が少ない材料（在庫 > 0 だが minStock 未満）
-    const warningMaterials = lowStockMaterials.filter(p => p.stock > 0);
+const modelToLabel: Record<string, string> = {
+    "RAS-AJ2225S": "2.2kw",
+    "RAS-AJ2525S": "2.5kw",
+    "RAS-AJ2825S": "2.8kw",
+    "RAS-AJ3625S": "3.6kw",
+};
+
+// ログをグループ化（管理No + 日付 + 業者でグループ、3グループまで）
+function groupLogs(logs: any[]) {
+    const groups = new Map<string, any>();
+    logs.forEach((log) => {
+        const dateKey = new Date(log.createdAt).toISOString().split("T")[0];
+        const key = `${log.managementNo || "NONE"}-${dateKey}-${log.vendor?.name || ""}`;
+        if (!groups.has(key)) {
+            groups.set(key, {
+                key,
+                managementNo: log.managementNo,
+                customerName: log.customerName,
+                vendorName: log.vendor?.name || "",
+                vendorUserName: log.vendorUser?.name,
+                isProxyInput: log.isProxyInput,
+                createdAt: log.createdAt,
+                items: [],
+                allReturned: true,
+                someReturned: false,
+                isTemporaryLoan: log.isTemporaryLoan,
+            });
+        }
+        const group = groups.get(key)!;
+        const itemKey = `${log.modelNumber}-${log.type || "SET"}`;
+        let item = group.items.find(
+            (i: any) => `${i.model}-${i.type}` === itemKey
+        );
+        if (!item) {
+            item = {
+                model: log.modelNumber,
+                type: log.type || "SET",
+                total: 0,
+                returned: 0,
+            };
+            group.items.push(item);
+        }
+        item.total++;
+        if (log.isReturned) {
+            item.returned++;
+            group.someReturned = true;
+        } else {
+            group.allReturned = false;
+        }
+    });
+    return Array.from(groups.values())
+        .sort(
+            (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+        )
+        .slice(0, 3);
+}
+
+export default async function AdminDashboardPage() {
+    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts] =
+        await Promise.all([
+            getLowStockMaterials(),
+            getAirconInventory(),
+            getPendingOrders(),
+            getRecentAirconLogs(),
+            getDeliveryAlerts(),
+        ]);
+
+    const criticalMaterials = lowStockMaterials.filter((p) => p.stock === 0);
+    const warningMaterials = lowStockMaterials.filter((p) => p.stock > 0);
+    const hasPendingOrders =
+        pendingOrders.materialOrders.length > 0 ||
+        pendingOrders.airconOrders.length > 0;
+
+    // エアコン在庫アラート
+    const criticalAircon = airconInventory.filter(
+        (ac) => ac.minStock > 0 && ac.stock === 0
+    );
+    const warningAircon = airconInventory.filter(
+        (ac) => ac.minStock > 0 && ac.stock > 0 && ac.stock <= ac.minStock
+    );
+
+    const groupedLogs = groupLogs(recentAirconLogs);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight">ダッシュボード</h2>
-                <p className="text-muted-foreground">在庫状況と発注アラート</p>
+                <h2 className="text-3xl font-bold tracking-tight">
+                    ダッシュボード
+                </h2>
+                <p className="text-muted-foreground">
+                    在庫状況・発注アラート
+                </p>
             </div>
 
-            {/* 統計カード */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                {/* 発注必要（在庫ゼロ） */}
-                <Card className={criticalMaterials.length > 0 ? "border-red-300 bg-red-50" : ""}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">発注必要（在庫切れ）</CardTitle>
-                        <AlertTriangle className={`h-4 w-4 ${criticalMaterials.length > 0 ? "text-red-600" : "text-muted-foreground"}`} />
-                    </CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${criticalMaterials.length > 0 ? "text-red-600" : ""}`}>
-                            {criticalMaterials.length}
-                        </div>
-                        <p className="text-xs text-muted-foreground">在庫ゼロの材料</p>
-                    </CardContent>
-                </Card>
+            {/* ━━━ アラートバナー（コンパクト） ━━━ */}
+            <div className="space-y-2">
+                {/* 材料: 在庫切れ */}
+                {criticalMaterials.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span className="text-sm text-red-800 font-medium">
+                            材料 在庫切れ {criticalMaterials.length}件
+                        </span>
+                        <span className="text-xs text-red-600 truncate">
+                            （
+                            {criticalMaterials
+                                .slice(0, 3)
+                                .map((p) => p.name)
+                                .join("、")}
+                            {criticalMaterials.length > 3 &&
+                                ` 他${criticalMaterials.length - 3}件`}
+                            ）
+                        </span>
+                        <Link
+                            href="/admin/orders"
+                            className="ml-auto text-xs text-red-700 hover:underline whitespace-nowrap font-medium"
+                        >
+                            発注管理へ →
+                        </Link>
+                    </div>
+                )}
 
-                {/* 在庫注意 */}
-                <Card className={warningMaterials.length > 0 ? "border-amber-300 bg-amber-50" : ""}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">在庫注意</CardTitle>
-                        <TrendingDown className={`h-4 w-4 ${warningMaterials.length > 0 ? "text-amber-600" : "text-muted-foreground"}`} />
-                    </CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${warningMaterials.length > 0 ? "text-amber-600" : ""}`}>
-                            {warningMaterials.length}
-                        </div>
-                        <p className="text-xs text-muted-foreground">最低在庫未満の材料</p>
-                    </CardContent>
-                </Card>
+                {/* 材料: 在庫注意 */}
+                {warningMaterials.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                        <TrendingDown className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="text-sm text-amber-800 font-medium">
+                            材料 在庫注意 {warningMaterials.length}件
+                        </span>
+                        <span className="text-xs text-amber-600 truncate">
+                            （
+                            {warningMaterials
+                                .slice(0, 3)
+                                .map((p) => `${p.name}:残${p.stock}`)
+                                .join("、")}
+                            {warningMaterials.length > 3 &&
+                                ` 他${warningMaterials.length - 3}件`}
+                            ）
+                        </span>
+                        <Link
+                            href="/admin/products"
+                            className="ml-auto text-xs text-amber-700 hover:underline whitespace-nowrap font-medium"
+                        >
+                            商品管理へ →
+                        </Link>
+                    </div>
+                )}
 
-                {/* 本日のエアコン持出し */}
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">本日のエアコン持出し</CardTitle>
-                        <Fan className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{airconStats.todayAirconLogs}</div>
-                        <p className="text-xs text-muted-foreground">本日の持出し件数</p>
-                    </CardContent>
-                </Card>
+                {/* エアコン: 在庫切れ */}
+                {criticalAircon.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                        <Fan className="w-4 h-4 text-red-600 shrink-0" />
+                        <span className="text-sm text-red-800 font-medium">
+                            エアコン 在庫切れ {criticalAircon.length}件
+                        </span>
+                        <span className="text-xs text-red-600 truncate">
+                            （
+                            {criticalAircon
+                                .map((ac) => ac.capacity)
+                                .join("、")}
+                            ）
+                        </span>
+                        <Link
+                            href="/admin/aircon-orders"
+                            className="ml-auto text-xs text-red-700 hover:underline whitespace-nowrap font-medium"
+                        >
+                            エアコン発注へ →
+                        </Link>
+                    </div>
+                )}
 
-                {/* 処理待ちエアコン発注 */}
-                <Card className={airconStats.pendingAirconOrders.length > 0 ? "border-blue-200 bg-blue-50" : ""}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">処理待ち発注</CardTitle>
-                        <ClipboardList className={`h-4 w-4 ${airconStats.pendingAirconOrders.length > 0 ? "text-blue-600" : "text-muted-foreground"}`} />
-                    </CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${airconStats.pendingAirconOrders.length > 0 ? "text-blue-600" : ""}`}>
-                            {airconStats.pendingAirconOrders.length}
+                {/* エアコン: 在庫注意 */}
+                {warningAircon.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                        <Fan className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="text-sm text-amber-800 font-medium">
+                            エアコン 在庫注意 {warningAircon.length}件
+                        </span>
+                        <span className="text-xs text-amber-600 truncate">
+                            （
+                            {warningAircon
+                                .map(
+                                    (ac) => `${ac.capacity}:残${ac.stock}`
+                                )
+                                .join("、")}
+                            ）
+                        </span>
+                        <Link
+                            href="/admin/aircon-orders"
+                            className="ml-auto text-xs text-amber-700 hover:underline whitespace-nowrap font-medium"
+                        >
+                            エアコン発注へ →
+                        </Link>
+                    </div>
+                )}
+
+                {/* 納期超過アラート */}
+                {deliveryAlerts.overdueOrders.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                        <Calendar className="w-4 h-4 text-red-600 shrink-0" />
+                        <span className="text-sm text-red-800 font-medium">
+                            納期超過 {deliveryAlerts.overdueOrders.length}件
+                        </span>
+                        <span className="text-xs text-red-600 truncate">
+                            （
+                            {deliveryAlerts.overdueOrders
+                                .slice(0, 3)
+                                .map((o: any) => `${o.orderNumber || '#' + o.id}`)
+                                .join('、')}
+                            {deliveryAlerts.overdueOrders.length > 3 &&
+                                ` 他${deliveryAlerts.overdueOrders.length - 3}件`}
+                            ）
+                        </span>
+                        <Link
+                            href="/admin/aircon-orders"
+                            className="ml-auto text-xs text-red-700 hover:underline whitespace-nowrap font-medium"
+                        >
+                            発注管理へ →
+                        </Link>
+                    </div>
+                )}
+
+                {/* 納期未回答アラート */}
+                {deliveryAlerts.noResponseOrders.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                        <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="text-sm text-amber-800 font-medium">
+                            納期未回答 {deliveryAlerts.noResponseOrders.length}件
+                        </span>
+                        <Link
+                            href="/admin/aircon-orders"
+                            className="ml-auto text-xs text-amber-700 hover:underline whitespace-nowrap font-medium"
+                        >
+                            発注管理へ →
+                        </Link>
+                    </div>
+                )}
+
+                {/* すべて正常 */}
+                {criticalMaterials.length === 0 &&
+                    warningMaterials.length === 0 &&
+                    criticalAircon.length === 0 &&
+                    warningAircon.length === 0 &&
+                    deliveryAlerts.overdueOrders.length === 0 &&
+                    deliveryAlerts.noResponseOrders.length === 0 && (
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 border border-green-200">
+                            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                            <span className="text-sm text-green-700">
+                                すべての在庫が十分です
+                            </span>
                         </div>
-                        <p className="text-xs text-muted-foreground">エアコン発注</p>
-                    </CardContent>
-                </Card>
+                    )}
             </div>
 
-            {/* 発注が必要な材料リスト（在庫ゼロ） */}
-            {criticalMaterials.length > 0 && (
-                <Card className="border-red-200">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-red-700 flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5" />
-                            発注が必要な材料（在庫切れ）
-                        </CardTitle>
-                        <CardDescription>在庫がゼロになっている材料です。早急に発注してください。</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[100px]">品番</TableHead>
-                                    <TableHead>商品名</TableHead>
-                                    <TableHead>カテゴリ</TableHead>
-                                    <TableHead className="text-right">在庫</TableHead>
-                                    <TableHead className="text-right">最低在庫</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {criticalMaterials.slice(0, 10).map((product) => (
-                                    <TableRow key={product.id} className="bg-red-50/50">
-                                        <TableCell className="font-mono text-sm">{product.code}</TableCell>
-                                        <TableCell className="font-medium">{product.name}</TableCell>
-                                        <TableCell className="text-sm text-muted-foreground">
-                                            {product.category}
-                                            {product.subCategory && ` / ${product.subCategory}`}
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold text-red-600">0</TableCell>
-                                        <TableCell className="text-right text-muted-foreground">{product.minStock}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                        {criticalMaterials.length > 10 && (
-                            <p className="text-sm text-muted-foreground mt-2">
-                                他 {criticalMaterials.length - 10} 件
-                            </p>
-                        )}
-                        <div className="mt-4">
-                            <Link href="/admin/orders">
-                                <Button variant="destructive" size="sm">
-                                    <ShoppingCart className="w-4 h-4 mr-2" />
-                                    発注管理へ
-                                </Button>
-                            </Link>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* 在庫注意の材料リスト */}
-            {warningMaterials.length > 0 && (
-                <Card className="border-amber-200">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-amber-700 flex items-center gap-2">
-                            <TrendingDown className="w-5 h-5" />
-                            在庫が少なくなっている材料
-                        </CardTitle>
-                        <CardDescription>在庫が最低在庫数未満の材料です。発注を検討してください。</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[100px]">品番</TableHead>
-                                    <TableHead>商品名</TableHead>
-                                    <TableHead>カテゴリ</TableHead>
-                                    <TableHead className="text-right">在庫</TableHead>
-                                    <TableHead className="text-right">最低在庫</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {warningMaterials.slice(0, 10).map((product) => (
-                                    <TableRow key={product.id} className="bg-amber-50/50">
-                                        <TableCell className="font-mono text-sm">{product.code}</TableCell>
-                                        <TableCell className="font-medium">{product.name}</TableCell>
-                                        <TableCell className="text-sm text-muted-foreground">
-                                            {product.category}
-                                            {product.subCategory && ` / ${product.subCategory}`}
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold text-amber-600">{product.stock}</TableCell>
-                                        <TableCell className="text-right text-muted-foreground">{product.minStock}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                        {warningMaterials.length > 10 && (
-                            <p className="text-sm text-muted-foreground mt-2">
-                                他 {warningMaterials.length - 10} 件
-                            </p>
-                        )}
-                        <div className="mt-4">
-                            <Link href="/admin/products">
-                                <Button variant="outline" size="sm">
-                                    <Package className="w-4 h-4 mr-2" />
-                                    商品管理へ
-                                </Button>
-                            </Link>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* 在庫問題なしの場合 */}
-            {criticalMaterials.length === 0 && warningMaterials.length === 0 && (
-                <Card className="border-green-200 bg-green-50">
-                    <CardContent className="py-8 text-center">
-                        <Package className="w-12 h-12 mx-auto text-green-600 mb-3" />
-                        <p className="text-green-700 font-medium">すべての材料の在庫が十分です</p>
-                        <p className="text-sm text-green-600 mt-1">発注が必要な材料はありません</p>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* エアコン発注状況 */}
-            {airconStats.pendingAirconOrders.length > 0 && (
-                <Card className="border-blue-200">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-blue-800 flex items-center gap-2">
-                            <ClipboardList className="w-5 h-5" />
-                            処理待ちエアコン発注
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {airconStats.pendingAirconOrders.slice(0, 3).map((order: any) => (
-                                <div key={order.id} className="flex items-center justify-between bg-blue-50 p-3 rounded-lg">
-                                    <span className="font-medium">
-                                        発注 #{order.id}
-                                        <Badge className="ml-2" variant="outline">
-                                            {orderStatusLabel[order.status]}
-                                        </Badge>
-                                    </span>
-                                    <span className="text-sm text-muted-foreground">
-                                        {order.items.map((i: any) => `${i.product.code} ×${i.quantity}`).join(", ")}
-                                    </span>
-                                </div>
-                            ))}
-                            <Link href="/admin/aircon-orders" className="text-sm text-blue-600 hover:underline block mt-2">
-                                すべて表示 →
-                            </Link>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* 最近のエアコン持出し */}
+            {/* ━━━ エアコン在庫テーブル（容量別） ━━━ */}
             <Card>
-                <CardHeader>
-                    <CardTitle>最近のエアコン持出し</CardTitle>
+                <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                        <Fan className="w-5 h-5" />
+                        エアコン在庫（容量別）
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {airconStats.recentAirconLogs.length === 0 ? (
-                        <div className="text-sm text-slate-500 text-center py-8">
-                            データがありません
-                        </div>
+                    {airconInventory.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                            エアコン商品が登録されていません
+                        </p>
                     ) : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>日時</TableHead>
-                                    <TableHead>業者名</TableHead>
                                     <TableHead>品番</TableHead>
+                                    <TableHead>容量</TableHead>
+                                    <TableHead className="text-right">
+                                        在庫
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        最低在庫
+                                    </TableHead>
                                 </TableRow>
                             </TableHeader>
-                            <TableBody >
-                                {
-                                    airconStats.recentAirconLogs.map((log: any) => (
-                                        <TableRow key={log.id} className={log.isReturned ? "bg-red-50 hover:bg-red-100" : ""}>
-                                            <TableCell className="text-sm">
-                                                {formatDate(log.createdAt)}
-                                                {log.isReturned && (
-                                                    <span className="ml-2 bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded inline-block">
-                                                        返却済
-                                                    </span>
-                                                )}
+                            <TableBody>
+                                {airconInventory.map((ac) => {
+                                    const isLow =
+                                        ac.minStock > 0 &&
+                                        ac.stock <= ac.minStock;
+                                    const isZero = ac.stock === 0;
+                                    return (
+                                        <TableRow
+                                            key={ac.id}
+                                            className={
+                                                isZero
+                                                    ? "bg-red-50"
+                                                    : isLow
+                                                        ? "bg-amber-50"
+                                                        : ""
+                                            }
+                                        >
+                                            <TableCell className="font-mono text-sm">
+                                                {ac.code}
                                             </TableCell>
-                                            <TableCell className={log.isReturned ? "text-slate-400 line-through" : ""}>
-                                                {log.vendor.name}
+                                            <TableCell>
+                                                {ac.capacity}
                                             </TableCell>
-                                            <TableCell className={`font-mono text-sm ${log.isReturned ? "text-slate-400 line-through" : ""}`}>
-                                                {log.modelNumber}
+                                            <TableCell
+                                                className={`text-right font-bold ${isZero ? "text-red-600" : isLow ? "text-amber-600" : ""}`}
+                                            >
+                                                {ac.stock}
+                                            </TableCell>
+                                            <TableCell className="text-right text-muted-foreground">
+                                                {ac.minStock}
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                }
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     )}
-                    <Link href="/admin/aircon-logs" className="text-sm text-blue-600 hover:underline block mt-3">
+                    <div className="flex gap-4 mt-3">
+                        <Link
+                            href="/admin/aircon-inventory"
+                            className="text-sm text-blue-600 hover:underline"
+                        >
+                            エアコン棚卸管理へ →
+                        </Link>
+                        <Link
+                            href="/admin/aircon-orders/settings"
+                            className="text-sm text-blue-600 hover:underline"
+                        >
+                            最低在庫設定 →
+                        </Link>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* ━━━ 発注状況（材料・エアコン分離） ━━━ */}
+            <Card>
+                <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                        <ClipboardList className="w-5 h-5" />
+                        発注状況
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {!hasPendingOrders ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                            処理待ちの発注はありません
+                        </p>
+                    ) : (
+                        <div className="space-y-4">
+                            {/* 材料発注 */}
+                            {pendingOrders.materialOrders.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                                        <Package className="w-3.5 h-3.5" />{" "}
+                                        材料発注
+                                    </h4>
+                                    <div className="space-y-1.5">
+                                        {pendingOrders.materialOrders
+                                            .slice(0, 3)
+                                            .map((order: any) => (
+                                                <div
+                                                    key={order.id}
+                                                    className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg text-sm"
+                                                >
+                                                    <span>
+                                                        発注 #
+                                                        {order.orderNumber ||
+                                                            order.id}
+                                                        <Badge
+                                                            className={`ml-2 ${orderStatusColor[order.status] || ""}`}
+                                                            variant="outline"
+                                                        >
+                                                            {
+                                                                orderStatusLabel[
+                                                                order.status
+                                                                ]
+                                                            }
+                                                        </Badge>
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {order.items.length}
+                                                        品目
+                                                    </span>
+                                                </div>
+                                            ))}
+                                    </div>
+                                    <Link
+                                        href="/admin/orders"
+                                        className="text-xs text-blue-600 hover:underline block mt-2"
+                                    >
+                                        材料発注管理へ →
+                                    </Link>
+                                </div>
+                            )}
+
+                            {/* エアコン発注 */}
+                            {pendingOrders.airconOrders.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                                        <Fan className="w-3.5 h-3.5" />{" "}
+                                        エアコン発注
+                                    </h4>
+                                    <div className="space-y-1.5">
+                                        {pendingOrders.airconOrders
+                                            .slice(0, 3)
+                                            .map((order: any) => (
+                                                <div
+                                                    key={order.id}
+                                                    className="flex items-center justify-between px-3 py-2 bg-blue-50 rounded-lg text-sm"
+                                                >
+                                                    <span>
+                                                        {order.orderNumber ||
+                                                            `発注 #${order.id}`}
+                                                        <Badge
+                                                            className={`ml-2 ${orderStatusColor[order.status] || ""}`}
+                                                            variant="outline"
+                                                        >
+                                                            {
+                                                                orderStatusLabel[
+                                                                order.status
+                                                                ]
+                                                            }
+                                                        </Badge>
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {order.items
+                                                            .map(
+                                                                (i: any) =>
+                                                                    `${i.product.code} ×${i.quantity}`
+                                                            )
+                                                            .join(", ")}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                    </div>
+                                    <Link
+                                        href="/admin/aircon-orders"
+                                        className="text-xs text-blue-600 hover:underline block mt-2"
+                                    >
+                                        エアコン発注管理へ →
+                                    </Link>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* ━━━ 最近のエアコン持出し（3グループ、履歴ページと同形式） ━━━ */}
+            <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-base">
+                        最近のエアコン持出し
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {groupedLogs.length === 0 ? (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                            データがありません
+                        </p>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[130px]">日時</TableHead>
+                                    <TableHead className="w-[120px]">業者名</TableHead>
+                                    <TableHead>管理No</TableHead>
+                                    <TableHead>顧客名</TableHead>
+                                    <TableHead>機種・台数</TableHead>
+                                    <TableHead className="w-[80px] text-center">状態</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {groupedLogs.map((group: any) => (
+                                    <TableRow
+                                        key={group.key}
+                                        className={
+                                            group.allReturned
+                                                ? "bg-green-50"
+                                                : ""
+                                        }
+                                    >
+                                        <TableCell className="text-sm">
+                                            {formatDate(
+                                                new Date(group.createdAt)
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="font-medium">
+                                                {group.isProxyInput && (
+                                                    <span className="text-xs bg-purple-100 text-purple-700 px-1 rounded mr-1">
+                                                        代
+                                                    </span>
+                                                )}
+                                                {group.vendorName}
+                                            </div>
+                                            {group.vendorUserName && (
+                                                <div className="text-xs text-slate-500">
+                                                    (担) {group.vendorUserName}
+                                                </div>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {group.managementNo ===
+                                                "INTERNAL" ? (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="bg-slate-200 text-slate-700"
+                                                >
+                                                    自社在庫
+                                                </Badge>
+                                            ) : (
+                                                group.managementNo || "-"
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {group.customerName || "-"}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="space-y-0.5">
+                                                {group.items.map(
+                                                    (item: any) => (
+                                                        <div
+                                                            key={`${item.model}-${item.type}`}
+                                                            className="flex items-center gap-1.5 text-sm"
+                                                        >
+                                                            <span
+                                                                className={`text-[10px] px-1 rounded border ${item.type ===
+                                                                    "SET"
+                                                                    ? "bg-slate-100 text-slate-600 border-slate-300"
+                                                                    : item.type ===
+                                                                        "INDOOR"
+                                                                        ? "bg-blue-100 text-blue-600 border-blue-300"
+                                                                        : item.type ===
+                                                                            "PURCHASE"
+                                                                            ? "bg-red-100 text-red-600 border-red-300"
+                                                                            : "bg-orange-100 text-orange-600 border-orange-300"
+                                                                    }`}
+                                                            >
+                                                                {item.type ===
+                                                                    "SET"
+                                                                    ? "セット"
+                                                                    : item.type ===
+                                                                        "INDOOR"
+                                                                        ? "内機"
+                                                                        : item.type ===
+                                                                            "PURCHASE"
+                                                                            ? "買取"
+                                                                            : "外機"}
+                                                            </span>
+                                                            <span className="font-bold">
+                                                                {modelToLabel[
+                                                                    item.model
+                                                                ] ||
+                                                                    item.model}
+                                                            </span>
+                                                            <span className="text-blue-700 font-bold">
+                                                                ×{item.total}
+                                                            </span>
+                                                            {item.returned >
+                                                                0 && (
+                                                                    <span className="text-green-600 text-xs">
+                                                                        (戻
+                                                                        {
+                                                                            item.returned
+                                                                        }
+                                                                        )
+                                                                    </span>
+                                                                )}
+                                                        </div>
+                                                    )
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {group.allReturned ? (
+                                                <Badge className="bg-green-100 text-green-700">
+                                                    戻し済
+                                                </Badge>
+                                            ) : group.someReturned ? (
+                                                <Badge className="bg-amber-100 text-amber-700">
+                                                    一部戻し
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline">
+                                                    引当済
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                    <Link
+                        href="/admin/aircon-logs"
+                        className="text-sm text-blue-600 hover:underline block mt-2"
+                    >
                         すべて表示 →
                     </Link>
                 </CardContent>

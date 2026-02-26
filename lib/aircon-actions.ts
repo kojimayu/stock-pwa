@@ -59,6 +59,21 @@ export async function updateAirconProductPrice(
     return { success: true };
 }
 
+// エアコン商品の最低在庫数を更新
+export async function updateAirconMinStock(
+    productId: number,
+    minStock: number
+) {
+    await prisma.airconProduct.update({
+        where: { id: productId },
+        data: { minStock: Math.max(0, minStock) },
+    });
+    revalidatePath("/admin/aircon-orders/settings");
+    revalidatePath("/admin/aircon-inventory");
+    revalidatePath("/admin");
+    return { success: true };
+}
+
 // 下書き発注を削除
 export async function deleteAirconOrder(orderId: number) {
     const order = await prisma.airconOrder.findUnique({ where: { id: orderId } });
@@ -69,6 +84,24 @@ export async function deleteAirconOrder(orderId: number) {
     await prisma.airconOrderItem.deleteMany({ where: { orderId } });
     await prisma.airconOrder.delete({ where: { id: orderId } });
     revalidatePath("/admin/aircon-orders");
+    return { success: true };
+}
+
+// エアコン発注の納期回答日を更新
+export async function updateAirconOrderDeliveryDate(
+    orderId: number,
+    expectedDeliveryDate: string | null
+) {
+    await prisma.airconOrder.update({
+        where: { id: orderId },
+        data: {
+            expectedDeliveryDate: expectedDeliveryDate
+                ? new Date(expectedDeliveryDate)
+                : null,
+        },
+    });
+    revalidatePath("/admin/aircon-orders");
+    revalidatePath("/admin");
     return { success: true };
 }
 

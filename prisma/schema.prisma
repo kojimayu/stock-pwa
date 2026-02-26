@@ -198,19 +198,20 @@ model DeliveryLocation {
 }
 
 model AirconOrder {
-  id                 Int               @id @default(autoincrement())
-  orderNumber        String?           @unique // 発注番号（例: AC-2026-001）
-  status             String            @default("DRAFT")
-  note               String?
-  deliveryLocationId Int?              // 納品先拠点
-  customDeliveryName String?           // 「その他」選択時の自由入力拠点名
-  orderedAt          DateTime?         // 発注日時
-  orderedBy          String?           // 発注者（管理者メール）
-  emailSentAt        DateTime?         // メール送信日時
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  deliveryLocation   DeliveryLocation? @relation(fields: [deliveryLocationId], references: [id])
-  items              AirconOrderItem[]
+  id                   Int               @id @default(autoincrement())
+  orderNumber          String?           @unique // 発注番号（例: AC-2026-001）
+  status               String            @default("DRAFT")
+  note                 String?
+  deliveryLocationId   Int?              // 納品先拠点
+  customDeliveryName   String?           // 「その他」選択時の自由入力拠点名
+  orderedAt            DateTime?         // 発注日時
+  orderedBy            String?           // 発注者（管理者メール）
+  emailSentAt          DateTime?         // メール送信日時
+  expectedDeliveryDate DateTime?         // 納期回答日（メーカーからの回答）
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  deliveryLocation     DeliveryLocation? @relation(fields: [deliveryLocationId], references: [id])
+  items                AirconOrderItem[]
 }
 
 model AirconOrderItem {

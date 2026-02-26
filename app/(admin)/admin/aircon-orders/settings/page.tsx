@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft, Lock, LockOpen, DollarSign } from "lucide-react";
+import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft, Lock, LockOpen, DollarSign, Package } from "lucide-react";
 import { toast } from "sonner";
 import {
     getOrderEmailSettings,
@@ -15,6 +15,7 @@ import {
     deleteDeliveryLocation,
     getAirconProducts,
     updateAirconProductPrice,
+    updateAirconMinStock,
 } from "@/lib/aircon-actions";
 import Link from "next/link";
 
@@ -25,8 +26,7 @@ interface AirconProd {
     suffix: string;
     capacity: string;
     orderPrice: number;
-    priceA: number;
-    priceB: number;
+    minStock: number;
 }
 
 interface EmailContact {
@@ -62,9 +62,14 @@ export default function AirconOrderSettingsPage() {
 
     // 単価管理
     const [products, setProducts] = useState<AirconProd[]>([]);
-    const [priceEdits, setPriceEdits] = useState<Record<number, { orderPrice: string; priceA: string; priceB: string }>>({});
+    const [priceEdits, setPriceEdits] = useState<Record<number, { orderPrice: string }>>({});
     const [priceLocked, setPriceLocked] = useState(true);
     const [savingPrices, setSavingPrices] = useState(false);
+
+    // 最低在庫管理
+    const [minStockEdits, setMinStockEdits] = useState<Record<number, string>>({});
+    const [minStockLocked, setMinStockLocked] = useState(true);
+    const [savingMinStock, setSavingMinStock] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -90,15 +95,19 @@ export default function AirconOrderSettingsPage() {
             setLocations(locs);
             setProducts(prods as unknown as AirconProd[]);
             // 現在の単価を編集用にセット
-            const edits: Record<number, { orderPrice: string; priceA: string; priceB: string }> = {};
+            const edits: Record<number, { orderPrice: string }> = {};
             (prods as unknown as AirconProd[]).forEach(p => {
                 edits[p.id] = {
                     orderPrice: String(p.orderPrice || 0),
-                    priceA: String(p.priceA || 0),
-                    priceB: String(p.priceB || 0),
                 };
             });
             setPriceEdits(edits);
+            // 最低在庫を編集用にセット
+            const minEdits: Record<number, string> = {};
+            (prods as unknown as AirconProd[]).forEach(p => {
+                minEdits[p.id] = String(p.minStock || 0);
+            });
+            setMinStockEdits(minEdits);
         } catch {
             toast.error("設定の読み込みに失敗しました");
         } finally {
@@ -173,13 +182,9 @@ export default function AirconOrderSettingsPage() {
                 const edits = priceEdits[product.id];
                 if (!edits) continue;
                 const newOrderPrice = parseInt(edits.orderPrice || "0") || 0;
-                const newPriceA = parseInt(edits.priceA || "0") || 0;
-                const newPriceB = parseInt(edits.priceB || "0") || 0;
-                if (newOrderPrice !== product.orderPrice || newPriceA !== product.priceA || newPriceB !== product.priceB) {
+                if (newOrderPrice !== product.orderPrice) {
                     await updateAirconProductPrice(product.id, {
                         orderPrice: newOrderPrice,
-                        priceA: newPriceA,
-                        priceB: newPriceB,
                     });
                 }
             }
@@ -190,6 +195,26 @@ export default function AirconOrderSettingsPage() {
             toast.error("単価の保存に失敗しました");
         } finally {
             setSavingPrices(false);
+        }
+    };
+
+    // 最低在庫数保存
+    const handleSaveMinStock = async () => {
+        setSavingMinStock(true);
+        try {
+            for (const product of products) {
+                const newMin = parseInt(minStockEdits[product.id] || "0") || 0;
+                if (newMin !== product.minStock) {
+                    await updateAirconMinStock(product.id, newMin);
+                }
+            }
+            toast.success("最低在庫数を保存しました");
+            setMinStockLocked(true);
+            fetchData();
+        } catch {
+            toast.error("最低在庫数の保存に失敗しました");
+        } finally {
+            setSavingMinStock(false);
         }
     };
 
@@ -360,15 +385,67 @@ export default function AirconOrderSettingsPage() {
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    <div className="grid grid-cols-[1fr_80px_100px_100px_100px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                    <div className="grid grid-cols-[1fr_80px_120px] gap-2 text-xs font-medium text-muted-foreground px-1">
                         <span>品番 / 商品名</span>
                         <span>容量</span>
                         <span className="text-right">発注単価</span>
-                        <span className="text-right">売価A（通常）</span>
-                        <span className="text-right">売価B（特別）</span>
                     </div>
                     {products.map(product => (
-                        <div key={product.id} className="grid grid-cols-[1fr_80px_100px_100px_100px] gap-2 items-center p-2 rounded border">
+                        <div key={product.id} className="grid grid-cols-[1fr_80px_120px] gap-2 items-center p-2 rounded border">
+                            <div className="text-sm">
+                                <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}{product.suffix}</span>
+                                {product.name}
+                            </div>
+                            <span className="text-sm text-muted-foreground">{product.capacity}</span>
+                            {priceLocked ? (
+                                <span className="text-sm text-right pr-3 font-mono">¥{parseInt(priceEdits[product.id]?.orderPrice || "0").toLocaleString()}</span>
+                            ) : (
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    step={100}
+                                    className="h-8 text-right"
+                                    value={priceEdits[product.id]?.orderPrice || "0"}
+                                    onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], orderPrice: e.target.value } })}
+                                />
+                            )}
+                        </div>
+                    ))}
+                    {!priceLocked && (
+                        <Button onClick={handleSavePrices} disabled={savingPrices} className="w-full mt-3">
+                            {savingPrices ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 単価を保存</>}
+                        </Button>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* 最低在庫設定 */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Package className="h-5 w-5" /> 最低在庫数設定
+                            </CardTitle>
+                            <CardDescription>在庫がこの数を下回るとダッシュボードにアラートが表示されます</CardDescription>
+                        </div>
+                        <Button
+                            variant={minStockLocked ? "outline" : "destructive"}
+                            size="sm"
+                            onClick={() => setMinStockLocked(!minStockLocked)}
+                        >
+                            {minStockLocked ? <><Lock className="h-4 w-4 mr-1" /> ロック中</> : <><LockOpen className="h-4 w-4 mr-1" /> 編集中</>}
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="grid grid-cols-[1fr_80px_100px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                        <span>品番 / 商品名</span>
+                        <span>容量</span>
+                        <span className="text-right">最低在庫数</span>
+                    </div>
+                    {products.map(product => (
+                        <div key={product.id} className="grid grid-cols-[1fr_80px_100px] gap-2 items-center p-2 rounded border">
                             <div className="text-sm">
                                 <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}{product.suffix}</span>
                                 {product.name}
@@ -377,35 +454,16 @@ export default function AirconOrderSettingsPage() {
                             <Input
                                 type="number"
                                 min={0}
-                                step={100}
                                 className="h-8 text-right"
-                                value={priceEdits[product.id]?.orderPrice || "0"}
-                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], orderPrice: e.target.value } })}
-                                disabled={priceLocked}
-                            />
-                            <Input
-                                type="number"
-                                min={0}
-                                step={100}
-                                className="h-8 text-right"
-                                value={priceEdits[product.id]?.priceA || "0"}
-                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], priceA: e.target.value } })}
-                                disabled={priceLocked}
-                            />
-                            <Input
-                                type="number"
-                                min={0}
-                                step={100}
-                                className="h-8 text-right"
-                                value={priceEdits[product.id]?.priceB || "0"}
-                                onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], priceB: e.target.value } })}
-                                disabled={priceLocked}
+                                value={minStockEdits[product.id] || "0"}
+                                onChange={e => setMinStockEdits({ ...minStockEdits, [product.id]: e.target.value })}
+                                disabled={minStockLocked}
                             />
                         </div>
                     ))}
-                    {!priceLocked && (
-                        <Button onClick={handleSavePrices} disabled={savingPrices} className="w-full mt-3">
-                            {savingPrices ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 単価を保存</>}
+                    {!minStockLocked && (
+                        <Button onClick={handleSaveMinStock} disabled={savingMinStock} className="w-full mt-3">
+                            {savingMinStock ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 最低在庫数を保存</>}
                         </Button>
                     )}
                 </CardContent>

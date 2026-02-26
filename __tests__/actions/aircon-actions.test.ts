@@ -108,3 +108,65 @@ describe('checkManagementNoDuplicates — 管理番号重複チェック', () =>
         expect(result.hasDuplicates).toBe(false);
     });
 });
+
+describe('updateAirconMinStock — 最低在庫数更新', () => {
+    it('✅ 正常: 最低在庫数を更新できる', async () => {
+        const { updateAirconMinStock } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        const result = await updateAirconMinStock(product.id, 3);
+        expect(result.success).toBe(true);
+
+        // 更新を確認
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.minStock).toBe(3);
+    });
+
+    it('✅ 正常: minStockを0に設定できる', async () => {
+        const { updateAirconMinStock } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        await updateAirconMinStock(product.id, 5);
+        await updateAirconMinStock(product.id, 0);
+
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.minStock).toBe(0);
+    });
+});
+
+describe('updateAirconOrderDeliveryDate — 納期回答日更新', () => {
+    it('✅ 正常: 納期回答日を設定できる', async () => {
+        const { updateAirconOrderDeliveryDate, createAirconOrder } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        const orderResult = await createAirconOrder(
+            [{ productId: product.id, quantity: 2 }]
+        );
+        expect(orderResult.success).toBe(true);
+
+        const deliveryDate = '2026-03-15';
+        const result = await updateAirconOrderDeliveryDate(orderResult.order.id, deliveryDate);
+        expect(result.success).toBe(true);
+
+        // 更新を確認
+        const updated = await prisma.airconOrder.findUnique({ where: { id: orderResult.order.id } });
+        expect(updated?.expectedDeliveryDate).toBeTruthy();
+        expect(new Date(updated!.expectedDeliveryDate!).toISOString().split('T')[0]).toBe(deliveryDate);
+    });
+
+    it('✅ 正常: 納期回答日をnullにリセットできる', async () => {
+        const { updateAirconOrderDeliveryDate, createAirconOrder } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        const orderResult = await createAirconOrder(
+            [{ productId: product.id, quantity: 1 }]
+        );
+
+        // 設定→解除
+        await updateAirconOrderDeliveryDate(orderResult.order.id, '2026-04-01');
+        await updateAirconOrderDeliveryDate(orderResult.order.id, null);
+
+        const updated = await prisma.airconOrder.findUnique({ where: { id: orderResult.order.id } });
+        expect(updated?.expectedDeliveryDate).toBeNull();
+    });
+});

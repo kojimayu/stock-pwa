@@ -33,6 +33,8 @@ import {
     Loader2,
     Trash2,
     XCircle,
+    Calendar,
+    AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -44,6 +46,7 @@ import {
     getDeliveryLocations,
     getOrderEmailSettings,
     deleteAirconOrder,
+    updateAirconOrderDeliveryDate,
 } from "@/lib/aircon-actions";
 import { formatDate } from "@/lib/utils";
 
@@ -83,6 +86,7 @@ interface Order {
     orderedAt: Date | null;
     orderedBy: string | null;
     emailSentAt: Date | null;
+    expectedDeliveryDate: Date | null;
     createdAt: Date;
     items: OrderItem[];
 }
@@ -120,6 +124,11 @@ export default function AirconOrdersPage() {
     const [emailTargetOrder, setEmailTargetOrder] = useState<Order | null>(null);
     const [isTestMode, setIsTestMode] = useState(false);
     const [testEmailOverride, setTestEmailOverride] = useState<string | null>(null);
+
+    // 納期入力
+    const [deliveryDateOrder, setDeliveryDateOrder] = useState<Order | null>(null);
+    const [deliveryDateInput, setDeliveryDateInput] = useState("");
+    const [savingDeliveryDate, setSavingDeliveryDate] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -199,8 +208,8 @@ export default function AirconOrdersPage() {
                 getAirconProducts(),
                 getAirconOrders(),
             ]);
-            setProducts(prods as AirconProduct[]);
-            setOrders(ords as Order[]);
+            setProducts(prods as unknown as AirconProduct[]);
+            setOrders(ords as unknown as Order[]);
             // selectedOrderを更新
             if (selectedOrder) {
                 const updated = (ords as Order[]).find(o => o.id === selectedOrder.id);
@@ -295,6 +304,26 @@ export default function AirconOrdersPage() {
             toast.error("メール送信に失敗しました");
         } finally {
             setSendingEmail(false);
+        }
+    };
+
+    // 納期回答日の保存
+    const handleSaveDeliveryDate = async () => {
+        if (!deliveryDateOrder) return;
+        setSavingDeliveryDate(true);
+        try {
+            await updateAirconOrderDeliveryDate(
+                deliveryDateOrder.id,
+                deliveryDateInput || null
+            );
+            toast.success("納期回答日を保存しました");
+            setDeliveryDateOrder(null);
+            setDeliveryDateInput("");
+            fetchData();
+        } catch {
+            toast.error("保存に失敗しました");
+        } finally {
+            setSavingDeliveryDate(false);
         }
     };
 
@@ -481,6 +510,17 @@ export default function AirconOrdersPage() {
                                             {order.orderedAt && (
                                                 <span className="ml-2">発注: {formatDate(order.orderedAt)}</span>
                                             )}
+                                            {order.expectedDeliveryDate && (
+                                                <span className={`ml-2 ${new Date(order.expectedDeliveryDate) < new Date() && order.status !== 'RECEIVED' && order.status !== 'CANCELLED' ? 'text-red-600 font-medium' : 'text-emerald-600'}`}>
+                                                    📅納期: {new Date(order.expectedDeliveryDate).toLocaleDateString('ja-JP')}
+                                                    {new Date(order.expectedDeliveryDate) < new Date() && order.status !== 'RECEIVED' && order.status !== 'CANCELLED' && ' ‼期限超過'}
+                                                </span>
+                                            )}
+                                            {!order.expectedDeliveryDate && (order.status === 'ORDERED' || order.status === 'PARTIAL') && (
+                                                <span className="ml-2 text-amber-600">
+                                                    ⚠納期未回答
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </CardHeader>
@@ -547,9 +587,25 @@ export default function AirconOrdersPage() {
                                             </>
                                         )}
                                         {(order.status === "ORDERED" || order.status === "PARTIAL") && (
-                                            <Button size="sm" variant="outline" onClick={() => openReceiveDialog(order)}>
-                                                <Package className="h-3 w-3 mr-1" /> 入荷チェック
-                                            </Button>
+                                            <>
+                                                <Button size="sm" variant="outline" onClick={() => openReceiveDialog(order)}>
+                                                    <Package className="h-3 w-3 mr-1" /> 入荷チェック
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setDeliveryDateOrder(order);
+                                                        setDeliveryDateInput(
+                                                            order.expectedDeliveryDate
+                                                                ? new Date(order.expectedDeliveryDate).toISOString().split('T')[0]
+                                                                : ''
+                                                        );
+                                                    }}
+                                                >
+                                                    <Calendar className="h-3 w-3 mr-1" /> 納期回答
+                                                </Button>
+                                            </>
                                         )}
                                         {order.status === "ORDERED" && (
                                             <>
@@ -570,8 +626,8 @@ export default function AirconOrdersPage() {
                                                 >
                                                     <XCircle className="h-3 w-3 mr-1" /> キャンセル
                                                 </Button>
-                                            </>
-                                        )}
+                                            </>)
+                                        }
                                     </div>
                                 </CardContent>
                             </Card>
@@ -706,6 +762,49 @@ export default function AirconOrdersPage() {
                             })}
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* 納期回答入力ダイアログ */}
+            <Dialog open={!!deliveryDateOrder} onOpenChange={(open) => {
+                if (!open) {
+                    setDeliveryDateOrder(null);
+                    setDeliveryDateInput("");
+                }
+            }}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>納期回答日の入力</DialogTitle>
+                        <DialogDescription>
+                            {deliveryDateOrder?.orderNumber} の納期回答日を入力してください。
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        <div>
+                            <label className="text-sm font-medium mb-1 block">納期回答日</label>
+                            <Input
+                                type="date"
+                                value={deliveryDateInput}
+                                onChange={e => setDeliveryDateInput(e.target.value)}
+                            />
+                        </div>
+                        {deliveryDateInput && (
+                            <p className="text-sm text-muted-foreground">
+                                📅 {new Date(deliveryDateInput).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+                            </p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => { setDeliveryDateOrder(null); setDeliveryDateInput(""); }}>
+                            キャンセル
+                        </Button>
+                        <Button onClick={handleSaveDeliveryDate} disabled={savingDeliveryDate}>
+                            {savingDeliveryDate
+                                ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</>
+                                : <><Calendar className="h-4 w-4 mr-1" /> 保存</>
+                            }
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
