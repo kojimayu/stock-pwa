@@ -510,12 +510,20 @@ export default function AirconOrdersPage() {
                                             {order.orderedAt && (
                                                 <span className="ml-2">発注: {formatDate(order.orderedAt)}</span>
                                             )}
-                                            {order.expectedDeliveryDate && (
-                                                <span className={`ml-2 ${new Date(order.expectedDeliveryDate) < new Date() && order.status !== 'RECEIVED' && order.status !== 'CANCELLED' ? 'text-red-600 font-medium' : 'text-emerald-600'}`}>
-                                                    📅納期: {new Date(order.expectedDeliveryDate).toLocaleDateString('ja-JP')}
-                                                    {new Date(order.expectedDeliveryDate) < new Date() && order.status !== 'RECEIVED' && order.status !== 'CANCELLED' && ' ‼期限超過'}
-                                                </span>
-                                            )}
+                                            {order.expectedDeliveryDate && (() => {
+                                                const deliveryDate = new Date(order.expectedDeliveryDate);
+                                                const now = new Date();
+                                                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                                                const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                                                const isToday = deliveryDate >= todayStart && deliveryDate < tomorrowStart;
+                                                const isOverdue = deliveryDate < todayStart && order.status !== 'RECEIVED' && order.status !== 'CANCELLED';
+                                                return (
+                                                    <span className={`ml-2 ${isOverdue ? 'text-red-600 font-medium' : isToday ? 'text-blue-600 font-medium' : 'text-emerald-600'}`}>
+                                                        📅{isToday ? '本日入荷予定' : `納期: ${deliveryDate.toLocaleDateString('ja-JP')}`}
+                                                        {isOverdue && ' ‼期限超過'}
+                                                    </span>
+                                                );
+                                            })()}
                                             {!order.expectedDeliveryDate && (order.status === 'ORDERED' || order.status === 'PARTIAL') && (
                                                 <span className="ml-2 text-amber-600">
                                                     ⚠納期未回答
