@@ -7,7 +7,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, TrendingDown, CheckCircle2, ClipboardList, Package, Fan, Calendar } from "lucide-react";
+import { AlertTriangle, TrendingDown, CheckCircle2, ClipboardList, Package, Fan, Calendar, MapPin } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -56,7 +56,7 @@ async function getPendingOrders() {
         }),
         prisma.airconOrder.findMany({
             where: { status: { in: ["DRAFT", "ORDERED", "PARTIAL"] } },
-            include: { items: { include: { product: true } } },
+            include: { items: { include: { product: true } }, deliveryLocation: true },
             orderBy: { createdAt: "desc" },
         }),
     ]);
@@ -475,27 +475,35 @@ export default async function AdminDashboardPage() {
                                             .map((order: any) => (
                                                 <div
                                                     key={order.id}
-                                                    className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg text-sm"
+                                                    className="px-3 py-2 bg-slate-50 rounded-lg text-sm"
                                                 >
-                                                    <span>
-                                                        発注 #
-                                                        {order.orderNumber ||
-                                                            order.id}
-                                                        <Badge
-                                                            className={`ml-2 ${orderStatusColor[order.status] || ""}`}
-                                                            variant="outline"
-                                                        >
-                                                            {
-                                                                orderStatusLabel[
-                                                                order.status
-                                                                ]
-                                                            }
-                                                        </Badge>
-                                                    </span>
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {order.items.length}
-                                                        品目
-                                                    </span>
+                                                    <div className="flex items-center justify-between">
+                                                        <span>
+                                                            発注 #
+                                                            {order.orderNumber ||
+                                                                order.id}
+                                                            <Badge
+                                                                className={`ml-2 ${orderStatusColor[order.status] || ""}`}
+                                                                variant="outline"
+                                                            >
+                                                                {
+                                                                    orderStatusLabel[
+                                                                    order.status
+                                                                    ]
+                                                                }
+                                                            </Badge>
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {order.items.length}品目
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground mt-1 truncate">
+                                                        {order.items
+                                                            .slice(0, 3)
+                                                            .map((i: any) => i.product.name)
+                                                            .join("、")}
+                                                        {order.items.length > 3 && ` 他${order.items.length - 3}件`}
+                                                    </div>
                                                 </div>
                                             ))}
                                     </div>
@@ -518,35 +526,53 @@ export default async function AdminDashboardPage() {
                                     <div className="space-y-1.5">
                                         {pendingOrders.airconOrders
                                             .slice(0, 3)
-                                            .map((order: any) => (
+                                            .map((order: any) => {
+                                                const locationName = order.deliveryLocation?.name || order.customDeliveryName || "未設定";
+                                                const deliveryDate = order.expectedDeliveryDate
+                                                    ? formatDate(new Date(order.expectedDeliveryDate))
+                                                    : null;
+                                                return (
                                                 <div
                                                     key={order.id}
-                                                    className="flex items-center justify-between px-3 py-2 bg-blue-50 rounded-lg text-sm"
+                                                    className="px-3 py-2 bg-blue-50 rounded-lg text-sm"
                                                 >
-                                                    <span>
-                                                        {order.orderNumber ||
-                                                            `発注 #${order.id}`}
-                                                        <Badge
-                                                            className={`ml-2 ${orderStatusColor[order.status] || ""}`}
-                                                            variant="outline"
-                                                        >
-                                                            {
-                                                                orderStatusLabel[
-                                                                order.status
-                                                                ]
-                                                            }
-                                                        </Badge>
-                                                    </span>
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {order.items
-                                                            .map(
-                                                                (i: any) =>
-                                                                    `${i.product.code} ×${i.quantity}`
-                                                            )
-                                                            .join(", ")}
-                                                    </span>
+                                                    <div className="flex items-center justify-between">
+                                                        <span>
+                                                            {order.orderNumber ||
+                                                                `発注 #${order.id}`}
+                                                            <Badge
+                                                                className={`ml-2 ${orderStatusColor[order.status] || ""}`}
+                                                                variant="outline"
+                                                            >
+                                                                {
+                                                                    orderStatusLabel[
+                                                                    order.status
+                                                                    ]
+                                                                }
+                                                            </Badge>
+                                                        </span>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {order.items
+                                                                .map(
+                                                                    (i: any) =>
+                                                                        `${i.product.capacity || i.product.code} ×${i.quantity}`
+                                                                )
+                                                                .join(", ")}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3 text-xs mt-1">
+                                                        <span className="flex items-center gap-1 text-muted-foreground">
+                                                            <MapPin className="w-3 h-3" />
+                                                            {locationName}
+                                                        </span>
+                                                        <span className={`flex items-center gap-1 ${deliveryDate ? "text-muted-foreground" : "text-amber-600 font-medium"}`}>
+                                                            <Calendar className="w-3 h-3" />
+                                                            {deliveryDate || "納期未定"}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            ))}
+                                                );
+                                            })}
                                     </div>
                                     <Link
                                         href="/admin/aircon-orders"
