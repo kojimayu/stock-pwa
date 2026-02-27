@@ -623,7 +623,7 @@ export async function createAirconInventory(note?: string) {
 }
 
 // 棚卸アイテムの実数更新
-export async function updateAirconInventoryItem(itemId: number, actualStock: number) {
+export async function updateAirconInventoryItem(itemId: number, actualStock: number, reason?: string | null) {
     const item = await prisma.airconInventoryCountItem.findUnique({
         where: { id: itemId },
         include: { inventory: true },
@@ -638,7 +638,11 @@ export async function updateAirconInventoryItem(itemId: number, actualStock: num
     const adjustment = actualStock - item.expectedStock;
     await prisma.airconInventoryCountItem.update({
         where: { id: itemId },
-        data: { actualStock, adjustment },
+        data: {
+            actualStock,
+            adjustment,
+            reason: adjustment !== 0 ? (reason ?? null) : null,
+        },
     });
 
     revalidatePath("/admin/aircon-inventory");

@@ -92,6 +92,33 @@ describe('updateAirconInventoryItem — 実数更新', () => {
         const updated = await prisma.airconInventoryCountItem.findUnique({ where: { id: item.id } });
         expect(updated!.adjustment).toBe(2); // 5 - 3 = +2
     });
+
+    it('✅ 正常: reason付きで更新するとDBに保存される', async () => {
+        const product = await createTestAirconProduct({ stock: 10 });
+        const result = await createAirconInventory();
+        const item = result.inventory!.items.find(i => i.productId === product.id)!;
+
+        await updateAirconInventoryItem(item.id, 8, '業者未返却');
+
+        const updated = await prisma.airconInventoryCountItem.findUnique({ where: { id: item.id } });
+        expect(updated!.reason).toBe('業者未返却');
+        expect(updated!.adjustment).toBe(-2);
+    });
+
+    it('✅ 正常: 差異ゼロの場合reasonはnullになる', async () => {
+        const product = await createTestAirconProduct({ stock: 5 });
+        const result = await createAirconInventory();
+        const item = result.inventory!.items.find(i => i.productId === product.id)!;
+
+        // 差異ありでreason設定
+        await updateAirconInventoryItem(item.id, 3, 'テスト理由');
+        // 差異ゼロに戻す
+        await updateAirconInventoryItem(item.id, 5, 'テスト理由');
+
+        const updated = await prisma.airconInventoryCountItem.findUnique({ where: { id: item.id } });
+        expect(updated!.adjustment).toBe(0);
+        expect(updated!.reason).toBeNull();
+    });
 });
 
 describe('completeAirconInventory — 棚卸確定', () => {

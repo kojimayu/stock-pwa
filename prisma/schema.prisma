@@ -263,6 +263,7 @@ model AirconInventoryCountItem {
   expectedStock Int                  // 棚卸開始時のシステム在庫
   actualStock   Int                  // 実際にカウントした数
   adjustment    Int                  // actualStock - expectedStock
+  reason        String?              // 差異理由（差異がある場合に入力）
   updatedAt     DateTime             @updatedAt
   product       AirconProduct        @relation(fields: [productId], references: [id])
   inventory     AirconInventoryCount @relation(fields: [inventoryId], references: [id])

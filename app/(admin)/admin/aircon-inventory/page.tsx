@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Package, ClipboardCheck, X, History, Truck, Building2, User, Save } from "lucide-react";
+import { AlertTriangle, Package, ClipboardCheck, X, History, Truck, Building2, User, Save, WifiOff, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
     getAirconStockWithVendorBreakdown,
     createAirconInventory,
@@ -78,6 +79,7 @@ type InventoryItem = {
     expectedStock: number;
     actualStock: number;
     adjustment: number;
+    reason: string | null;
     product: {
         id: number;
         code: string;
@@ -85,6 +87,16 @@ type InventoryItem = {
         capacity: string;
     };
 };
+
+// オフラインキュー用の型
+type PendingUpdate = {
+    itemId: number;
+    actualStock: number;
+    reason?: string | null;
+    timestamp: number;
+};
+
+const PENDING_QUEUE_KEY = 'aircon_inventory_pending_updates';
 
 // 棚卸セッションの型
 type InventorySession = {
@@ -110,6 +122,65 @@ export default function AirconInventoryPage() {
     const [confirmedBy, setConfirmedBy] = useState("");
     const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
     const [actualStocks, setActualStocks] = useState<Record<number, number>>({});
+    const [reasons, setReasons] = useState<Record<number, string>>({});
+
+    // オフラインキュー
+    const isOnline = useOnlineStatus();
+    const [pendingUpdates, setPendingUpdates] = useState<PendingUpdate[]>([]);
+    const retryingRef = useRef(false);
+
+    // localStorageからpendingUpdatesを復元
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem(PENDING_QUEUE_KEY);
+            if (saved) {
+                setPendingUpdates(JSON.parse(saved));
+            }
+        } catch { /* ignore */ }
+    }, []);
+
+    // pendingUpdatesをlocalStorageに保存
+    useEffect(() => {
+        if (pendingUpdates.length > 0) {
+            localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(pendingUpdates));
+        } else {
+            localStorage.removeItem(PENDING_QUEUE_KEY);
+        }
+    }, [pendingUpdates]);
+
+    // オンライン復帰時に自動リトライ
+    useEffect(() => {
+        if (isOnline && pendingUpdates.length > 0 && !retryingRef.current) {
+            retryPendingUpdates();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOnline, pendingUpdates.length]);
+
+    const retryPendingUpdates = useCallback(async () => {
+        if (retryingRef.current || pendingUpdates.length === 0) return;
+        retryingRef.current = true;
+        const queue = [...pendingUpdates];
+        const failed: PendingUpdate[] = [];
+
+        for (const update of queue) {
+            try {
+                const result = await updateAirconInventoryItem(update.itemId, update.actualStock, update.reason);
+                if (!result.success) {
+                    failed.push(update);
+                }
+            } catch {
+                failed.push(update);
+            }
+        }
+
+        setPendingUpdates(failed);
+        if (failed.length === 0) {
+            toast.success('未送信データをすべて送信しました');
+        } else {
+            toast.warning(`${failed.length}件の送信に失敗しました。再度リトライします。`);
+        }
+        retryingRef.current = false;
+    }, [pendingUpdates]);
 
     useEffect(() => {
         fetchData();
@@ -136,14 +207,17 @@ export default function AirconInventoryPage() {
             });
             setEditingSuffix(suffixMap);
 
-            // 進行中の棚卸がある場合、実数入力値をセット
+            // 進行中の棚卸がある場合、実数入力値と理由をセット
             if (active) {
                 const stocks: Record<number, number> = {};
+                const reasonMap: Record<number, string> = {};
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (active as any).items.forEach((item: InventoryItem) => {
                     stocks[item.id] = item.actualStock;
+                    if (item.reason) reasonMap[item.id] = item.reason;
                 });
                 setActualStocks(stocks);
+                setReasons(reasonMap);
             }
         } catch (e) {
             toast.error("データ取得に失敗しました");
@@ -164,23 +238,50 @@ export default function AirconInventoryPage() {
         }
     };
 
-    // 実数更新
-    const handleUpdateActual = async (itemId: number, actualStock: number) => {
-        const result = await updateAirconInventoryItem(itemId, actualStock);
-        if (result.success) {
-            // ローカルstateも更新
-            if (activeInventory) {
-                setActiveInventory({
-                    ...activeInventory,
-                    items: activeInventory.items.map((item) =>
-                        item.id === itemId
-                            ? { ...item, actualStock, adjustment: actualStock - item.expectedStock }
-                            : item
-                    ),
-                });
+    // 実数更新（オフラインフォールバック付き）
+    const handleUpdateActual = async (itemId: number, actualStock: number, reason?: string | null) => {
+        // ローカルstateは常に即更新
+        if (activeInventory) {
+            setActiveInventory({
+                ...activeInventory,
+                items: activeInventory.items.map((item) =>
+                    item.id === itemId
+                        ? { ...item, actualStock, adjustment: actualStock - item.expectedStock, reason: reason ?? item.reason }
+                        : item
+                ),
+            });
+        }
+
+        try {
+            const result = await updateAirconInventoryItem(itemId, actualStock, reason);
+            if (!result.success) {
+                // サーバーエラー → キューに追加
+                setPendingUpdates(prev => [
+                    ...prev.filter(u => u.itemId !== itemId),
+                    { itemId, actualStock, reason, timestamp: Date.now() },
+                ]);
+                toast.warning('オフライン保存しました。オンライン復帰時に自動送信します。');
             }
-        } else {
-            toast.error(result.message || "更新に失敗しました");
+        } catch {
+            // ネットワークエラー → キューに追加
+            setPendingUpdates(prev => [
+                ...prev.filter(u => u.itemId !== itemId),
+                { itemId, actualStock, reason, timestamp: Date.now() },
+            ]);
+            toast.warning('オフライン保存しました。オンライン復帰時に自動送信します。');
+        }
+    };
+
+    // 差異理由の更新
+    const handleReasonChange = (itemId: number, reason: string) => {
+        setReasons(prev => ({ ...prev, [itemId]: reason }));
+    };
+
+    const handleReasonBlur = (itemId: number) => {
+        const reason = reasons[itemId] || '';
+        const actualStock = actualStocks[itemId];
+        if (actualStock !== undefined) {
+            handleUpdateActual(itemId, actualStock, reason || null);
         }
     };
 
@@ -370,14 +471,14 @@ export default function AirconInventoryPage() {
                                 <ClipboardCheck className="h-5 w-5" />
                                 棚卸
                             </CardTitle>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <Input
                                     placeholder="メモ（任意）"
                                     value={inventoryNote}
                                     onChange={(e) => setInventoryNote(e.target.value)}
-                                    className="w-48"
+                                    className="w-full sm:w-48"
                                 />
-                                <Button onClick={handleStartInventory}>
+                                <Button onClick={handleStartInventory} className="flex-1 sm:flex-none">
                                     <ClipboardCheck className="h-4 w-4 mr-1" /> 棚卸開始
                                 </Button>
                                 <Button
@@ -392,8 +493,26 @@ export default function AirconInventoryPage() {
                 </Card>
             )}
 
-            {/* 在庫テーブル */}
-            <Card>
+            {/* 未送信バナー */}
+            {pendingUpdates.length > 0 && (
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                    <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="text-sm text-amber-800 font-medium">
+                        未送信 {pendingUpdates.length}件
+                    </span>
+                    <span className="text-xs text-amber-600">
+                        オンライン復帰時に自動送信します
+                    </span>
+                    {isOnline && (
+                        <Button size="sm" variant="outline" className="ml-auto text-xs" onClick={retryPendingUpdates}>
+                            今すぐ送信
+                        </Button>
+                    )}
+                </div>
+            )}
+
+            {/* 在庫テーブル（PCのみ） */}
+            <Card className="hidden md:block">
                 <CardHeader>
                     <CardTitle>在庫一覧</CardTitle>
                 </CardHeader>
@@ -416,6 +535,7 @@ export default function AirconInventoryPage() {
                                         <>
                                             <TableHead className="text-center bg-green-50/50">実数</TableHead>
                                             <TableHead className="text-center bg-yellow-50/50">差異</TableHead>
+                                            <TableHead className="bg-amber-50/50">差異理由</TableHead>
                                         </>
                                     )}
                                 </TableRow>
@@ -632,6 +752,17 @@ export default function AirconInventoryPage() {
                                                             <span className="text-slate-400">±0</span>
                                                         )}
                                                     </TableCell>
+                                                    <TableCell className="bg-amber-50/30">
+                                                        {diff !== null && diff !== 0 && (
+                                                            <Input
+                                                                placeholder="理由を入力"
+                                                                value={reasons[invItem.id] || ''}
+                                                                onChange={(e) => handleReasonChange(invItem.id, e.target.value)}
+                                                                onBlur={() => handleReasonBlur(invItem.id)}
+                                                                className="h-8 text-sm w-36"
+                                                            />
+                                                        )}
+                                                    </TableCell>
                                                 </>
                                             )}
                                         </TableRow>
@@ -642,6 +773,118 @@ export default function AirconInventoryPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* スマホ用カードUI */}
+            <div className="md:hidden space-y-3">
+                <h3 className="font-bold text-lg">在庫一覧</h3>
+                {loading ? (
+                    <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
+                ) : (
+                    products.map((product) => {
+                        const isLowStock = product.totalStock <= product.minStock;
+                        const invItem = activeInventory?.items.find((item) => item.productId === product.id);
+                        const actualVal = invItem ? (actualStocks[invItem.id] ?? invItem.actualStock) : null;
+                        const diff = invItem ? (actualVal! - invItem.expectedStock) : null;
+                        const reason = invItem ? (reasons[invItem.id] || '') : '';
+
+                        return (
+                            <Card
+                                key={product.id}
+                                className={`${activeInventory && diff !== null && diff !== 0
+                                    ? diff > 0 ? 'border-green-300 bg-green-50/50' : 'border-red-300 bg-red-50/50'
+                                    : isLowStock ? 'border-amber-300 bg-amber-50/50' : ''
+                                    }`}
+                            >
+                                <CardContent className="py-3 px-4 space-y-2">
+                                    {/* 品番 + 容量 + アラート */}
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-mono font-bold text-base">{product.code}</span>
+                                        <Badge variant="secondary" className="bg-blue-100 text-blue-800">{product.capacity}</Badge>
+                                        {isLowStock && <AlertTriangle className="w-4 h-4 text-amber-500" />}
+                                    </div>
+
+                                    {/* 在庫数 */}
+                                    <div className="flex items-center gap-3 text-sm">
+                                        <span className="text-blue-700">倉庫 <strong>{product.stock}</strong></span>
+                                        <span className="text-orange-600">持出 <strong>{product.vendorStock}</strong></span>
+                                        <span className="text-slate-700 ml-auto font-bold">
+                                            総在庫 {product.totalStock}セット
+                                        </span>
+                                    </div>
+
+                                    {/* 棚卸入力（棚卸時のみ） */}
+                                    {activeInventory && invItem && (
+                                        <div className="pt-2 border-t space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-medium text-green-700">実数</span>
+                                                <Button
+                                                    variant="outline" size="sm"
+                                                    className="h-8 w-8 p-0"
+                                                    onClick={() => {
+                                                        const newVal = Math.max(0, (actualVal ?? 0) - 1);
+                                                        setActualStocks({ ...actualStocks, [invItem.id]: newVal });
+                                                        handleUpdateActual(invItem.id, newVal);
+                                                    }}
+                                                >
+                                                    <Minus className="w-4 h-4" />
+                                                </Button>
+                                                <Input
+                                                    type="number"
+                                                    min={0}
+                                                    className="w-20 text-center font-bold text-lg h-10"
+                                                    value={actualVal ?? 0}
+                                                    onFocus={(e) => e.target.select()}
+                                                    onChange={(e) => {
+                                                        const raw = e.target.value;
+                                                        const val = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0);
+                                                        setActualStocks({ ...actualStocks, [invItem.id]: val });
+                                                    }}
+                                                    onBlur={() => {
+                                                        const val = actualStocks[invItem.id];
+                                                        if (val !== undefined && val !== invItem.actualStock) {
+                                                            handleUpdateActual(invItem.id, val);
+                                                        }
+                                                    }}
+                                                />
+                                                <Button
+                                                    variant="outline" size="sm"
+                                                    className="h-8 w-8 p-0"
+                                                    onClick={() => {
+                                                        const newVal = (actualVal ?? 0) + 1;
+                                                        setActualStocks({ ...actualStocks, [invItem.id]: newVal });
+                                                        handleUpdateActual(invItem.id, newVal);
+                                                    }}
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                </Button>
+                                                <span className="ml-auto text-sm">
+                                                    差異: {diff !== null && diff !== 0 ? (
+                                                        <span className={`font-bold ${diff > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                            {diff > 0 ? `+${diff}` : diff}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400">±0</span>
+                                                    )}
+                                                </span>
+                                            </div>
+                                            {/* 差異がある場合のみ理由入力 */}
+                                            {diff !== null && diff !== 0 && (
+                                                <Input
+                                                    placeholder="差異理由を入力..."
+                                                    value={reason}
+                                                    onChange={(e) => handleReasonChange(invItem.id, e.target.value)}
+                                                    onBlur={() => handleReasonBlur(invItem.id)}
+                                                    className="text-sm h-8"
+                                                />
+                                            )}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        );
+                    })
+                )}
+            </div>
 
             {/* 棚卸履歴 */}
             {showHistory && (
@@ -781,6 +1024,28 @@ export default function AirconInventoryPage() {
                                     )}
                             </div>
 
+                            {/* 差異理由未入力警告 */}
+                            {(() => {
+                                const unreasoned = activeInventory.items.filter((item) => {
+                                    const actual = actualStocks[item.id] ?? item.actualStock;
+                                    const adj = actual - item.expectedStock;
+                                    return adj !== 0 && !(reasons[item.id]?.trim());
+                                });
+                                if (unreasoned.length === 0) return null;
+                                return (
+                                    <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm">
+                                        <p className="font-medium text-amber-800 mb-1">
+                                            ⚠ 差異理由が未入力のアイテムがあります ({unreasoned.length}件)
+                                        </p>
+                                        <ul className="text-amber-700 text-xs space-y-0.5">
+                                            {unreasoned.map(item => (
+                                                <li key={item.id}>• {item.product.code}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                );
+                            })()}
+
                             {/* 確認者入力 */}
                             <div className="space-y-2">
                                 <label className="text-sm font-medium flex items-center gap-1">
@@ -803,7 +1068,11 @@ export default function AirconInventoryPage() {
                         <Button
                             onClick={handleComplete}
                             className="bg-blue-600 hover:bg-blue-700"
-                            disabled={!confirmedBy.trim()}
+                            disabled={!confirmedBy.trim() || (activeInventory?.items.some((item) => {
+                                const actual = actualStocks[item.id] ?? item.actualStock;
+                                const adj = actual - item.expectedStock;
+                                return adj !== 0 && !(reasons[item.id]?.trim());
+                            }) ?? false)}
                         >
                             <ClipboardCheck className="h-4 w-4 mr-1" /> 確定する
                         </Button>
