@@ -60,10 +60,24 @@ async function getPendingOrders() {
 // 納期アラート取得
 async function getDeliveryAlerts() {
     const now = new Date();
+    // 本日の範囲（今日の0:00〜23:59）
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+    // 本日納品予定
+    const todayOrders = await prisma.airconOrder.findMany({
+        where: {
+            status: { in: ["ORDERED", "PARTIAL"] },
+            expectedDeliveryDate: { gte: todayStart, lt: todayEnd },
+        },
+        include: { items: { include: { product: true } } },
+        orderBy: { expectedDeliveryDate: "asc" },
+    });
+    // 納期超過（本日より前 = 昨日以前）
     const overdueOrders = await prisma.airconOrder.findMany({
         where: {
             status: { in: ["ORDERED", "PARTIAL"] },
-            expectedDeliveryDate: { lt: now },
+            expectedDeliveryDate: { lt: todayStart },
         },
         include: { items: { include: { product: true } } },
         orderBy: { expectedDeliveryDate: "asc" },
@@ -75,7 +89,7 @@ async function getDeliveryAlerts() {
         },
         orderBy: { orderedAt: "asc" },
     });
-    return { overdueOrders, noResponseOrders };
+    return { todayOrders, overdueOrders, noResponseOrders };
 }
 
 // 最近のエアコン持出し（3件、グループ化）
@@ -254,55 +268,33 @@ export default async function AdminDashboardPage() {
                     </div>
                 )}
 
-                {/* エアコン: 在庫切れ */}
-                {criticalAircon.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
-                        <Fan className="w-4 h-4 text-red-600 shrink-0" />
-                        <span className="text-sm text-red-800 font-medium">
-                            エアコン 在庫切れ {criticalAircon.length}件
+                {/* 本日納品予定のお知らせ */}
+                {deliveryAlerts.todayOrders.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-200">
+                        <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span className="text-sm text-blue-800 font-medium">
+                            本日納品予定 {deliveryAlerts.todayOrders.length}件
                         </span>
-                        <span className="text-xs text-red-600 truncate">
+                        <span className="text-xs text-blue-600 truncate">
                             （
-                            {criticalAircon
-                                .map((ac) => ac.capacity)
-                                .join("、")}
+                            {deliveryAlerts.todayOrders
+                                .slice(0, 3)
+                                .map((o: any) => `${o.orderNumber || '#' + o.id}`)
+                                .join('、')}
+                            {deliveryAlerts.todayOrders.length > 3 &&
+                                ` 他${deliveryAlerts.todayOrders.length - 3}件`}
                             ）
                         </span>
                         <Link
                             href="/admin/aircon-orders"
-                            className="ml-auto text-xs text-red-700 hover:underline whitespace-nowrap font-medium"
+                            className="ml-auto text-xs text-blue-700 hover:underline whitespace-nowrap font-medium"
                         >
-                            エアコン発注へ →
+                            発注管理へ →
                         </Link>
                     </div>
                 )}
 
-                {/* エアコン: 在庫注意 */}
-                {warningAircon.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
-                        <Fan className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span className="text-sm text-amber-800 font-medium">
-                            エアコン 在庫注意 {warningAircon.length}件
-                        </span>
-                        <span className="text-xs text-amber-600 truncate">
-                            （
-                            {warningAircon
-                                .map(
-                                    (ac) => `${ac.capacity}:残${ac.stock}`
-                                )
-                                .join("、")}
-                            ）
-                        </span>
-                        <Link
-                            href="/admin/aircon-orders"
-                            className="ml-auto text-xs text-amber-700 hover:underline whitespace-nowrap font-medium"
-                        >
-                            エアコン発注へ →
-                        </Link>
-                    </div>
-                )}
-
-                {/* 納期超過アラート */}
+                {/* 納期超過アラート（入荷日を過ぎたもののみ） */}
                 {deliveryAlerts.overdueOrders.length > 0 && (
                     <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
                         <Calendar className="w-4 h-4 text-red-600 shrink-0" />
@@ -347,10 +339,9 @@ export default async function AdminDashboardPage() {
                 {/* すべて正常 */}
                 {criticalMaterials.length === 0 &&
                     warningMaterials.length === 0 &&
-                    criticalAircon.length === 0 &&
-                    warningAircon.length === 0 &&
                     deliveryAlerts.overdueOrders.length === 0 &&
-                    deliveryAlerts.noResponseOrders.length === 0 && (
+                    deliveryAlerts.noResponseOrders.length === 0 &&
+                    deliveryAlerts.todayOrders.length === 0 && (
                         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 border border-green-200">
                             <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                             <span className="text-sm text-green-700">

@@ -6,7 +6,7 @@ import { CategoryTabs } from "./category-tabs";
 import { ProductListItem } from "./product-list-item";
 import { ManualProductSheet } from "@/components/kiosk/manual-product-sheet";
 import { CartSummary } from "./cart-summary";
-import { LogOut, Plus, ChevronLeft, Search, X, Mic, FileText } from "lucide-react";
+import { LogOut, Plus, ChevronLeft, ChevronDown, Search, X, Mic, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -66,15 +66,20 @@ export function ShopInterface({
         // 1.5秒後にサイドバーを一瞬閉じる
         hintTimerRef.current = setTimeout(() => {
             setIsCategoryOpen(false);
-            setShowCollapseHint(true);
 
-            // 1秒後に戻す
+            // 0.8秒後に戻す
             setTimeout(() => {
                 setIsCategoryOpen(true);
-                // パルスアニメーションを3秒間表示
+
+                // 開いた後にオーバーレイヒントを表示
                 setTimeout(() => {
-                    setShowCollapseHint(false);
-                }, 3000);
+                    setShowCollapseHint(true);
+
+                    // 4秒後に自動で消す
+                    setTimeout(() => {
+                        setShowCollapseHint(false);
+                    }, 4000);
+                }, 500);
             }, 800);
         }, 1500);
 
@@ -329,13 +334,10 @@ export function ShopInterface({
                         {/* カテゴリサイドバーヘッダー（閉じるバー） */}
                         <button
                             onClick={() => setIsCategoryOpen(false)}
-                            className={`sticky top-0 z-10 w-full flex items-center gap-2 px-4 py-3 bg-slate-100 border-b hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-900 group ${showCollapseHint ? 'animate-pulse bg-blue-100 text-blue-700 ring-2 ring-blue-300' : ''
-                                }`}
+                            className="sticky top-0 z-10 w-full flex items-center gap-2 px-4 py-3 bg-slate-100 border-b hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-900 group"
                         >
-                            <ChevronLeft className={`w-5 h-5 transition-transform group-hover:-translate-x-0.5 ${showCollapseHint ? 'text-blue-600' : ''}`} />
-                            <span className="text-sm font-bold">
-                                {showCollapseHint ? '← タップで折りたたみ' : 'カテゴリーを閉じる'}
-                            </span>
+                            <ChevronLeft className="w-5 h-5 transition-transform group-hover:-translate-x-0.5" />
+                            <span className="text-sm font-bold">カテゴリーを閉じる</span>
                         </button>
                         <MergedCategoryList
                             products={activeProducts}
@@ -356,6 +358,43 @@ export function ShopInterface({
                         </div>
                     </div>
                 </aside>
+
+                {/* カテゴリー折りたたみヒントオーバーレイ */}
+                {showCollapseHint && (
+                    <div
+                        className="hidden md:flex fixed inset-0 z-[100] items-start justify-start cursor-pointer"
+                        onClick={() => setShowCollapseHint(false)}
+                    >
+                        {/* 背景暗め */}
+                        <div className="absolute inset-0 bg-black/40" style={{ animation: 'fadeIn 0.3s ease-out' }} />
+                        {/* 矢印とメッセージ */}
+                        <div className="relative mt-[80px] ml-[40px] flex items-center gap-3" style={{ animation: 'bounceLeft 0.8s ease-in-out infinite alternate' }}>
+                            <div className="bg-white rounded-2xl shadow-2xl px-6 py-4 flex items-center gap-4 border-2 border-blue-400">
+                                <div className="flex flex-col items-center">
+                                    <ChevronLeft className="w-12 h-12 text-blue-600 animate-pulse" />
+                                    <ChevronDown className="w-6 h-6 text-blue-400 -mt-2" />
+                                </div>
+                                <div>
+                                    <div className="text-xl font-black text-blue-700">ここをタップ！</div>
+                                    <div className="text-sm text-slate-600 font-medium">カテゴリーを折りたたむと</div>
+                                    <div className="text-sm text-slate-600 font-medium">商品一覧が広く見えます</div>
+                                </div>
+                            </div>
+                            <div className="text-white/80 text-xs mt-auto">タップで閉じる</div>
+                        </div>
+                    </div>
+                )}
+
+                <style jsx>{`
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+                    @keyframes bounceLeft {
+                        from { transform: translateX(0); }
+                        to { transform: translateX(-12px); }
+                    }
+                `}</style>
 
                 {/* 
                    ===============================================
