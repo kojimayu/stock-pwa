@@ -46,6 +46,23 @@ async function getAirconInventory() {
     });
 }
 
+// 持出し中エアコンのセット/内機/外機内訳
+async function getAirconCheckoutBreakdown() {
+    const logs = await prisma.airConditionerLog.findMany({
+        where: { isReturned: false },
+        select: { type: true },
+    });
+    const breakdown = { set: 0, indoor: 0, outdoor: 0, total: 0 };
+    for (const log of logs) {
+        const type = (log.type || 'SET') as 'SET' | 'INDOOR' | 'OUTDOOR';
+        if (type === 'SET') breakdown.set++;
+        else if (type === 'INDOOR') breakdown.indoor++;
+        else if (type === 'OUTDOOR') breakdown.outdoor++;
+        breakdown.total++;
+    }
+    return breakdown;
+}
+
 // 発注状況を取得（材料 + エアコン）
 async function getPendingOrders() {
     const [materialOrders, airconOrders] = await Promise.all([
@@ -170,13 +187,14 @@ function groupLogs(logs: any[]) {
 }
 
 export default async function AdminDashboardPage() {
-    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts] =
+    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts, airconBreakdown] =
         await Promise.all([
             getLowStockMaterials(),
             getAirconInventory(),
             getPendingOrders(),
             getRecentAirconLogs(),
             getDeliveryAlerts(),
+            getAirconCheckoutBreakdown(),
         ]);
 
     const criticalMaterials = lowStockMaterials.filter((p) => p.stock === 0);
@@ -373,6 +391,28 @@ export default async function AdminDashboardPage() {
                         <Fan className="w-5 h-5" />
                         エアコン在庫（容量別）
                     </CardTitle>
+                    {airconBreakdown.total > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                            <Badge variant="secondary" className="text-xs bg-slate-100">
+                                持出中: {airconBreakdown.total}台
+                            </Badge>
+                            {airconBreakdown.set > 0 && (
+                                <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700">
+                                    セット:{airconBreakdown.set}
+                                </Badge>
+                            )}
+                            {airconBreakdown.indoor > 0 && (
+                                <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700">
+                                    +内機のみ{airconBreakdown.indoor}台
+                                </Badge>
+                            )}
+                            {airconBreakdown.outdoor > 0 && (
+                                <Badge variant="secondary" className="text-xs bg-green-50 text-green-700">
+                                    +外機のみ{airconBreakdown.outdoor}台
+                                </Badge>
+                            )}
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent>
                     {airconInventory.length === 0 ? (
@@ -532,45 +572,45 @@ export default async function AdminDashboardPage() {
                                                     ? formatDate(new Date(order.expectedDeliveryDate))
                                                     : null;
                                                 return (
-                                                <div
-                                                    key={order.id}
-                                                    className="px-3 py-2 bg-blue-50 rounded-lg text-sm"
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <span>
-                                                            {order.orderNumber ||
-                                                                `発注 #${order.id}`}
-                                                            <Badge
-                                                                className={`ml-2 ${orderStatusColor[order.status] || ""}`}
-                                                                variant="outline"
-                                                            >
-                                                                {
-                                                                    orderStatusLabel[
-                                                                    order.status
-                                                                    ]
-                                                                }
-                                                            </Badge>
-                                                        </span>
-                                                        <span className="text-xs text-muted-foreground">
-                                                            {order.items
-                                                                .map(
-                                                                    (i: any) =>
-                                                                        `${i.product.capacity || i.product.code} ×${i.quantity}`
-                                                                )
-                                                                .join(", ")}
-                                                        </span>
+                                                    <div
+                                                        key={order.id}
+                                                        className="px-3 py-2 bg-blue-50 rounded-lg text-sm"
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span>
+                                                                {order.orderNumber ||
+                                                                    `発注 #${order.id}`}
+                                                                <Badge
+                                                                    className={`ml-2 ${orderStatusColor[order.status] || ""}`}
+                                                                    variant="outline"
+                                                                >
+                                                                    {
+                                                                        orderStatusLabel[
+                                                                        order.status
+                                                                        ]
+                                                                    }
+                                                                </Badge>
+                                                            </span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {order.items
+                                                                    .map(
+                                                                        (i: any) =>
+                                                                            `${i.product.capacity || i.product.code} ×${i.quantity}`
+                                                                    )
+                                                                    .join(", ")}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-3 text-xs mt-1">
+                                                            <span className="flex items-center gap-1 text-muted-foreground">
+                                                                <MapPin className="w-3 h-3" />
+                                                                {locationName}
+                                                            </span>
+                                                            <span className={`flex items-center gap-1 ${deliveryDate ? "text-muted-foreground" : "text-amber-600 font-medium"}`}>
+                                                                <Calendar className="w-3 h-3" />
+                                                                {deliveryDate || "納期未定"}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-3 text-xs mt-1">
-                                                        <span className="flex items-center gap-1 text-muted-foreground">
-                                                            <MapPin className="w-3 h-3" />
-                                                            {locationName}
-                                                        </span>
-                                                        <span className={`flex items-center gap-1 ${deliveryDate ? "text-muted-foreground" : "text-amber-600 font-medium"}`}>
-                                                            <Calendar className="w-3 h-3" />
-                                                            {deliveryDate || "納期未定"}
-                                                        </span>
-                                                    </div>
-                                                </div>
                                                 );
                                             })}
                                     </div>
