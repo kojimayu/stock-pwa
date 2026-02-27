@@ -12,6 +12,13 @@ import { formatDate } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { getAirconStockWithVendorBreakdown } from "@/lib/aircon-actions";
+import { Button } from "@/components/ui/button";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 // 材料の発注アラート情報を取得
 async function getLowStockMaterials() {
@@ -31,37 +38,7 @@ async function getLowStockMaterials() {
         .slice(0, 20);
 }
 
-// エアコン在庫を容量別に取得（AirconProductから直接）
-async function getAirconInventory() {
-    return prisma.airconProduct.findMany({
-        orderBy: { capacity: "asc" },
-        select: {
-            id: true,
-            code: true,
-            name: true,
-            capacity: true,
-            stock: true,
-            minStock: true,
-        },
-    });
-}
-
-// 持出し中エアコンのセット/内機/外機内訳
-async function getAirconCheckoutBreakdown() {
-    const logs = await prisma.airConditionerLog.findMany({
-        where: { isReturned: false },
-        select: { type: true },
-    });
-    const breakdown = { set: 0, indoor: 0, outdoor: 0, total: 0 };
-    for (const log of logs) {
-        const type = (log.type || 'SET') as 'SET' | 'INDOOR' | 'OUTDOOR';
-        if (type === 'SET') breakdown.set++;
-        else if (type === 'INDOOR') breakdown.indoor++;
-        else if (type === 'OUTDOOR') breakdown.outdoor++;
-        breakdown.total++;
-    }
-    return breakdown;
-}
+// エアコン在庫はaircon-actionsのgetAirconStockWithVendorBreakdownを使用
 
 // 発注状況を取得（材料 + エアコン）
 async function getPendingOrders() {
@@ -187,14 +164,13 @@ function groupLogs(logs: any[]) {
 }
 
 export default async function AdminDashboardPage() {
-    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts, airconBreakdown] =
+    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts] =
         await Promise.all([
             getLowStockMaterials(),
-            getAirconInventory(),
+            getAirconStockWithVendorBreakdown(),
             getPendingOrders(),
             getRecentAirconLogs(),
             getDeliveryAlerts(),
-            getAirconCheckoutBreakdown(),
         ]);
 
     const criticalMaterials = lowStockMaterials.filter((p) => p.stock === 0);
@@ -391,28 +367,6 @@ export default async function AdminDashboardPage() {
                         <Fan className="w-5 h-5" />
                         エアコン在庫（容量別）
                     </CardTitle>
-                    {airconBreakdown.total > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                            <Badge variant="secondary" className="text-xs bg-slate-100">
-                                持出中: {airconBreakdown.total}台
-                            </Badge>
-                            {airconBreakdown.set > 0 && (
-                                <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700">
-                                    セット:{airconBreakdown.set}
-                                </Badge>
-                            )}
-                            {airconBreakdown.indoor > 0 && (
-                                <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700">
-                                    +内機のみ{airconBreakdown.indoor}台
-                                </Badge>
-                            )}
-                            {airconBreakdown.outdoor > 0 && (
-                                <Badge variant="secondary" className="text-xs bg-green-50 text-green-700">
-                                    +外機のみ{airconBreakdown.outdoor}台
-                                </Badge>
-                            )}
-                        </div>
-                    )}
                 </CardHeader>
                 <CardContent>
                     {airconInventory.length === 0 ? (
@@ -425,20 +379,22 @@ export default async function AdminDashboardPage() {
                                 <TableRow>
                                     <TableHead>品番</TableHead>
                                     <TableHead>容量</TableHead>
-                                    <TableHead className="text-right">
-                                        在庫
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        最低在庫
-                                    </TableHead>
+                                    <TableHead className="text-center bg-blue-50/50">倉庫在庫</TableHead>
+                                    <TableHead className="text-center bg-orange-50/50">業者持出</TableHead>
+                                    <TableHead className="text-center bg-purple-50/50">持出し内訳</TableHead>
+                                    <TableHead className="text-center bg-slate-50/50">総在庫</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {airconInventory.map((ac) => {
                                     const isLow =
                                         ac.minStock > 0 &&
-                                        ac.stock <= ac.minStock;
+                                        ac.totalStock <= ac.minStock;
                                     const isZero = ac.stock === 0;
+                                    const { indoor, outdoor } = ac.typeBreakdown;
+                                    const extraOutdoor = indoor > outdoor ? indoor - outdoor : 0;
+                                    const extraIndoor = outdoor > indoor ? outdoor - indoor : 0;
+                                    const setCount = ac.totalStock - extraOutdoor - extraIndoor;
                                     return (
                                         <TableRow
                                             key={ac.id}
@@ -452,17 +408,113 @@ export default async function AdminDashboardPage() {
                                         >
                                             <TableCell className="font-mono text-sm">
                                                 {ac.code}
+                                                {isLow && (
+                                                    <AlertTriangle className="inline w-3.5 h-3.5 ml-1 text-amber-500" />
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 {ac.capacity}
                                             </TableCell>
-                                            <TableCell
-                                                className={`text-right font-bold ${isZero ? "text-red-600" : isLow ? "text-amber-600" : ""}`}
-                                            >
-                                                {ac.stock}
+                                            <TableCell className="text-center">
+                                                <span className={`font-bold text-lg ${isZero ? "text-red-600" : "text-blue-700"}`}>
+                                                    {ac.stock}
+                                                </span>
                                             </TableCell>
-                                            <TableCell className="text-right text-muted-foreground">
-                                                {ac.minStock}
+                                            <TableCell className="text-center">
+                                                {ac.vendorStock > 0 ? (
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button variant="ghost" className="h-8 hover:bg-orange-100 text-orange-700 font-bold text-lg underline decoration-dashed underline-offset-4">
+                                                                {ac.vendorStock}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-72 p-3">
+                                                            <div className="space-y-2">
+                                                                <h4 className="font-medium text-sm border-b pb-1 mb-2">保有業者内訳</h4>
+                                                                {ac.vendorBreakdown.map((v: any) => (
+                                                                    <div key={v.id} className="flex justify-between items-center text-sm gap-2">
+                                                                        <span className="truncate max-w-[120px]">{v.name}</span>
+                                                                        <div className="flex gap-1">
+                                                                            {v.set > 0 && <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">S{v.set}</Badge>}
+                                                                            {v.indoor > 0 && <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">内{v.indoor}</Badge>}
+                                                                            {v.outdoor > 0 && <Badge variant="secondary" className="bg-orange-100 text-orange-700 text-xs">外{v.outdoor}</Badge>}
+                                                                            <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+                                                                                計{v.count}
+                                                                            </Badge>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                ) : (
+                                                    <span className="text-slate-400">-</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="bg-purple-50/30">
+                                                {(() => {
+                                                    const { set, indoor, outdoor } = ac.typeBreakdown;
+                                                    const hasAny = set > 0 || indoor > 0 || outdoor > 0;
+                                                    if (!hasAny) return <span className="text-slate-400 text-center block">-</span>;
+
+                                                    const eIndoor = outdoor > indoor ? outdoor - indoor : 0;
+                                                    const eOutdoor = indoor > outdoor ? indoor - outdoor : 0;
+
+                                                    return (
+                                                        <div className="text-xs space-y-0.5 whitespace-nowrap">
+                                                            {set > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="inline-block w-8 text-blue-700 font-medium">SET</span>
+                                                                    <span className="font-bold text-blue-800">{set}</span>
+                                                                </div>
+                                                            )}
+                                                            {indoor > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="inline-block w-8 text-green-700 font-medium">内機</span>
+                                                                    <span className="font-bold text-green-800">{indoor}</span>
+                                                                </div>
+                                                            )}
+                                                            {outdoor > 0 && (
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="inline-block w-8 text-orange-700 font-medium">外機</span>
+                                                                    <span className="font-bold text-orange-800">{outdoor}</span>
+                                                                </div>
+                                                            )}
+                                                            {(eIndoor > 0 || eOutdoor > 0) && (
+                                                                <div className="mt-1 pt-1 border-t border-purple-200">
+                                                                    {eOutdoor > 0 && (
+                                                                        <div className="text-amber-600 font-medium">
+                                                                            → 外機 {eOutdoor}台 倉庫余り
+                                                                        </div>
+                                                                    )}
+                                                                    {eIndoor > 0 && (
+                                                                        <div className="text-amber-600 font-medium">
+                                                                            → 内機 {eIndoor}台 倉庫余り
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <div>
+                                                    <span className="font-bold text-lg text-slate-900">
+                                                        {setCount}
+                                                    </span>
+                                                    <span className="text-xs text-slate-500 ml-0.5">セット</span>
+                                                    {extraOutdoor > 0 && (
+                                                        <div className="text-xs text-amber-600">
+                                                            + 外機のみ {extraOutdoor}台
+                                                        </div>
+                                                    )}
+                                                    {extraIndoor > 0 && (
+                                                        <div className="text-xs text-amber-600">
+                                                            + 内機のみ {extraIndoor}台
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );
