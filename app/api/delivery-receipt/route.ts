@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
                 const buffer = Buffer.from(bytes);
                 await writeFile(filepath, buffer);
 
-                photoPaths.push(`/uploads/delivery-receipts/${filename}`);
+                photoPaths.push(`/api/delivery-receipt/image/${filename}`);
             }
         }
 
