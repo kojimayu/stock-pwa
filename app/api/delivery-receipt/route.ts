@@ -6,11 +6,11 @@ import { logOperation } from "@/lib/actions";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "delivery-receipts");
 
-// POST: 納品伝票写真アップロード + 情報保存
+// POST: 納品伝票写真アップロード + 情報保存（複数写真対応）
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
-        const file = formData.get("photo") as File | null;
+        const files = formData.getAll("photos") as File[];
         const type = formData.get("type") as string; // "MATERIAL" or "AIRCON"
         const orderId = parseInt(formData.get("orderId") as string);
         const confirmedBy = formData.get("confirmedBy") as string | null;
@@ -21,27 +21,33 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "type と orderId は必須です" }, { status: 400 });
         }
 
-        let photoPath: string | null = null;
+        // 複数写真を保存
+        const photoPaths: string[] = [];
+        const validFiles = files.filter(f => f && f.size > 0);
 
-        if (file && file.size > 0) {
-            // ディレクトリ確認
+        if (validFiles.length > 0) {
             await mkdir(UPLOAD_DIR, { recursive: true });
 
-            // ファイル名生成
-            const timestamp = Date.now();
-            const ext = file.name.split(".").pop() || "jpg";
-            const filename = `${type.toLowerCase()}_${orderId}_${timestamp}.${ext}`;
-            const filepath = path.join(UPLOAD_DIR, filename);
+            for (const file of validFiles) {
+                const timestamp = Date.now();
+                const rand = Math.random().toString(36).substring(2, 6);
+                const ext = file.name.split(".").pop() || "jpg";
+                const filename = `${type.toLowerCase()}_${orderId}_${timestamp}_${rand}.${ext}`;
+                const filepath = path.join(UPLOAD_DIR, filename);
 
-            // ファイル書き込み
-            const bytes = await file.arrayBuffer();
-            const buffer = Buffer.from(bytes);
-            await writeFile(filepath, buffer);
+                const bytes = await file.arrayBuffer();
+                const buffer = Buffer.from(bytes);
+                await writeFile(filepath, buffer);
 
-            photoPath = `/uploads/delivery-receipts/${filename}`;
+                photoPaths.push(`/uploads/delivery-receipts/${filename}`);
+            }
         }
 
-        // DB保存
+        // DB保存（写真パスはJSON配列として保存、1枚の場合は単独パス）
+        const photoPath = photoPaths.length > 1
+            ? JSON.stringify(photoPaths)
+            : photoPaths[0] || null;
+
         const receipt = await prisma.deliveryReceipt.create({
             data: {
                 type,
@@ -58,7 +64,7 @@ export async function POST(request: NextRequest) {
         await logOperation(
             "DELIVERY_RECEIPT",
             `${label}発注 #${orderId}`,
-            `納品確認 確認者: ${confirmedBy || '不明'}, 写真: ${photoPath ? 'あり' : 'なし'}`
+            `納品確認 確認者: ${confirmedBy || '不明'}, 写真: ${photoPaths.length}枚`
         );
 
         return NextResponse.json({ success: true, receipt });

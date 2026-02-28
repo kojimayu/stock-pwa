@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Table,
     TableBody,
@@ -20,7 +20,8 @@ import {
     Copy,
     RotateCcw,
     Package,
-    Trash2
+    Trash2,
+    Camera
 } from "lucide-react";
 import Link from "next/link";
 import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, deleteOrderItem, cancelReceipt, cancelOrder } from "@/lib/actions";
@@ -37,6 +38,12 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>({});
     const router = useRouter();
     const [adminEmail, setAdminEmail] = useState('管理者');
+
+    // 入荷時の納品記録
+    const [receivePhotos, setReceivePhotos] = useState<File[]>([]);
+    const [receiveDeliveryDate, setReceiveDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
+    const [receiveNote, setReceiveNote] = useState("");
+    const receiveFileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const email = localStorage.getItem('adminEmail');
@@ -66,8 +73,26 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
         setIsUpdating(true);
         try {
             await receiveOrderItem(item.id, qty);
+
+            // 納品記録を同時保存
+            if (receivePhotos.length > 0 || receiveDeliveryDate || receiveNote) {
+                try {
+                    const formData = new FormData();
+                    formData.append("type", "MATERIAL");
+                    formData.append("orderId", String(order.id));
+                    formData.append("confirmedBy", adminEmail);
+                    if (receiveDeliveryDate) formData.append("deliveryDate", receiveDeliveryDate);
+                    if (receiveNote) formData.append("note", receiveNote);
+                    receivePhotos.forEach(f => formData.append("photos", f));
+                    await fetch("/api/delivery-receipt", { method: "POST", body: formData });
+                } catch (e) {
+                    console.error("納品記録保存エラー:", e);
+                }
+            }
+
             toast.success(`${item.product.name}を入荷しました`);
             setReceiveQtys(prev => ({ ...prev, [item.id]: 0 }));
+            setReceivePhotos([]);
             router.refresh();
         } catch (e: any) {
             toast.error(e.message || "エラーが発生しました");
@@ -282,6 +307,75 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                 </div>
             )}
 
+            {/* 入荷時の納品記録フィールド */}
+            {(order.status === 'ORDERED' || order.status === 'PARTIAL') && (
+                <div className="bg-blue-50/50 border rounded-lg p-3 md:p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+                        📋 入荷時の納品記録（任意）
+                    </h4>
+                    <input
+                        ref={receiveFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        multiple
+                        onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            setReceivePhotos(prev => [...prev, ...files]);
+                        }}
+                        className="hidden"
+                    />
+                    <div className="flex flex-wrap gap-2 items-center">
+                        {receivePhotos.map((f, i) => (
+                            <div key={i} className="relative">
+                                <img
+                                    src={URL.createObjectURL(f)}
+                                    alt={`写真${i + 1}`}
+                                    className="w-14 h-14 object-cover rounded border"
+                                />
+                                <button
+                                    onClick={() => setReceivePhotos(prev => prev.filter((_, j) => j !== i))}
+                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        ))}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-14 px-4 border-dashed gap-1.5"
+                            onClick={() => receiveFileInputRef.current?.click()}
+                        >
+                            <Camera className="h-4 w-4 text-slate-400" />
+                            <span className="text-xs text-slate-500">
+                                {receivePhotos.length > 0 ? `${receivePhotos.length}枚 / 追加` : "伝票写真"}
+                            </span>
+                        </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-xs font-medium text-slate-600 block mb-1">納品日</label>
+                            <Input
+                                type="date"
+                                value={receiveDeliveryDate}
+                                onChange={(e) => setReceiveDeliveryDate(e.target.value)}
+                                className="h-9"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-medium text-slate-600 block mb-1">メモ</label>
+                            <Input
+                                value={receiveNote}
+                                onChange={(e) => setReceiveNote(e.target.value)}
+                                placeholder="備考..."
+                                className="h-9"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* PC用テーブル表示 */}
             <div className="hidden md:block border rounded-lg bg-white overflow-hidden shadow-sm">
                 <Table>
@@ -479,12 +573,10 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                 )}
             </div>
 
-            {/* 納品記録セクション（入荷操作可能なステータスで表示） */}
             {['ORDERED', 'PARTIAL', 'RECEIVED'].includes(order.status) && (
                 <DeliveryReceiptSection
                     type="MATERIAL"
                     orderId={order.id}
-                    confirmedBy={adminEmail}
                 />
             )}
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,8 @@ import {
     XCircle,
     Calendar,
     AlertTriangle,
+    Camera,
+    Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -121,10 +123,15 @@ export default function AirconOrdersPage() {
     const [orderNote, setOrderNote] = useState("");
     const [customDeliveryName, setCustomDeliveryName] = useState(""); // 「その他」自由入力
 
-    // 入荷ダイアログ
     const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [receiveQuantities, setReceiveQuantities] = useState<Record<number, number>>({});
+
+    // 入荷時の納品記録（入荷ダイアログ内）
+    const [receivePhotos, setReceivePhotos] = useState<File[]>([]);
+    const [receiveDeliveryDate, setReceiveDeliveryDate] = useState("");
+    const [receiveNote, setReceiveNote] = useState("");
+    const receiveFileInputRef = useRef<HTMLInputElement>(null);
 
     // メール送信
     const [sendingEmail, setSendingEmail] = useState(false);
@@ -206,30 +213,45 @@ export default function AirconOrdersPage() {
         fetchData();
     };
 
-    // 入荷処理
+    // 入荷処理（納品記録同時保存）
     const handleReceive = async (itemId: number, quantity: number) => {
         const result = await receiveAirconOrderItem(itemId, quantity);
         if (result.success) {
+            // 納品記録を同時保存
+            if (receivePhotos.length > 0 || receiveDeliveryDate || receiveNote) {
+                try {
+                    const formData = new FormData();
+                    formData.append("type", "AIRCON");
+                    formData.append("orderId", String(selectedOrder?.id || 0));
+                    formData.append("confirmedBy", adminEmail);
+                    if (receiveDeliveryDate) formData.append("deliveryDate", receiveDeliveryDate);
+                    if (receiveNote) formData.append("note", receiveNote);
+                    receivePhotos.forEach(f => formData.append("photos", f));
+                    await fetch("/api/delivery-receipt", { method: "POST", body: formData });
+                } catch (e) {
+                    console.error("納品記録保存エラー:", e);
+                }
+            }
+
             toast.success(`${quantity}台の入荷を記録しました`);
-            // データを再取得してモーダルの状態も更新
             const [prods, ords] = await Promise.all([
                 getAirconProducts(),
                 getAirconOrders(),
             ]);
             setProducts(prods as unknown as AirconProduct[]);
             setOrders(ords as unknown as Order[]);
-            // selectedOrderを更新
             if (selectedOrder) {
                 const updated = (ords as Order[]).find(o => o.id === selectedOrder.id);
                 if (updated && (updated.status === "ORDERED" || updated.status === "PARTIAL")) {
                     setSelectedOrder(updated);
-                    // 入荷数量をリセット
                     setReceiveQuantities({});
                 } else {
-                    // 全入荷完了またはステータス変更済み
                     setReceiveDialogOpen(false);
                     setSelectedOrder(null);
                     setReceiveQuantities({});
+                    setReceivePhotos([]);
+                    setReceiveDeliveryDate("");
+                    setReceiveNote("");
                     toast.success("全商品の入荷が完了しました！");
                 }
             }
@@ -242,6 +264,9 @@ export default function AirconOrdersPage() {
     const openReceiveDialog = (order: Order) => {
         setSelectedOrder(order);
         setReceiveQuantities({});
+        setReceivePhotos([]);
+        setReceiveDeliveryDate(new Date().toISOString().split('T')[0]);
+        setReceiveNote("");
         setReceiveDialogOpen(true);
     };
 
@@ -652,7 +677,6 @@ export default function AirconOrdersPage() {
                                             <DeliveryReceiptSection
                                                 type="AIRCON"
                                                 orderId={order.id}
-                                                confirmedBy={adminEmail}
                                             />
                                         </div>
                                     )}
@@ -789,6 +813,88 @@ export default function AirconOrdersPage() {
                             })}
                         </div>
                     )}
+
+                    {/* 納品記録フィールド（入荷と同時に記録） */}
+                    {selectedOrder && selectedOrder.items.some(i => i.quantity - i.receivedQuantity > 0) && (
+                        <div className="border-t pt-3 space-y-3">
+                            <h4 className="text-sm font-semibold text-blue-800">📋 納品記録（任意）</h4>
+
+                            {/* 写真 */}
+                            <div>
+                                <label className="text-xs font-medium text-slate-600 block mb-1">
+                                    納品伝票写真（複数枚OK）
+                                </label>
+                                <input
+                                    ref={receiveFileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || []);
+                                        setReceivePhotos(prev => [...prev, ...files]);
+                                    }}
+                                    className="hidden"
+                                />
+                                {receivePhotos.length > 0 && (
+                                    <div className="flex gap-2 flex-wrap mb-2">
+                                        {receivePhotos.map((f, i) => (
+                                            <div key={i} className="relative">
+                                                <img
+                                                    src={URL.createObjectURL(f)}
+                                                    alt={`写真${i + 1}`}
+                                                    className="w-16 h-16 object-cover rounded border"
+                                                />
+                                                <button
+                                                    onClick={() => setReceivePhotos(prev => prev.filter((_, j) => j !== i))}
+                                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full h-12 border-dashed gap-2"
+                                    onClick={() => receiveFileInputRef.current?.click()}
+                                >
+                                    <Camera className="h-4 w-4 text-slate-400" />
+                                    <span className="text-slate-500">
+                                        {receivePhotos.length > 0 ? `${receivePhotos.length}枚選択済み / 追加` : "タップして撮影 / 選択"}
+                                    </span>
+                                </Button>
+                            </div>
+
+                            {/* 納品日 */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-slate-600 block mb-1">
+                                        納品日
+                                    </label>
+                                    <Input
+                                        type="date"
+                                        value={receiveDeliveryDate}
+                                        onChange={(e) => setReceiveDeliveryDate(e.target.value)}
+                                        className="h-9"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-600 block mb-1">
+                                        メモ
+                                    </label>
+                                    <Input
+                                        value={receiveNote}
+                                        onChange={(e) => setReceiveNote(e.target.value)}
+                                        placeholder="備考..."
+                                        className="h-9"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
 
@@ -834,6 +940,6 @@ export default function AirconOrdersPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }
