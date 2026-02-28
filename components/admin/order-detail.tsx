@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Table,
     TableBody,
@@ -26,7 +26,6 @@ import Link from "next/link";
 import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, deleteOrderItem, cancelReceipt, cancelOrder } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import { DeliveryReceiptSection } from "@/components/admin/delivery-receipt-section";
 
 interface OrderDetailProps {
@@ -37,7 +36,12 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     const [isUpdating, setIsUpdating] = useState(false);
     const [receiveQtys, setReceiveQtys] = useState<Record<number, number>>({});
     const router = useRouter();
-    const { data: session } = useSession();
+    const [adminEmail, setAdminEmail] = useState('管理者');
+
+    useEffect(() => {
+        const email = localStorage.getItem('adminEmail');
+        if (email) setAdminEmail(email);
+    }, []);
 
     const handleConfirm = async () => {
         setIsUpdating(true);
@@ -480,7 +484,7 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                 <DeliveryReceiptSection
                     type="MATERIAL"
                     orderId={order.id}
-                    confirmedBy={session?.user?.email || session?.user?.name || '管理者'}
+                    confirmedBy={adminEmail}
                 />
             )}
         </div>
