@@ -380,7 +380,7 @@ export async function upsertVendor(data: { id?: number; name: string; email?: st
                 deliveryLocationId: data.deliveryLocationId ?? null,
             },
         });
-        await logOperation("VENDOR_UPDATE", `Vendor: ${data.name} (ID: ${data.id})`, `Updated profile. AccessLink: ${data.accessCompanyName || 'None'}, PriceTier: ${data.priceTier || 'A'}, Location: ${data.deliveryLocationId || 'None'}`);
+        await logOperation("VENDOR_UPDATE", `業者: ${data.name} (ID: ${data.id})`, `プロフィール更新 Access連携: ${data.accessCompanyName || 'なし'}, 価格帯: ${data.priceTier || 'A'}, 納品先: ${data.deliveryLocationId || 'なし'}`);
     } else {
         // Create
         const newVendor = await prisma.vendor.create({
@@ -405,7 +405,7 @@ export async function upsertVendor(data: { id?: number; name: string; email?: st
             }
         });
 
-        await logOperation("VENDOR_CREATE", `Vendor: ${data.name}`, `Created new vendor. AccessLink: ${data.accessCompanyName || 'None'}`);
+        await logOperation("VENDOR_CREATE", `業者: ${data.name}`, `新規作成 Access連携: ${data.accessCompanyName || 'なし'}`);
     }
     revalidatePath('/admin/vendors');
 }
@@ -425,7 +425,7 @@ export async function deleteVendor(id: number) {
         where: { id },
     });
 
-    await logOperation("VENDOR_DELETE", `Vendor: ${vendor?.name || id}`, `Deleted vendor`);
+    await logOperation("VENDOR_DELETE", `業者: ${vendor?.name || id}`, `業者を削除`);
     revalidatePath('/admin/vendors');
 }
 
@@ -457,7 +457,7 @@ export async function verifyPin(vendorId: string | number, vendorUserId: string 
     console.log(`[verifyPin] Total execution took ${totalTime}ms`);
 
     if (totalTime > 1000) {
-        await logOperation("PERFORMANCE_WARNING", `Login: ${vendorUser.name}`, `Slow Execution: ${Math.round(totalTime)}ms (DB: ${Math.round(dbTime - start)}ms)`);
+        await logOperation("PERFORMANCE_WARNING", `ログイン: ${vendorUser.name}`, `処理遅延: ${Math.round(totalTime)}ms (DB: ${Math.round(dbTime - start)}ms)`);
     }
 
     // LOGINログはクライアント側でセッションID付きで記録
@@ -549,7 +549,7 @@ export async function changePin(vendorUserId: number, newPin: string) {
         include: { vendor: true }
     });
 
-    await logOperation("VENDOR_USER_PIN_CHANGE", `${vendorUser.vendor.name} / ${vendorUser.name}`, `PIN changed`);
+    await logOperation("VENDOR_USER_PIN_CHANGE", `${vendorUser.vendor.name} / ${vendorUser.name}`, `PIN変更`);
     return { success: true, vendorUser };
 }
 
@@ -561,7 +561,7 @@ export async function resetPin(vendorUserId: number) {
         include: { vendor: true }
     });
 
-    await logOperation("VENDOR_USER_PIN_RESET", `${vendorUser.vendor.name} / ${vendorUser.name}`, `PIN reset to 1234`);
+    await logOperation("VENDOR_USER_PIN_RESET", `${vendorUser.vendor.name} / ${vendorUser.name}`, `PINを1234にリセット`);
     revalidatePath('/admin/vendors');
     return { success: true };
 }
@@ -837,7 +837,7 @@ export async function upsertProduct(data: {
                 pricePerBox: data.pricePerBox ?? 0,
             } as any,
         });
-        await logOperation("PRODUCT_CREATE", `Product: ${normalizedCode}`, `Created new product`);
+        await logOperation("PRODUCT_CREATE", `商品: ${normalizedCode}`, `新規商品を作成`);
     }
 
     revalidatePath('/admin/products');
@@ -1104,7 +1104,7 @@ export async function importProducts(products: {
             }
         });
 
-        await logOperation("IMPORT", "Batch Import", `Imported/Updated ${products.length} products`);
+        await logOperation("IMPORT", "一括インポート", `${products.length}件の商品をインポート/更新`);
         revalidatePath('/admin/products');
         return { success: true, count: products.length };
     } catch (error) {
@@ -1128,7 +1128,7 @@ export async function deleteProduct(id: number) {
         where: { id },
     });
 
-    await logOperation("PRODUCT_DELETE", `Product: ${product?.code || id}`, `Deleted ${product?.name}`);
+    await logOperation("PRODUCT_DELETE", `商品: ${product?.code || id}`, `${product?.name} を削除`);
     revalidatePath('/admin/products');
 }
 
@@ -1902,7 +1902,7 @@ export async function createInventoryCount(note?: string) {
         }
     });
 
-    await logOperation("INVENTORY_START", `Inventory #${inventory.id}`, `Started inventory count`);
+    await logOperation("INVENTORY_START", `棚卸 #${inventory.id}`, `棚卸を開始`);
     revalidatePath('/admin/inventory');
     return inventory;
 }
@@ -2056,7 +2056,7 @@ export async function finalizeInventory(id: number) {
             return { success: true, message: "他のユーザーにより既に完了されています", code: "ALREADY_COMPLETED" };
         }
 
-        await logOperation("INVENTORY_FINALIZE", `Inventory #${id}`, `Finalized inventory count`);
+        await logOperation("INVENTORY_FINALIZE", `棚卸 #${id}`, `棚卸を確定`);
         revalidatePath('/admin/inventory');
         revalidatePath(`/admin/inventory/${id}`);
         revalidatePath('/admin/products');
@@ -2086,7 +2086,7 @@ export async function cancelInventory(id: number) {
         }
     });
 
-    await logOperation("INVENTORY_CANCEL", `Inventory #${id}`, `Cancelled inventory count`);
+    await logOperation("INVENTORY_CANCEL", `棚卸 #${id}`, `棚卸を中止`);
     revalidatePath('/admin/inventory');
 }
 
@@ -2188,7 +2188,7 @@ export async function generateDraftOrders() {
 
     const skippedCount = lowStockProducts.length - targetProducts.length;
     const skippedMsg = skippedCount > 0 ? `（${skippedCount}件は発注済みのためスキップ）` : "";
-    await logOperation("ORDER_DRAFT_GENERATE", `Generated ${createdCount} draft orders`, `Target products: ${targetProducts.length}, Skipped: ${skippedCount}`);
+    await logOperation("ORDER_DRAFT_GENERATE", `発注候補 ${createdCount}件作成`, `対象商品: ${targetProducts.length}件, スキップ: ${skippedCount}件`);
     revalidatePath('/admin/orders');
     return { success: true, message: `${createdCount}件の発注候補を作成しました。${skippedMsg}` };
 }

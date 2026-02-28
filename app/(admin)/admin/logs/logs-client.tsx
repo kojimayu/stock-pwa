@@ -9,8 +9,9 @@ import { format, isToday, isYesterday, isThisWeek, isThisMonth, subDays } from "
 import { ja } from "date-fns/locale";
 import {
     Search, Package, LogIn, ShoppingCart, ClipboardCheck, Settings,
-    Truck, MapPin, User, FileText, AlertTriangle, RotateCcw, Activity
+    Truck, MapPin, User, FileText, AlertTriangle, RotateCcw, Activity, Download
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // ===============================
 // カテゴリ定義
@@ -174,6 +175,13 @@ function getCategoryColor(key: string): string {
     return m[key] || "text-slate-600";
 }
 
+function findCategory(action: string): string {
+    for (const [key, cat] of Object.entries(LOG_CATEGORIES)) {
+        if (key !== "all" && cat.actions.includes(action)) return cat.label;
+    }
+    return "その他";
+}
+
 // ===============================
 // メインコンポーネント
 // ===============================
@@ -259,7 +267,7 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                         <Activity className="h-6 w-6 text-slate-500" />
                         操作ログ
                     </h2>
-                    <p className="text-sm text-muted-foreground mt-0.5">直近200件の操作履歴</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">直近500件の操作履歴（絞り込み: {filteredLogs.length}件）</p>
                 </div>
                 <div className="text-right">
                     <div className="text-2xl font-bold">{todayCount}</div>
@@ -332,6 +340,36 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                         className="pl-8 h-9"
                     />
                 </div>
+
+                {/* CSVエクスポート */}
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5 whitespace-nowrap"
+                    onClick={() => {
+                        const headers = ["日時", "カテゴリ", "操作種別", "対象", "詳細", "セッション", "操作者"];
+                        const rows = filteredLogs.map(log => [
+                            format(new Date(log.performedAt), "yyyy-MM-dd HH:mm:ss"),
+                            findCategory(log.action),
+                            ACTION_LABELS[log.action] || log.action,
+                            log.target,
+                            cleanDetails(log.details),
+                            extractSession(log.details),
+                            extractExecutor(log.details) || ""
+                        ].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(","));
+                        const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+                        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `操作ログ_${format(new Date(), "yyyyMMdd_HHmmss")}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }}
+                >
+                    <Download className="w-4 h-4" />
+                    CSV
+                </Button>
             </div>
 
             {/* カテゴリ分布（フィルタなしの時のみ） */}

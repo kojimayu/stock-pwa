@@ -208,6 +208,14 @@ export default function KioskLoginPage() {
           name: res.vendorUser.name,
           pinChanged: true
         });
+
+        // セッションID生成・保存
+        const sid = 'K-' + Math.random().toString(36).substring(2, 6);
+        useCartStore.getState().setSessionId(sid);
+        logOperation('LOGIN', `${selectedVendor.name} ${res.vendorUser.name}`,
+          `Kiosk新規登録ログイン (VendorID: ${selectedVendor.id}, UserID: ${res.vendorUser.id}) [Session: ${sid}]`
+        ).catch(console.error);
+
         router.push("/mode-select");
         return;
       } else {
