@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { PinPad } from "@/components/kiosk/pin-pad";
-import { verifyPin, getVendors, getVendorUsers, createVendorUser } from "@/lib/actions";
+import { verifyPin, getVendors, getVendorUsers, createVendorUser, logOperation } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
@@ -228,6 +228,15 @@ export default function KioskLoginPage() {
       if (res.success && res.vendor && res.vendorUser) {
         setVendorStore(res.vendor);
         setVendorUserStore(res.vendorUser);
+
+        // セッションID生成・保存
+        const sid = 'K-' + Math.random().toString(36).substring(2, 6);
+        useCartStore.getState().setSessionId(sid);
+
+        // ログイン操作ログ（セッションID付き）
+        logOperation('LOGIN', `${res.vendor.name} ${res.vendorUser.name}`,
+          `Kioskログイン (VendorID: ${res.vendor.id}, UserID: ${res.vendorUser.id}) [Session: ${sid}]`
+        ).catch(console.error);
 
         // Wait a tick to ensure store update propagates (just in case)
         await new Promise(resolve => setTimeout(resolve, 100));

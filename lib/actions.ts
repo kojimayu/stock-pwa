@@ -460,8 +460,7 @@ export async function verifyPin(vendorId: string | number, vendorUserId: string 
         await logOperation("PERFORMANCE_WARNING", `Login: ${vendorUser.name}`, `Slow Execution: ${Math.round(totalTime)}ms (DB: ${Math.round(dbTime - start)}ms)`);
     }
 
-    // Standardized Log Format: [Company] [User]
-    await logOperation("LOGIN", `${vendorUser.vendor.name} ${vendorUser.name}`, `ログイン (VendorID: ${vendorUser.vendorId}, UserID: ${vendorUser.id})`);
+    // LOGINログはクライアント側でセッションID付きで記録
 
     return {
         success: true,
