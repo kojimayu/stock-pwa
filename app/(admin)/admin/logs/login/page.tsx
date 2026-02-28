@@ -9,7 +9,7 @@ import { ArrowLeft } from "lucide-react";
 
 export default async function LoginHistoryPage() {
     // Fetch only login/logout related logs
-    const logs = await getOperationLogs(100, ['LOGIN', 'KIOSK_LOGIN_SUCCESS', 'LOGOUT', 'AUTO_LOGOUT', 'ADMIN_LOGIN']);
+    const logs = await getOperationLogs(100, ['LOGIN', 'KIOSK_LOGIN_SUCCESS', 'LOGOUT', 'AUTO_LOGOUT', 'ADMIN_LOGIN', 'ADMIN_LOGOUT']);
 
     return (
         <div className="space-y-6">

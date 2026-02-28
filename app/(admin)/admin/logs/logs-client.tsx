@@ -55,7 +55,7 @@ const LOG_CATEGORIES: Record<string, { label: string; actions: string[] }> = {
     login: {
         label: "ログイン・認証",
         actions: ["LOGIN", "KIOSK_LOGIN_FAILED", "KIOSK_LOGIN_SUCCESS",
-            "LOGOUT", "AUTO_LOGOUT", "ADMIN_LOGIN"],
+            "LOGOUT", "AUTO_LOGOUT", "ADMIN_LOGIN", "ADMIN_LOGOUT"],
     },
     vendor: {
         label: "業者・担当者管理",
@@ -104,7 +104,7 @@ const ACTION_LABELS: Record<string, string> = {
     RETURN_TRANSACTION: "全返品", RETURN_PARTIAL_TRANSACTION: "一部返品",
     LOGIN: "ログイン", KIOSK_LOGIN_FAILED: "ログイン失敗",
     KIOSK_LOGIN_SUCCESS: "ログイン成功", LOGOUT: "ログアウト",
-    AUTO_LOGOUT: "自動ログアウト", ADMIN_LOGIN: "管理者ログイン",
+    AUTO_LOGOUT: "自動ログアウト", ADMIN_LOGIN: "管理者ログイン", ADMIN_LOGOUT: "管理者ログアウト",
     VENDOR_CREATE: "業者作成", VENDOR_UPDATE: "業者更新", VENDOR_DELETE: "業者削除",
     VENDOR_USER_CREATE: "担当者追加", VENDOR_USER_DELETE: "担当者削除",
     VENDOR_USER_PIN_CHANGE: "PIN変更", VENDOR_USER_PIN_RESET: "PINリセット",
