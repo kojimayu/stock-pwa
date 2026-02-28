@@ -2542,8 +2542,11 @@ export async function logLogout(vendorId: number, vendorName: string, type: 'AUT
 }
 
 // Admin Login Logger
-export async function logAdminLogin(email: string) {
-    await logOperation("ADMIN_LOGIN", `Admin: ${email}`, "Admin user logged in via credentials");
+export async function logAdminLogin(email: string, sessionId?: string) {
+    const detail = sessionId
+        ? `Admin user logged in via credentials [Session: ${sessionId}]`
+        : "Admin user logged in via credentials";
+    await logOperation("ADMIN_LOGIN", `Admin: ${email}`, detail);
 }
 
 

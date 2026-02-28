@@ -28,11 +28,10 @@ export default function LoginPage() {
             setError("メールアドレスまたはパスワードが正しくありません");
             setLoading(false);
         } else {
-            // Log successful admin login
-            // Note: Since this is client-side, we call server action. 
-            // Ideally logging happens inside auth provider but next-auth credential provider is obscure for side effects.
-            // Client-side logging is acceptable here.
-            await logAdminLogin(email).catch(console.error);
+            // セッションID生成・保存
+            const sid = 'A-' + Math.random().toString(36).substring(2, 6);
+            localStorage.setItem('adminSessionId', sid);
+            await logAdminLogin(email, sid).catch(console.error);
             window.location.href = "/admin";
         }
     };
