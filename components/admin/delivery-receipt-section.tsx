@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
-import { Image as ImageIcon, FileText, X } from "lucide-react";
+import { Image as ImageIcon, FileText } from "lucide-react";
 
 type Receipt = {
     id: number;
@@ -88,24 +88,19 @@ export function DeliveryReceiptSection({ type, orderId }: Props) {
                                         {photos.length > 0 ? (
                                             <div className="flex gap-1 flex-shrink-0 flex-wrap">
                                                 {photos.map((p, i) => (
-                                                    <button
+                                                    <div
                                                         key={i}
-                                                        type="button"
-                                                        onClick={() => setLightboxSrc(p)}
                                                         className="relative group cursor-pointer"
+                                                        onMouseEnter={() => setLightboxSrc(p)}
+                                                        onMouseLeave={() => setLightboxSrc(null)}
+                                                        onClick={() => setLightboxSrc(p)}
                                                     >
                                                         <img
                                                             src={p}
                                                             alt={`納品伝票 ${i + 1}`}
                                                             className="w-16 h-16 object-cover rounded border transition-all group-hover:ring-2 group-hover:ring-blue-400 group-hover:shadow-lg"
                                                         />
-                                                        {/* ホバー拡大ヒント */}
-                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded transition-colors flex items-center justify-center">
-                                                            <span className="text-white text-[10px] opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                                                                🔍 拡大
-                                                            </span>
-                                                        </div>
-                                                    </button>
+                                                    </div>
                                                 ))}
                                             </div>
                                         ) : (
@@ -142,25 +137,18 @@ export function DeliveryReceiptSection({ type, orderId }: Props) {
                 </CardContent>
             </Card>
 
-            {/* ライトボックス（拡大表示） */}
+            {/* ホバープレビュー（拡大表示） */}
             {lightboxSrc && (
                 <div
-                    className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-                    onClick={() => setLightboxSrc(null)}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-8 pointer-events-none"
                 >
-                    <button
-                        type="button"
-                        onClick={() => setLightboxSrc(null)}
-                        className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 text-white rounded-full p-2 transition-colors z-10"
-                    >
-                        <X className="h-6 w-6" />
-                    </button>
-                    <img
-                        src={lightboxSrc}
-                        alt="納品伝票（拡大）"
-                        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    />
+                    <div className="bg-white rounded-xl shadow-2xl border p-2 max-w-2xl pointer-events-auto">
+                        <img
+                            src={lightboxSrc}
+                            alt="納品伝票（拡大）"
+                            className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                        />
+                    </div>
                 </div>
             )}
         </>
