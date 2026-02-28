@@ -93,7 +93,11 @@ export function DeliveryReceiptSection({ type, orderId }: Props) {
                                                         className="relative group cursor-pointer"
                                                         onMouseEnter={() => setLightboxSrc(p)}
                                                         onMouseLeave={() => setLightboxSrc(null)}
-                                                        onClick={() => setLightboxSrc(p)}
+                                                        onClick={() => {
+                                                            // スマホ: 新タブで開く（ピンチズームで自由に拡大可能）
+                                                            // PC: ホバーで既に拡大されているのでクリックでも新タブ
+                                                            window.open(p, '_blank');
+                                                        }}
                                                     >
                                                         <img
                                                             src={p}
