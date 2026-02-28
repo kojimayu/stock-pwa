@@ -137,7 +137,13 @@ function extractExecutor(details: string | null): string | null {
 }
 
 function cleanDetails(details: string | null): string {
-    return (details || "").replace(/\s*\[By:.*?\]/, "").trim();
+    return (details || "").replace(/\s*\[By:.*?\]/, "").replace(/\s*\[Session:.*?\]/, "").trim();
+}
+
+function extractSession(details: string | null): string | null {
+    if (!details) return null;
+    const m = details.match(/\[Session: (.+?)\]/);
+    return m ? m[1] : null;
 }
 
 // ===============================
@@ -355,11 +361,12 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                         <TableHeader>
                             <TableRow className="bg-slate-50/50">
                                 <TableHead className="w-[130px] pl-4">日時</TableHead>
-                                <TableHead className="w-[130px]">カテゴリ</TableHead>
-                                <TableHead className="w-[110px]">操作</TableHead>
-                                <TableHead className="w-[200px]">対象</TableHead>
+                                <TableHead className="w-[120px]">カテゴリ</TableHead>
+                                <TableHead className="w-[100px]">操作</TableHead>
+                                <TableHead className="w-[180px]">対象</TableHead>
                                 <TableHead>詳細</TableHead>
-                                <TableHead className="w-[130px] pr-4">操作者</TableHead>
+                                <TableHead className="w-[80px]">セッション</TableHead>
+                                <TableHead className="w-[120px] pr-4">操作者</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -367,6 +374,7 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                                 const catKey = getCategoryKey(log.action);
                                 const ex = extractExecutor(log.details);
                                 const det = cleanDetails(log.details);
+                                const sid = extractSession(log.details);
                                 const d = new Date(log.performedAt);
                                 const dateStr = isToday(d)
                                     ? format(d, "HH:mm:ss")
@@ -388,11 +396,18 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                                                 {getActionLabel(log.action)}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="text-sm font-medium truncate max-w-[200px]" title={log.target}>
+                                        <TableCell className="text-sm font-medium truncate max-w-[180px]" title={log.target}>
                                             {log.target}
                                         </TableCell>
-                                        <TableCell className="text-xs text-muted-foreground truncate max-w-[300px]" title={det}>
+                                        <TableCell className="text-xs text-muted-foreground truncate max-w-[250px]" title={det}>
                                             {det || "—"}
+                                        </TableCell>
+                                        <TableCell className="font-mono text-[11px]">
+                                            {sid ? (
+                                                <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                                    {sid}
+                                                </span>
+                                            ) : <span className="text-slate-300">—</span>}
                                         </TableCell>
                                         <TableCell className="text-xs text-slate-500 pr-4">
                                             {ex && ex !== "System/Guest" ? ex : <span className="text-slate-300">—</span>}
@@ -402,7 +417,7 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                             })}
                             {filteredLogs.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                                         該当するログがありません
                                     </TableCell>
                                 </TableRow>
@@ -418,6 +433,7 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                     const catKey = getCategoryKey(log.action);
                     const ex = extractExecutor(log.details);
                     const det = cleanDetails(log.details);
+                    const sid = extractSession(log.details);
                     const d = new Date(log.performedAt);
                     const dateStr = isToday(d)
                         ? format(d, "HH:mm")
@@ -441,9 +457,16 @@ export default function OperationLogsClient({ logs }: { logs: LogEntry[] }) {
                             </div>
                             <div className="text-sm font-medium">{log.target}</div>
                             {det && <p className="text-xs text-muted-foreground line-clamp-2">{det}</p>}
-                            {ex && ex !== "System/Guest" && (
-                                <p className="text-[11px] text-slate-400">👤 {ex}</p>
-                            )}
+                            <div className="flex items-center gap-2">
+                                {sid && (
+                                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                                        {sid}
+                                    </span>
+                                )}
+                                {ex && ex !== "System/Guest" && (
+                                    <span className="text-[11px] text-slate-400">👤 {ex}</span>
+                                )}
+                            </div>
                         </div>
                     );
                 })}

@@ -11,12 +11,13 @@ export function LogoutButton() {
     const clearCart = useCartStore((state) => state.clearCart);
     const vendor = useCartStore((state) => state.vendor);
     const vendorUser = useCartStore((state) => state.vendorUser);
+    const sessionId = useCartStore((state) => state.sessionId);
 
     const handleLogout = async () => {
         if (confirm("ログアウトしますか？")) {
             if (vendor) {
                 // Fire and forget logging
-                logLogout(vendor.id, vendor.name, 'MANUAL', vendorUser?.name, vendorUser?.id).catch(console.error);
+                logLogout(vendor.id, vendor.name, 'MANUAL', vendorUser?.name, vendorUser?.id, sessionId).catch(console.error);
             }
             clearCart();
             router.push("/");

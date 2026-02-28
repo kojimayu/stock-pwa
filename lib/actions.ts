@@ -493,10 +493,7 @@ export async function verifyVendorPin(vendorId: string | number, pin: string) {
         return { success: false, message: 'PINコードが正しくありません' };
     }
 
-    // 3. Success
-    // Standardized Log Format: [Company] [User]
-    await logOperation("LOGIN", `${matchedUser.vendor.name} ${matchedUser.name}`, `ログイン (VendorID: ${matchedUser.vendor.id}, UserID: ${matchedUser.id})`);
-
+    // 3. Success（LOGINログはクライアント側でセッションID付きで記録）
     return {
         success: true,
         vendor: matchedUser.vendor,
@@ -2520,7 +2517,7 @@ export async function logAutoLogout(vendorId: number, vendorName: string) {
     await logLogout(vendorId, vendorName, 'AUTO');
 }
 
-export async function logLogout(vendorId: number, vendorName: string, type: 'AUTO' | 'MANUAL', userName?: string, vendorUserId?: number) {
+export async function logLogout(vendorId: number, vendorName: string, type: 'AUTO' | 'MANUAL', userName?: string, vendorUserId?: number, sessionId?: string | null) {
     const action = type === 'AUTO' ? "AUTO_LOGOUT" : "LOGOUT";
 
     // Standardized Log Format: Target = [Company] [User]
@@ -2531,6 +2528,9 @@ export async function logLogout(vendorId: number, vendorName: string, type: 'AUT
         detail = `自動ログアウト (無操作タイムアウト) (VendorID: ${vendorId}, UserID: ${vendorUserId ?? 'N/A'})`;
     } else {
         detail = `手動ログアウトボタン押下 (VendorID: ${vendorId}, UserID: ${vendorUserId ?? 'N/A'})`;
+    }
+    if (sessionId) {
+        detail += ` [Session: ${sessionId}]`;
     }
 
     await logOperation(action, target, detail);

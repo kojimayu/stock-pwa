@@ -12,6 +12,7 @@ const CHECK_INTERVAL_MS = 10 * 1000; // Check every 10 seconds
 export function IdleTimer() {
     const vendor = useCartStore((state) => state.vendor);
     const vendorUser = useCartStore((state) => state.vendorUser);
+    const sessionId = useCartStore((state) => state.sessionId);
     const clearSession = useCartStore((state) => state.clearSession);
     const router = useRouter();
     const pathname = usePathname();
@@ -26,7 +27,7 @@ export function IdleTimer() {
 
         if (vendor) {
             // Attempt to log server-side (fire and forget)
-            logLogout(vendor.id, vendor.name, 'AUTO', vendorUser?.name, vendorUser?.id).catch(console.error);
+            logLogout(vendor.id, vendor.name, 'AUTO', vendorUser?.name, vendorUser?.id, sessionId).catch(console.error);
         }
 
         clearSession();

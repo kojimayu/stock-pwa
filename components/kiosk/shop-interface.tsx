@@ -235,7 +235,8 @@ export function ShopInterface({
         } else {
             if (confirm("ログアウトしますか？カートの中身は破棄されます。")) {
                 if (vendor) {
-                    logLogout(vendor.id, vendor.name, 'MANUAL', vendorUser?.name, vendorUser?.id).catch(console.error);
+                    const sid = useCartStore.getState().sessionId;
+                    logLogout(vendor.id, vendor.name, 'MANUAL', vendorUser?.name, vendorUser?.id, sid).catch(console.error);
                 }
                 clearCart();
                 router.push("/");

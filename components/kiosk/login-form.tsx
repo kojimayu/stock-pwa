@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCartStore } from '@/lib/store';
 import { ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
-import { verifyPin, verifyVendorPin } from '@/lib/actions';
+import { verifyPin, verifyVendorPin, logOperation } from '@/lib/actions';
 import { PinPad } from './pin-pad';
 import { toast } from 'sonner';
 
@@ -39,6 +39,15 @@ export default function LoginForm({ vendors }: { vendors: Vendor[] }) {
 
                 // ZustandのStateを更新（これが重要）
                 useCartStore.getState().setVendor(result.vendor);
+
+                // セッションID生成・保存
+                const sid = 'K-' + Math.random().toString(36).substring(2, 6);
+                useCartStore.getState().setSessionId(sid);
+
+                // ログイン操作ログ（セッションID付き）
+                logOperation('LOGIN', `${result.vendor.name} ${result.vendorUser?.name || ''}`.trim(),
+                    `Kioskログイン (VendorID: ${result.vendor.id}, UserID: ${result.vendorUser?.id || 'N/A'}) [Session: ${sid}]`
+                ).catch(console.error);
 
                 localStorage.setItem('vendorId', result.vendor.id.toString());
                 localStorage.setItem('vendorName', result.vendor.name);
