@@ -152,7 +152,7 @@ export async function getTransactionLogs(transactionId: number) {
     });
 }
 
-async function logOperation(action: string, target: string, details?: string) {
+export async function logOperation(action: string, target: string, details?: string) {
     // Fire and forget logging to avoid blocking the UI
     (async () => {
         try {

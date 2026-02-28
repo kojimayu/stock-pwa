@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { logOperation } from "@/lib/actions";
 
 /**
  * エアコン在庫が変動した際に、紐づく材料商品(Product)の在庫を同期する
@@ -56,6 +57,7 @@ export async function updateAirconProductPrice(
     });
     revalidatePath("/admin/aircon-orders/settings");
     revalidatePath("/admin/aircon-inventory");
+    logOperation("AIRCON_PRICE_UPDATE", `AirconProduct ID:${productId}`, `単価更新: ${JSON.stringify(prices)}`);
     return { success: true };
 }
 
@@ -71,6 +73,7 @@ export async function updateAirconMinStock(
     revalidatePath("/admin/aircon-orders/settings");
     revalidatePath("/admin/aircon-inventory");
     revalidatePath("/admin");
+    logOperation("AIRCON_MIN_STOCK_UPDATE", `AirconProduct ID:${productId}`, `最低在庫: ${minStock}`);
     return { success: true };
 }
 
@@ -84,6 +87,7 @@ export async function deleteAirconOrder(orderId: number) {
     await prisma.airconOrderItem.deleteMany({ where: { orderId } });
     await prisma.airconOrder.delete({ where: { id: orderId } });
     revalidatePath("/admin/aircon-orders");
+    logOperation("AIRCON_ORDER_DELETE", `発注 #${order.orderNumber || orderId}`, `下書き発注を削除`);
     return { success: true };
 }
 
@@ -102,6 +106,7 @@ export async function updateAirconOrderDeliveryDate(
     });
     revalidatePath("/admin/aircon-orders");
     revalidatePath("/admin");
+    logOperation("AIRCON_ORDER_DELIVERY_DATE", `発注 #${orderId}`, `納期回答: ${expectedDeliveryDate || '未設定'}`);
     return { success: true };
 }
 
@@ -197,6 +202,7 @@ export async function updateAirconStock(productId: number, adjustment: number) {
     });
 
     revalidatePath("/admin/aircon-inventory");
+    logOperation("AIRCON_STOCK_ADJUST", `${product.code}`, `在庫調整: ${product.stock} → ${newStock} (${adjustment > 0 ? '+' : ''}${adjustment})`);
     return { success: true, newStock };
 }
 
@@ -208,6 +214,7 @@ export async function updateAirconProductSuffix(productId: number, suffix: strin
     });
     revalidatePath("/admin/aircon-inventory");
     revalidatePath("/admin/aircon-orders");
+    logOperation("AIRCON_SUFFIX_UPDATE", `AirconProduct ID:${productId}`, `サフィックス: ${suffix.toUpperCase()}`);
     return { success: true };
 }
 
@@ -225,6 +232,7 @@ export async function decrementAirconStock(productCode: string) {
             where: { id: product.id },
             data: { stock: product.stock - 1 }
         });
+        logOperation("AIRCON_STOCK_DECREMENT", `${product.code}`, `持出しにより在庫減算: ${product.stock} → ${product.stock - 1}`);
         return { success: true, productId: product.id };
     }
 
@@ -268,6 +276,7 @@ export async function returnAircon(logId: number) {
 
     revalidatePath("/admin/aircon-logs");
     revalidatePath("/admin/aircon-inventory");
+    logOperation("AIRCON_RETURN", `ログ #${logId}`, `${log.airconProduct?.code || log.modelNumber} を返却 (在庫+1)`);
     return { success: true };
 }
 
@@ -287,6 +296,7 @@ export async function updateAirconYearSuffix(suffix: string) {
         create: { key: "aircon_year_suffix", value: suffix }
     });
     revalidatePath("/admin/aircon-inventory");
+    logOperation("AIRCON_YEAR_SUFFIX_UPDATE", `年度サフィックス`, `${suffix}に変更`);
     return { success: true };
 }
 
@@ -349,6 +359,8 @@ export async function createAirconOrder(
     });
 
     revalidatePath("/admin/aircon-orders");
+    const itemSummary = items.map(i => `ProductID:${i.productId} x${i.quantity}`).join(', ');
+    logOperation("AIRCON_ORDER_CREATE", `発注 #${orderNumber}`, `発注作成: ${itemSummary}${note ? ` メモ:${note}` : ''}`);
     return { success: true, order };
 }
 
@@ -363,6 +375,7 @@ export async function updateAirconOrderStatus(orderId: number, status: string) {
         data
     });
     revalidatePath("/admin/aircon-orders");
+    logOperation("AIRCON_ORDER_STATUS", `発注 #${orderId}`, `ステータス変更: ${status}`);
     return { success: true };
 }
 
@@ -431,6 +444,7 @@ export async function receiveAirconOrderItem(itemId: number, quantity: number) {
 
     revalidatePath("/admin/aircon-orders");
     revalidatePath("/admin/aircon-inventory");
+    logOperation("AIRCON_ORDER_RECEIVE", `発注 #${item.orderId}`, `入荷: ${item.product.code} x${quantity}${isMainWarehouse ? ' (主倉庫→在庫加算)' : ' (拠点直送)'}`);
     return { success: true, isMainWarehouse };
 }
 
@@ -446,6 +460,7 @@ export async function markOrderEmailSent(orderId: number, orderedBy: string) {
         }
     });
     revalidatePath("/admin/aircon-orders");
+    logOperation("AIRCON_ORDER_EMAIL_SENT", `発注 #${orderId}`, `発注メール送信 (発注者: ${orderedBy})`);
     return { success: true };
 }
 
@@ -466,6 +481,7 @@ export async function createDeliveryLocation(name: string, address?: string) {
         data: { name, address: address || null }
     });
     revalidatePath("/admin/aircon-orders");
+    logOperation("DELIVERY_LOCATION_CREATE", `拠点: ${name}`, `新規作成${address ? ` 住所:${address}` : ''}`);
     return { success: true, location: loc };
 }
 
@@ -476,6 +492,7 @@ export async function updateDeliveryLocation(id: number, data: { name?: string; 
         data
     });
     revalidatePath("/admin/aircon-orders");
+    logOperation("DELIVERY_LOCATION_UPDATE", `拠点 #${id}`, `更新: ${JSON.stringify(data)}`);
     return { success: true };
 }
 
@@ -490,6 +507,7 @@ export async function deleteDeliveryLocation(id: number) {
     }
     await prisma.deliveryLocation.delete({ where: { id } });
     revalidatePath("/admin/aircon-orders");
+    logOperation("DELIVERY_LOCATION_DELETE", `拠点 #${id}`, `削除`);
     return { success: true };
 }
 
@@ -518,6 +536,7 @@ export async function updateOrderEmailSetting(key: string, value: string) {
         update: { value },
         create: { key, value }
     });
+    logOperation("EMAIL_SETTING_UPDATE", `メール設定: ${key}`, `値を更新`);
     return { success: true };
 }
 
@@ -543,6 +562,7 @@ export async function updateAirconLogInfo(logId: number, data: { managementNo?: 
             contractor: data.contractor
         }
     });
+    logOperation("AIRCON_LOG_UPDATE", `ログ #${logId}`, `管理情報更新: ${JSON.stringify(data)}`);
     return { success: true };
 }
 
@@ -619,6 +639,7 @@ export async function createAirconInventory(note?: string) {
     });
 
     revalidatePath("/admin/aircon-inventory");
+    logOperation("AIRCON_INVENTORY_START", `棚卸 #${inventory.id}`, `エアコン棚卸開始${note ? ` メモ:${note}` : ''}`);
     return { success: true, inventory };
 }
 
@@ -685,6 +706,8 @@ export async function completeAirconInventory(id: number, confirmedBy: string) {
     await syncAirconToMaterialStock();
 
     revalidatePath("/admin/aircon-inventory");
+    const diffs = inventory.items.filter(i => i.adjustment !== 0);
+    logOperation("AIRCON_INVENTORY_COMPLETE", `棚卸 #${id}`, `確定 (確認者:${confirmedBy}, 差異:${diffs.length}件)`);
     return { success: true };
 }
 
@@ -709,6 +732,7 @@ export async function cancelAirconInventory(id: number) {
     });
 
     revalidatePath("/admin/aircon-inventory");
+    logOperation("AIRCON_INVENTORY_CANCEL", `棚卸 #${id}`, `エアコン棚卸を中止`);
     return { success: true };
 }
 
@@ -768,6 +792,7 @@ export async function updateAirconLogAssignment(
         },
     });
     revalidatePath("/admin/aircon-logs");
+    logOperation("AIRCON_LOG_ASSIGNMENT", `ログ ${logIds.length}件`, `物件引き当て: 管理No=${managementNo} 顧客=${customerName}${isTemporaryLoan ? ' (一時貸出)' : ''}`);
     return { success: true };
 }
 
