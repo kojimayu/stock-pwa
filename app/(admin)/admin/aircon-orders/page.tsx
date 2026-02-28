@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,8 +35,6 @@ import {
     XCircle,
     Calendar,
     AlertTriangle,
-    Camera,
-    Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -52,6 +50,7 @@ import {
 } from "@/lib/aircon-actions";
 import { formatDate } from "@/lib/utils";
 import { DeliveryReceiptSection } from "@/components/admin/delivery-receipt-section";
+import { PhotoDropzone } from "@/components/admin/photo-dropzone";
 
 // 型定義
 interface AirconProduct {
@@ -127,11 +126,9 @@ export default function AirconOrdersPage() {
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [receiveQuantities, setReceiveQuantities] = useState<Record<number, number>>({});
 
-    // 入荷時の納品記録（入荷ダイアログ内）
     const [receivePhotos, setReceivePhotos] = useState<File[]>([]);
     const [receiveDeliveryDate, setReceiveDeliveryDate] = useState("");
     const [receiveNote, setReceiveNote] = useState("");
-    const receiveFileInputRef = useRef<HTMLInputElement>(null);
 
     // メール送信
     const [sendingEmail, setSendingEmail] = useState(false);
@@ -819,54 +816,10 @@ export default function AirconOrdersPage() {
                         <div className="border-t pt-3 space-y-3">
                             <h4 className="text-sm font-semibold text-blue-800">📋 納品記録（任意）</h4>
 
-                            {/* 写真 */}
-                            <div>
-                                <label className="text-xs font-medium text-slate-600 block mb-1">
-                                    納品伝票写真（複数枚OK）
-                                </label>
-                                <input
-                                    ref={receiveFileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    multiple
-                                    onChange={(e) => {
-                                        const files = Array.from(e.target.files || []);
-                                        setReceivePhotos(prev => [...prev, ...files]);
-                                    }}
-                                    className="hidden"
-                                />
-                                {receivePhotos.length > 0 && (
-                                    <div className="flex gap-2 flex-wrap mb-2">
-                                        {receivePhotos.map((f, i) => (
-                                            <div key={i} className="relative">
-                                                <img
-                                                    src={URL.createObjectURL(f)}
-                                                    alt={`写真${i + 1}`}
-                                                    className="w-16 h-16 object-cover rounded border"
-                                                />
-                                                <button
-                                                    onClick={() => setReceivePhotos(prev => prev.filter((_, j) => j !== i))}
-                                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center"
-                                                >
-                                                    ×
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full h-12 border-dashed gap-2"
-                                    onClick={() => receiveFileInputRef.current?.click()}
-                                >
-                                    <Camera className="h-4 w-4 text-slate-400" />
-                                    <span className="text-slate-500">
-                                        {receivePhotos.length > 0 ? `${receivePhotos.length}枚選択済み / 追加` : "タップして撮影 / 選択"}
-                                    </span>
-                                </Button>
-                            </div>
+                            <PhotoDropzone
+                                photos={receivePhotos}
+                                onChange={setReceivePhotos}
+                            />
 
                             {/* 納品日 */}
                             <div className="grid grid-cols-2 gap-3">

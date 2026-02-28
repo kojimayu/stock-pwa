@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
     Table,
     TableBody,
@@ -20,14 +20,14 @@ import {
     Copy,
     RotateCcw,
     Package,
-    Trash2,
-    Camera
+    Trash2
 } from "lucide-react";
 import Link from "next/link";
 import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, deleteOrderItem, cancelReceipt, cancelOrder } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { DeliveryReceiptSection } from "@/components/admin/delivery-receipt-section";
+import { PhotoDropzone } from "@/components/admin/photo-dropzone";
 
 interface OrderDetailProps {
     initialOrder: any;
@@ -39,11 +39,9 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     const router = useRouter();
     const [adminEmail, setAdminEmail] = useState('管理者');
 
-    // 入荷時の納品記録
     const [receivePhotos, setReceivePhotos] = useState<File[]>([]);
     const [receiveDeliveryDate, setReceiveDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
     const [receiveNote, setReceiveNote] = useState("");
-    const receiveFileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         const email = localStorage.getItem('adminEmail');
@@ -313,46 +311,10 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                     <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
                         📋 入荷時の納品記録（任意）
                     </h4>
-                    <input
-                        ref={receiveFileInputRef}
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        multiple
-                        onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
-                            setReceivePhotos(prev => [...prev, ...files]);
-                        }}
-                        className="hidden"
+                    <PhotoDropzone
+                        photos={receivePhotos}
+                        onChange={setReceivePhotos}
                     />
-                    <div className="flex flex-wrap gap-2 items-center">
-                        {receivePhotos.map((f, i) => (
-                            <div key={i} className="relative">
-                                <img
-                                    src={URL.createObjectURL(f)}
-                                    alt={`写真${i + 1}`}
-                                    className="w-14 h-14 object-cover rounded border"
-                                />
-                                <button
-                                    onClick={() => setReceivePhotos(prev => prev.filter((_, j) => j !== i))}
-                                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center"
-                                >
-                                    ×
-                                </button>
-                            </div>
-                        ))}
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-14 px-4 border-dashed gap-1.5"
-                            onClick={() => receiveFileInputRef.current?.click()}
-                        >
-                            <Camera className="h-4 w-4 text-slate-400" />
-                            <span className="text-xs text-slate-500">
-                                {receivePhotos.length > 0 ? `${receivePhotos.length}枚 / 追加` : "伝票写真"}
-                            </span>
-                        </Button>
-                    </div>
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-xs font-medium text-slate-600 block mb-1">納品日</label>
