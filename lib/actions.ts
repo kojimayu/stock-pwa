@@ -2210,7 +2210,7 @@ export async function confirmOrder(id: number) {
             orderNumber: nextNumber,
         }
     });
-    await logOperation("ORDER_CONFIRM", `Order #${nextNumber} (id:${id})`, `Status changed to ORDERED, orderNumber: ${nextNumber}`);
+    await logOperation("ORDER_CONFIRM", `発注No.${nextNumber} (id:${id})`, `発注確定 orderNumber: ${nextNumber}`);
     revalidatePath('/admin/orders');
     revalidatePath(`/admin/orders/${id}`);
 }
@@ -2265,7 +2265,8 @@ export async function receiveOrderItem(orderItemId: number, quantity: number) {
         }
     });
 
-    await logOperation("ORDER_ITEM_RECEIVE", `Order #${item.orderId} Item`, `Product: ${item.product.name}, Qty: ${quantity}`);
+    const orderLabel = item.order.orderNumber ? `発注No.${item.order.orderNumber}` : `下書き id:${item.orderId}`;
+    await logOperation("ORDER_ITEM_RECEIVE", orderLabel, `入荷: ${item.product.name} ${quantity}個`);
     revalidatePath('/admin/orders');
     revalidatePath(`/admin/orders/${item.orderId}`);
     revalidatePath('/admin/products');
@@ -2282,7 +2283,8 @@ export async function cancelOrder(id: number) {
         data: { status: 'CANCELLED' }
     });
 
-    await logOperation("ORDER_CANCEL", `Order #${id}`, "Status changed to CANCELLED");
+    const orderLabel = order.orderNumber ? `発注No.${order.orderNumber} (id:${id})` : `下書き id:${id}`;
+    await logOperation("ORDER_CANCEL", orderLabel, `発注キャンセル`);
     revalidatePath('/admin/orders');
     revalidatePath(`/admin/orders/${id}`);
 }
@@ -2294,7 +2296,7 @@ export async function deleteOrder(id: number) {
     await prisma.orderItem.deleteMany({ where: { orderId: id } });
     await prisma.order.delete({ where: { id } });
 
-    await logOperation("ORDER_DELETE", `Order #${id}`, `Deleted draft order`);
+    await logOperation("ORDER_DELETE", `下書き id:${id}`, `下書き発注を削除`);
     revalidatePath('/admin/orders');
 }
 
@@ -2370,7 +2372,9 @@ export async function cancelReceipt(orderItemId: number) {
         }
     });
 
-    await logOperation("ORDER_RECEIVE_CANCEL", `Order #${item.orderId}`, `Cancelled receipt for ${item.product.name}`);
+    const freshOrder = await prisma.order.findUnique({ where: { id: item.orderId } });
+    const orderLabel2 = freshOrder?.orderNumber ? `発注No.${freshOrder.orderNumber}` : `下書き id:${item.orderId}`;
+    await logOperation("ORDER_RECEIVE_CANCEL", orderLabel2, `入荷取消: ${item.product.name} ${qtyToRevert}個`);
     revalidatePath('/admin/orders');
     revalidatePath(`/admin/orders/${item.orderId}`);
     revalidatePath('/admin/products');
@@ -2384,7 +2388,7 @@ export async function createManualOrder(supplier: string) {
             status: 'DRAFT',
         }
     });
-    await logOperation("ORDER_CREATE", `Order #${order.id}`, `Created manual order for ${supplier}`);
+    await logOperation("ORDER_CREATE", `下書き id:${order.id}`, `手動発注作成 仕入先: ${supplier}`);
     revalidatePath('/admin/orders');
     return { success: true, id: order.id };
 }
@@ -2419,7 +2423,9 @@ export async function deleteOrderItem(orderItemId: number) {
 
     await prisma.orderItem.delete({ where: { id: orderItemId } });
 
-    await logOperation("ORDER_ITEM_DELETE", `Order #${item.orderId}`, `商品ID: ${item.productId} を削除`);
+    const orderInfo = await prisma.order.findUnique({ where: { id: item.orderId } });
+    const orderLabel3 = orderInfo?.orderNumber ? `発注No.${orderInfo.orderNumber}` : `下書き id:${item.orderId}`;
+    await logOperation("ORDER_ITEM_DELETE", orderLabel3, `商品ID: ${item.productId} を削除`);
     revalidatePath(`/admin/orders/${item.orderId}`);
     return { success: true };
 }
