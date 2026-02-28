@@ -49,6 +49,8 @@ import {
     updateAirconOrderDeliveryDate,
 } from "@/lib/aircon-actions";
 import { formatDate } from "@/lib/utils";
+import { useSession } from "next-auth/react";
+import { DeliveryReceiptSection } from "@/components/admin/delivery-receipt-section";
 
 // 型定義
 interface AirconProduct {
@@ -105,6 +107,7 @@ export default function AirconOrdersPage() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [locations, setLocations] = useState<DeliveryLoc[]>([]);
     const [loading, setLoading] = useState(true);
+    const { data: session } = useSession();
 
     // 発注作成ダイアログ
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -637,6 +640,17 @@ export default function AirconOrdersPage() {
                                             </>)
                                         }
                                     </div>
+
+                                    {/* 納品記録セクション */}
+                                    {['ORDERED', 'PARTIAL', 'RECEIVED'].includes(order.status) && (
+                                        <div className="mt-4">
+                                            <DeliveryReceiptSection
+                                                type="AIRCON"
+                                                orderId={order.id}
+                                                confirmedBy={session?.user?.email || session?.user?.name || '管理者'}
+                                            />
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
                         );

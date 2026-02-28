@@ -120,4 +120,32 @@ if (Test-Path $SourceEnv) {
     }
 }
 
+# ========================================
+# 納品伝票写真のバックアップ
+# ========================================
+$UploadsSource = Join-Path $ProjectRoot "public\uploads\delivery-receipts"
+$UploadsBackup = Join-Path (Split-Path $BackupFolder -Parent) "uploads\delivery-receipts"
+
+if (Test-Path $UploadsSource) {
+    $SourceFiles = Get-ChildItem $UploadsSource -File -Exclude ".gitkeep" -ErrorAction SilentlyContinue
+    if ($SourceFiles.Count -gt 0) {
+        if (!(Test-Path $UploadsBackup)) {
+            New-Item -ItemType Directory -Path $UploadsBackup -Force | Out-Null
+        }
+        $CopiedCount = 0
+        foreach ($f in $SourceFiles) {
+            $DestFile = Join-Path $UploadsBackup $f.Name
+            if (!(Test-Path $DestFile)) {
+                Copy-Item $f.FullName $DestFile -Force
+                $CopiedCount++
+            }
+        }
+        if ($CopiedCount -gt 0) {
+            Write-Host "[$(Get-Date)] 納品伝票写真バックアップ: ${CopiedCount}件の新規ファイルをコピー" -ForegroundColor Green
+        } else {
+            Write-Host "[$(Get-Date)] 納品伝票写真: 新規ファイルなし (スキップ)" -ForegroundColor Gray
+        }
+    }
+}
+
 Write-Host "[$(Get-Date)] 処理完了" -ForegroundColor Cyan

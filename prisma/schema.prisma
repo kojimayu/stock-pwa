@@ -270,3 +270,16 @@ model AirconInventoryCountItem {
 
   @@unique([inventoryId, productId])
 }
+
+// 納品記録（納品伝票写真・確認情報）
+model DeliveryReceipt {
+  id           Int       @id @default(autoincrement())
+  type         String    // "MATERIAL" or "AIRCON"
+  orderId      Int       // Order.id or AirconOrder.id
+  photoPath    String?   // アップロード画像パス
+  confirmedBy  String?   // 確認者名（管理者自動入力）
+  confirmedAt  DateTime? // 納品確認日時
+  deliveryDate DateTime? // 実際の納品日（到着日）
+  note         String?   // メモ
+  createdAt    DateTime  @default(now())
+}
