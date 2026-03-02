@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft, Lock, LockOpen, DollarSign, Package } from "lucide-react";
+import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft, Lock, LockOpen, DollarSign, Package, Tag } from "lucide-react";
 import { toast } from "sonner";
 import {
     getOrderEmailSettings,
@@ -16,6 +16,7 @@ import {
     getAirconProducts,
     updateAirconProductPrice,
     updateAirconMinStock,
+    updateAirconProductSuffix,
 } from "@/lib/aircon-actions";
 import Link from "next/link";
 
@@ -71,6 +72,11 @@ export default function AirconOrderSettingsPage() {
     const [minStockLocked, setMinStockLocked] = useState(true);
     const [savingMinStock, setSavingMinStock] = useState(false);
 
+    // サフィックス管理
+    const [suffixEdits, setSuffixEdits] = useState<Record<number, string>>({});
+    const [suffixLocked, setSuffixLocked] = useState(true);
+    const [savingSuffix, setSavingSuffix] = useState(false);
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -108,6 +114,12 @@ export default function AirconOrderSettingsPage() {
                 minEdits[p.id] = String(p.minStock || 0);
             });
             setMinStockEdits(minEdits);
+            // サフィックスを編集用にセット
+            const sfxEdits: Record<number, string> = {};
+            (prods as unknown as AirconProd[]).forEach(p => {
+                sfxEdits[p.id] = p.suffix || "";
+            });
+            setSuffixEdits(sfxEdits);
         } catch {
             toast.error("設定の読み込みに失敗しました");
         } finally {
@@ -215,6 +227,26 @@ export default function AirconOrderSettingsPage() {
             toast.error("最低在庫数の保存に失敗しました");
         } finally {
             setSavingMinStock(false);
+        }
+    };
+
+    // サフィックス保存
+    const handleSaveSuffix = async () => {
+        setSavingSuffix(true);
+        try {
+            for (const product of products) {
+                const newSuffix = (suffixEdits[product.id] || "").trim().toUpperCase();
+                if (newSuffix !== product.suffix) {
+                    await updateAirconProductSuffix(product.id, newSuffix);
+                }
+            }
+            toast.success("サフィックスを保存しました");
+            setSuffixLocked(true);
+            fetchData();
+        } catch {
+            toast.error("サフィックスの保存に失敗しました");
+        } finally {
+            setSavingSuffix(false);
         }
     };
 
@@ -365,7 +397,7 @@ export default function AirconOrderSettingsPage() {
                 </CardContent>
             </Card>
 
-            {/* 単価管理 */}
+            {/* 発注単価管理 */}
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">
@@ -414,6 +446,61 @@ export default function AirconOrderSettingsPage() {
                     {!priceLocked && (
                         <Button onClick={handleSavePrices} disabled={savingPrices} className="w-full mt-3">
                             {savingPrices ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 単価を保存</>}
+                        </Button>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* 発注サフィックス */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Tag className="h-5 w-5" /> 発注サフィックス
+                            </CardTitle>
+                            <CardDescription>ベースコード(RAS-AJ22等)に付加するサフィックス。注文書に「RAS-AJ22 + サフィックス」で表示されます</CardDescription>
+                        </div>
+                        <Button
+                            variant={suffixLocked ? "outline" : "destructive"}
+                            size="sm"
+                            onClick={() => setSuffixLocked(!suffixLocked)}
+                        >
+                            {suffixLocked ? <><Lock className="h-4 w-4 mr-1" /> ロック中</> : <><LockOpen className="h-4 w-4 mr-1" /> 編集中</>}
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="grid grid-cols-[1fr_80px_120px_180px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                        <span>品番</span>
+                        <span>容量</span>
+                        <span className="text-center">サフィックス</span>
+                        <span className="text-center">発注品番プレビュー</span>
+                    </div>
+                    {products.map(product => {
+                        const sfx = suffixEdits[product.id] || "";
+                        return (
+                            <div key={product.id} className="grid grid-cols-[1fr_80px_120px_180px] gap-2 items-center p-2 rounded border">
+                                <span className="font-mono text-sm">{product.code}</span>
+                                <span className="text-sm text-muted-foreground">{product.capacity}</span>
+                                {suffixLocked ? (
+                                    <span className="text-sm text-center font-mono">{sfx || "-"}</span>
+                                ) : (
+                                    <Input
+                                        className="h-8 text-center font-mono"
+                                        maxLength={10}
+                                        value={sfx}
+                                        onChange={e => setSuffixEdits({ ...suffixEdits, [product.id]: e.target.value.toUpperCase() })}
+                                        placeholder="例: 25SWSET"
+                                    />
+                                )}
+                                <span className="text-sm text-center font-mono text-blue-600">{product.code}{sfx}</span>
+                            </div>
+                        );
+                    })}
+                    {!suffixLocked && (
+                        <Button onClick={handleSaveSuffix} disabled={savingSuffix} className="w-full mt-3">
+                            {savingSuffix ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> サフィックスを保存</>}
                         </Button>
                     )}
                 </CardContent>

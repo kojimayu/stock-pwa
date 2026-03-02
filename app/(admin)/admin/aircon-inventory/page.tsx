@@ -792,7 +792,7 @@ export default function AirconInventoryPage() {
                                                             })
                                                         }
                                                         className="w-20 text-center font-mono"
-                                                        maxLength={5}
+                                                        maxLength={10}
                                                     />
                                                     {suffixChanged && (
                                                         <Button
