@@ -4,8 +4,15 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft, Lock, LockOpen, DollarSign, Package, Tag } from "lucide-react";
+import { Trash2, Plus, Save, Loader2, MapPin, ArrowLeft, Lock, LockOpen, DollarSign, Package, Tag, Settings } from "lucide-react";
 import { toast } from "sonner";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
 import {
     getOrderEmailSettings,
     updateOrderEmailSetting,
@@ -61,21 +68,14 @@ export default function AirconOrderSettingsPage() {
     const [newLocationName, setNewLocationName] = useState("");
     const [newLocationAddress, setNewLocationAddress] = useState("");
 
-    // 単価管理
+    // 商品設定（統合）
     const [products, setProducts] = useState<AirconProd[]>([]);
     const [priceEdits, setPriceEdits] = useState<Record<number, { orderPrice: string }>>({});
-    const [priceLocked, setPriceLocked] = useState(true);
-    const [savingPrices, setSavingPrices] = useState(false);
-
-    // 最低在庫管理
     const [minStockEdits, setMinStockEdits] = useState<Record<number, string>>({});
-    const [minStockLocked, setMinStockLocked] = useState(true);
-    const [savingMinStock, setSavingMinStock] = useState(false);
-
-    // サフィックス管理
     const [suffixEdits, setSuffixEdits] = useState<Record<number, string>>({});
-    const [suffixLocked, setSuffixLocked] = useState(true);
-    const [savingSuffix, setSavingSuffix] = useState(false);
+    const [productLocked, setProductLocked] = useState(true);
+    const [savingProducts, setSavingProducts] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -186,67 +186,46 @@ export default function AirconOrderSettingsPage() {
         }
     };
 
-    // 単価保存
-    const handleSavePrices = async () => {
-        setSavingPrices(true);
-        try {
-            for (const product of products) {
-                const edits = priceEdits[product.id];
-                if (!edits) continue;
-                const newOrderPrice = parseInt(edits.orderPrice || "0") || 0;
-                if (newOrderPrice !== product.orderPrice) {
-                    await updateAirconProductPrice(product.id, {
-                        orderPrice: newOrderPrice,
-                    });
-                }
-            }
-            toast.success("単価を保存しました");
-            setPriceLocked(true);
-            fetchData();
-        } catch {
-            toast.error("単価の保存に失敗しました");
-        } finally {
-            setSavingPrices(false);
-        }
+    // 商品設定保存（統合: 単価 + サフィックス + 最低在庫）
+    const getProductChanges = () => {
+        return products.map(product => {
+            const newPrice = parseInt(priceEdits[product.id]?.orderPrice || "0") || 0;
+            const newSuffix = (suffixEdits[product.id] || "").trim().toUpperCase();
+            const newMinStock = parseInt(minStockEdits[product.id] || "0") || 0;
+            const priceChanged = newPrice !== product.orderPrice;
+            const suffixChanged = newSuffix !== product.suffix;
+            const minStockChanged = newMinStock !== product.minStock;
+            return {
+                product, newPrice, newSuffix, newMinStock,
+                priceChanged, suffixChanged, minStockChanged,
+                hasChange: priceChanged || suffixChanged || minStockChanged,
+            };
+        }).filter(c => c.hasChange);
     };
 
-    // 最低在庫数保存
-    const handleSaveMinStock = async () => {
-        setSavingMinStock(true);
+    const handleSaveAll = async () => {
+        setSavingProducts(true);
+        setShowConfirm(false);
         try {
-            for (const product of products) {
-                const newMin = parseInt(minStockEdits[product.id] || "0") || 0;
-                if (newMin !== product.minStock) {
-                    await updateAirconMinStock(product.id, newMin);
+            const changes = getProductChanges();
+            for (const c of changes) {
+                if (c.priceChanged) {
+                    await updateAirconProductPrice(c.product.id, { orderPrice: c.newPrice });
+                }
+                if (c.suffixChanged) {
+                    await updateAirconProductSuffix(c.product.id, c.newSuffix);
+                }
+                if (c.minStockChanged) {
+                    await updateAirconMinStock(c.product.id, c.newMinStock);
                 }
             }
-            toast.success("最低在庫数を保存しました");
-            setMinStockLocked(true);
+            toast.success(`${changes.length}件の商品設定を保存しました`);
+            setProductLocked(true);
             fetchData();
         } catch {
-            toast.error("最低在庫数の保存に失敗しました");
+            toast.error("保存に失敗しました");
         } finally {
-            setSavingMinStock(false);
-        }
-    };
-
-    // サフィックス保存
-    const handleSaveSuffix = async () => {
-        setSavingSuffix(true);
-        try {
-            for (const product of products) {
-                const newSuffix = (suffixEdits[product.id] || "").trim().toUpperCase();
-                if (newSuffix !== product.suffix) {
-                    await updateAirconProductSuffix(product.id, newSuffix);
-                }
-            }
-            toast.success("サフィックスを保存しました");
-            setSuffixLocked(true);
-            fetchData();
-        } catch {
-            toast.error("サフィックスの保存に失敗しました");
-        } finally {
-            setSavingSuffix(false);
+            setSavingProducts(false);
         }
     };
 
@@ -397,164 +376,165 @@ export default function AirconOrderSettingsPage() {
                 </CardContent>
             </Card>
 
-            {/* 発注単価管理 */}
+            {/* 商品設定（単価・サフィックス・最低在庫 統合） */}
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <div>
                             <CardTitle className="text-lg flex items-center gap-2">
-                                <DollarSign className="h-5 w-5" /> 発注単価管理
+                                <Settings className="h-5 w-5" /> 商品設定
                             </CardTitle>
-                            <CardDescription>注文書PDFに反映される発注単価を管理します</CardDescription>
+                            <CardDescription>発注単価・サフィックス・最低在庫数を一括管理</CardDescription>
                         </div>
                         <Button
-                            variant={priceLocked ? "outline" : "destructive"}
+                            variant={productLocked ? "outline" : "destructive"}
                             size="sm"
-                            onClick={() => setPriceLocked(!priceLocked)}
+                            onClick={() => setProductLocked(!productLocked)}
                         >
-                            {priceLocked ? <><Lock className="h-4 w-4 mr-1" /> ロック中</> : <><LockOpen className="h-4 w-4 mr-1" /> 編集中</>}
+                            {productLocked ? <><Lock className="h-4 w-4 mr-1" /> ロック中</> : <><LockOpen className="h-4 w-4 mr-1" /> 編集中</>}
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                    <div className="grid grid-cols-[1fr_80px_120px] gap-2 text-xs font-medium text-muted-foreground px-1">
-                        <span>品番 / 商品名</span>
-                        <span>容量</span>
-                        <span className="text-right">発注単価</span>
-                    </div>
-                    {products.map(product => (
-                        <div key={product.id} className="grid grid-cols-[1fr_80px_120px] gap-2 items-center p-2 rounded border">
-                            <div className="text-sm">
-                                <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}{product.suffix}</span>
-                                {product.name}
-                            </div>
-                            <span className="text-sm text-muted-foreground">{product.capacity}</span>
-                            {priceLocked ? (
-                                <span className="text-sm text-right pr-3 font-mono">¥{parseInt(priceEdits[product.id]?.orderPrice || "0").toLocaleString()}</span>
-                            ) : (
-                                <Input
-                                    type="number"
-                                    min={0}
-                                    step={100}
-                                    className="h-8 text-right"
-                                    value={priceEdits[product.id]?.orderPrice || "0"}
-                                    onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], orderPrice: e.target.value } })}
-                                />
-                            )}
-                        </div>
-                    ))}
-                    {!priceLocked && (
-                        <Button onClick={handleSavePrices} disabled={savingPrices} className="w-full mt-3">
-                            {savingPrices ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 単価を保存</>}
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>品番 / 商品名</TableHead>
+                                <TableHead className="w-[70px]">容量</TableHead>
+                                <TableHead className="text-right w-[110px]">
+                                    <div className="flex items-center justify-end gap-1"><DollarSign className="h-3 w-3" />発注単価</div>
+                                </TableHead>
+                                <TableHead className="text-center w-[110px]">
+                                    <div className="flex items-center justify-center gap-1"><Tag className="h-3 w-3" />サフィックス</div>
+                                </TableHead>
+                                <TableHead className="text-center w-[80px]">
+                                    <div className="flex items-center justify-center gap-1"><Package className="h-3 w-3" />最低在庫</div>
+                                </TableHead>
+                                <TableHead className="text-center w-[160px]">発注品番</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {products.map(product => {
+                                const sfx = suffixEdits[product.id] || "";
+                                return (
+                                    <TableRow key={product.id}>
+                                        <TableCell>
+                                            <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}</span>
+                                            <span className="text-sm">{product.name}</span>
+                                        </TableCell>
+                                        <TableCell className="text-sm text-muted-foreground">{product.capacity}</TableCell>
+                                        {/* 発注単価 */}
+                                        <TableCell className="text-right">
+                                            {productLocked ? (
+                                                <span className="font-mono text-sm">¥{parseInt(priceEdits[product.id]?.orderPrice || "0").toLocaleString()}</span>
+                                            ) : (
+                                                <Input
+                                                    type="number" min={0} step={100}
+                                                    className="h-8 text-right w-24"
+                                                    value={priceEdits[product.id]?.orderPrice || "0"}
+                                                    onChange={e => setPriceEdits({ ...priceEdits, [product.id]: { ...priceEdits[product.id], orderPrice: e.target.value } })}
+                                                />
+                                            )}
+                                        </TableCell>
+                                        {/* サフィックス */}
+                                        <TableCell className="text-center">
+                                            {productLocked ? (
+                                                <span className="font-mono text-sm">{sfx || "-"}</span>
+                                            ) : (
+                                                <Input
+                                                    className="h-8 text-center font-mono w-24"
+                                                    maxLength={10}
+                                                    value={sfx}
+                                                    onChange={e => setSuffixEdits({ ...suffixEdits, [product.id]: e.target.value.toUpperCase() })}
+                                                    placeholder="25SWSET"
+                                                />
+                                            )}
+                                        </TableCell>
+                                        {/* 最低在庫 */}
+                                        <TableCell className="text-center">
+                                            {productLocked ? (
+                                                <span className="text-sm">{minStockEdits[product.id] || "0"}</span>
+                                            ) : (
+                                                <Input
+                                                    type="number" min={0}
+                                                    className="h-8 text-center w-16"
+                                                    value={minStockEdits[product.id] || "0"}
+                                                    onChange={e => setMinStockEdits({ ...minStockEdits, [product.id]: e.target.value })}
+                                                />
+                                            )}
+                                        </TableCell>
+                                        {/* 発注品番プレビュー */}
+                                        <TableCell className="text-center">
+                                            <span className="font-mono text-sm text-blue-600">{product.code}{sfx}</span>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                    {!productLocked && (
+                        <Button
+                            onClick={() => {
+                                const changes = getProductChanges();
+                                if (changes.length === 0) {
+                                    toast.info("変更はありません");
+                                    return;
+                                }
+                                setShowConfirm(true);
+                            }}
+                            disabled={savingProducts}
+                            className="w-full mt-4"
+                        >
+                            {savingProducts ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 変更を保存</>}
                         </Button>
                     )}
                 </CardContent>
             </Card>
 
-            {/* 発注サフィックス */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Tag className="h-5 w-5" /> 発注サフィックス
-                            </CardTitle>
-                            <CardDescription>ベースコード(RAS-AJ22等)に付加するサフィックス。注文書に「RAS-AJ22 + サフィックス」で表示されます</CardDescription>
-                        </div>
-                        <Button
-                            variant={suffixLocked ? "outline" : "destructive"}
-                            size="sm"
-                            onClick={() => setSuffixLocked(!suffixLocked)}
-                        >
-                            {suffixLocked ? <><Lock className="h-4 w-4 mr-1" /> ロック中</> : <><LockOpen className="h-4 w-4 mr-1" /> 編集中</>}
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <div className="grid grid-cols-[1fr_80px_120px_180px] gap-2 text-xs font-medium text-muted-foreground px-1">
-                        <span>品番</span>
-                        <span>容量</span>
-                        <span className="text-center">サフィックス</span>
-                        <span className="text-center">発注品番プレビュー</span>
-                    </div>
-                    {products.map(product => {
-                        const sfx = suffixEdits[product.id] || "";
-                        return (
-                            <div key={product.id} className="grid grid-cols-[1fr_80px_120px_180px] gap-2 items-center p-2 rounded border">
-                                <span className="font-mono text-sm">{product.code}</span>
-                                <span className="text-sm text-muted-foreground">{product.capacity}</span>
-                                {suffixLocked ? (
-                                    <span className="text-sm text-center font-mono">{sfx || "-"}</span>
-                                ) : (
-                                    <Input
-                                        className="h-8 text-center font-mono"
-                                        maxLength={10}
-                                        value={sfx}
-                                        onChange={e => setSuffixEdits({ ...suffixEdits, [product.id]: e.target.value.toUpperCase() })}
-                                        placeholder="例: 25SWSET"
-                                    />
+            {/* 確認ダイアログ */}
+            <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>商品設定の変更確認</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            以下の変更を保存します。よろしいですか？
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="space-y-2 max-h-60 overflow-y-auto text-sm">
+                        {getProductChanges().map(c => (
+                            <div key={c.product.id} className="p-2 bg-slate-50 rounded border space-y-0.5">
+                                <div className="font-medium">{c.product.code} ({c.product.capacity})</div>
+                                {c.priceChanged && (
+                                    <div className="text-xs">
+                                        <DollarSign className="inline h-3 w-3 mr-1" />
+                                        単価: <span className="text-red-500 line-through">¥{c.product.orderPrice.toLocaleString()}</span>
+                                        {" → "}<span className="text-green-600 font-medium">¥{c.newPrice.toLocaleString()}</span>
+                                    </div>
                                 )}
-                                <span className="text-sm text-center font-mono text-blue-600">{product.code}{sfx}</span>
+                                {c.suffixChanged && (
+                                    <div className="text-xs">
+                                        <Tag className="inline h-3 w-3 mr-1" />
+                                        サフィックス: <span className="text-red-500 line-through">{c.product.suffix || "(なし)"}</span>
+                                        {" → "}<span className="text-green-600 font-medium">{c.newSuffix || "(なし)"}</span>
+                                        <span className="text-blue-600 ml-2">→ {c.product.code}{c.newSuffix}</span>
+                                    </div>
+                                )}
+                                {c.minStockChanged && (
+                                    <div className="text-xs">
+                                        <Package className="inline h-3 w-3 mr-1" />
+                                        最低在庫: <span className="text-red-500 line-through">{c.product.minStock}</span>
+                                        {" → "}<span className="text-green-600 font-medium">{c.newMinStock}</span>
+                                    </div>
+                                )}
                             </div>
-                        );
-                    })}
-                    {!suffixLocked && (
-                        <Button onClick={handleSaveSuffix} disabled={savingSuffix} className="w-full mt-3">
-                            {savingSuffix ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> サフィックスを保存</>}
-                        </Button>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* 最低在庫設定 */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Package className="h-5 w-5" /> 最低在庫数設定
-                            </CardTitle>
-                            <CardDescription>在庫がこの数を下回るとダッシュボードにアラートが表示されます</CardDescription>
-                        </div>
-                        <Button
-                            variant={minStockLocked ? "outline" : "destructive"}
-                            size="sm"
-                            onClick={() => setMinStockLocked(!minStockLocked)}
-                        >
-                            {minStockLocked ? <><Lock className="h-4 w-4 mr-1" /> ロック中</> : <><LockOpen className="h-4 w-4 mr-1" /> 編集中</>}
-                        </Button>
+                        ))}
                     </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <div className="grid grid-cols-[1fr_80px_100px] gap-2 text-xs font-medium text-muted-foreground px-1">
-                        <span>品番 / 商品名</span>
-                        <span>容量</span>
-                        <span className="text-right">最低在庫数</span>
-                    </div>
-                    {products.map(product => (
-                        <div key={product.id} className="grid grid-cols-[1fr_80px_100px] gap-2 items-center p-2 rounded border">
-                            <div className="text-sm">
-                                <span className="font-mono text-xs text-muted-foreground mr-2">{product.code}{product.suffix}</span>
-                                {product.name}
-                            </div>
-                            <span className="text-sm text-muted-foreground">{product.capacity}</span>
-                            <Input
-                                type="number"
-                                min={0}
-                                className="h-8 text-right"
-                                value={minStockEdits[product.id] || "0"}
-                                onChange={e => setMinStockEdits({ ...minStockEdits, [product.id]: e.target.value })}
-                                disabled={minStockLocked}
-                            />
-                        </div>
-                    ))}
-                    {!minStockLocked && (
-                        <Button onClick={handleSaveMinStock} disabled={savingMinStock} className="w-full mt-3">
-                            {savingMinStock ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> 保存中...</> : <><Save className="h-4 w-4 mr-1" /> 最低在庫数を保存</>}
-                        </Button>
-                    )}
-                </CardContent>
-            </Card>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleSaveAll}>保存する</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
