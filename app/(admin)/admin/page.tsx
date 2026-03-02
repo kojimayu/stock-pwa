@@ -7,7 +7,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, TrendingDown, CheckCircle2, ClipboardList, Package, Fan, Calendar, MapPin } from "lucide-react";
+import { AlertTriangle, TrendingDown, CheckCircle2, ClipboardList, Package, Fan, Calendar, MapPin, Calculator } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -90,6 +90,41 @@ async function getDeliveryAlerts() {
         orderBy: { orderedAt: "asc" },
     });
     return { todayOrders, overdueOrders, noResponseOrders };
+}
+
+// 価格アラート取得
+async function getPriceAlerts() {
+    const products = await prisma.product.findMany({
+        select: {
+            id: true, code: true, name: true, category: true,
+            priceA: true, priceB: true, cost: true, priceMode: true,
+        },
+    });
+    const rules = await prisma.categoryPricingRule.findMany();
+    const ruleMap = new Map(rules.map((r: any) => [r.category, r]));
+
+    const violations: typeof products = [];
+    const markupDiffs: Array<typeof products[0] & { expectedA: number; diff: number }> = [];
+    const noCost = products.filter(p => p.cost === 0 && p.priceA > 0);
+
+    products.forEach(p => {
+        // セーフガード違反
+        if (p.cost > 0 && p.priceA > 0 && p.priceA <= p.cost) violations.push(p);
+        else if (p.cost > 0 && p.priceB > 0 && p.priceB <= p.cost) violations.push(p);
+        else if (p.priceA > 0 && p.priceB > 0 && p.priceA <= p.priceB) violations.push(p);
+
+        // 掛率ズレ（AUTOのみ）
+        if (p.priceMode === 'AUTO' && p.cost > 0) {
+            const rule = ruleMap.get(p.category);
+            if (rule) {
+                const expectedA = Math.ceil(p.cost * (rule as any).markupRateA);
+                const diff = p.priceA - expectedA;
+                if (diff !== 0) markupDiffs.push({ ...p, expectedA, diff });
+            }
+        }
+    });
+
+    return { violations, markupDiffs, noCost };
 }
 
 // 最近のエアコン持出し（3件、グループ化）
@@ -178,13 +213,14 @@ function groupLogs(logs: any[]) {
 }
 
 export default async function AdminDashboardPage() {
-    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts] =
+    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts, priceAlerts] =
         await Promise.all([
             getLowStockMaterials(),
             getAirconStockWithVendorBreakdown(),
             getPendingOrders(),
             getRecentAirconLogs(),
             getDeliveryAlerts(),
+            getPriceAlerts(),
         ]);
 
     const criticalMaterials = lowStockMaterials.filter((p) => p.stock === 0);
@@ -336,16 +372,63 @@ export default async function AdminDashboardPage() {
                     </div>
                 )}
 
+                {/* 価格: セーフガード違反 */}
+                {priceAlerts.violations.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                        <Calculator className="w-4 h-4 text-red-600 shrink-0" />
+                        <span className="text-sm text-red-800 font-medium">
+                            価格セーフガード違反 {priceAlerts.violations.length}件
+                        </span>
+                        <span className="text-xs text-red-600 truncate">
+                            （{priceAlerts.violations.slice(0, 3).map((p: any) => p.code).join('、')}
+                            {priceAlerts.violations.length > 3 && ` 他${priceAlerts.violations.length - 3}件`}）
+                        </span>
+                        <Link href="/admin/pricing" className="ml-auto text-xs text-red-700 hover:underline whitespace-nowrap font-medium">
+                            価格設定へ →
+                        </Link>
+                    </div>
+                )}
+
+                {/* 価格: 掛率ズレ */}
+                {priceAlerts.markupDiffs.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                        <Calculator className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span className="text-sm text-amber-800 font-medium">
+                            掛率ズレ {priceAlerts.markupDiffs.length}件
+                        </span>
+                        <span className="text-xs text-amber-600 truncate">
+                            （AUTO商品で実価格と掛率計算値が不一致）
+                        </span>
+                        <Link href="/admin/pricing" className="ml-auto text-xs text-amber-700 hover:underline whitespace-nowrap font-medium">
+                            価格設定へ →
+                        </Link>
+                    </div>
+                )}
+
+                {/* 価格: 仕入値未設定 */}
+                {priceAlerts.noCost.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                        <Calculator className="w-4 h-4 text-slate-500 shrink-0" />
+                        <span className="text-sm text-slate-700 font-medium">
+                            仕入値未設定 {priceAlerts.noCost.length}件
+                        </span>
+                        <Link href="/admin/pricing" className="ml-auto text-xs text-slate-600 hover:underline whitespace-nowrap font-medium">
+                            価格設定へ →
+                        </Link>
+                    </div>
+                )}
+
                 {/* すべて正常 */}
                 {criticalMaterials.length === 0 &&
                     warningMaterials.length === 0 &&
                     deliveryAlerts.overdueOrders.length === 0 &&
                     deliveryAlerts.noResponseOrders.length === 0 &&
-                    deliveryAlerts.todayOrders.length === 0 && (
+                    deliveryAlerts.todayOrders.length === 0 &&
+                    priceAlerts.violations.length === 0 && (
                         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 border border-green-200">
                             <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                             <span className="text-sm text-green-700">
-                                すべての在庫が十分です
+                                すべて正常です
                             </span>
                         </div>
                     )}
