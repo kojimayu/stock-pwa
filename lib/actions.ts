@@ -781,15 +781,23 @@ export async function recalculateCategoryPrices(category: string) {
 }
 
 // 価格順序セーフガード: cost < priceB < priceA
-function validatePriceOrder(cost: number, priceB: number, priceA: number): string | null {
+function validatePriceOrder(cost: number, priceB: number, priceA: number, priceMode: string = 'AUTO'): string | null {
     if (cost > 0 && priceA > 0 && priceA <= cost) {
         return `売価A(${priceA})が仕入値(${cost})以下です`;
     }
     if (cost > 0 && priceB > 0 && priceB <= cost) {
         return `売価B(${priceB})が仕入値(${cost})以下です`;
     }
-    if (priceA > 0 && priceB > 0 && priceA < priceB) {
-        return `売価A(${priceA})が売価B(${priceB})より小さいです（AはB以上にしてください）`;
+    if (priceMode === 'MANUAL') {
+        // 手動設定: 同額もNG（AはBより高くする必要）
+        if (priceA > 0 && priceB > 0 && priceA <= priceB) {
+            return `売価A(${priceA})が売価B(${priceB})以下です（手動設定時はAはBより高くしてください）`;
+        }
+    } else {
+        // 自動計算: 同額はOK（Math.ceilで同額になる場合がある）
+        if (priceA > 0 && priceB > 0 && priceA < priceB) {
+            return `売価A(${priceA})が売価B(${priceB})より小さいです（AはB以上にしてください）`;
+        }
     }
     return null;
 }
@@ -867,7 +875,7 @@ export async function upsertProduct(data: {
     }
 
     // セーフガード: cost < priceB < priceA
-    const violation = validatePriceOrder(data.cost, finalPriceB, finalPriceA);
+    const violation = validatePriceOrder(data.cost, finalPriceB, finalPriceA, priceMode);
     if (violation) throw new Error(violation);
 
     const normalizedCode = normalizeCode(data.code);
