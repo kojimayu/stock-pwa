@@ -12,7 +12,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Package, ClipboardCheck, X, History, Truck, Building2, User, Save, WifiOff, Minus, Plus, CircleCheck, Circle } from "lucide-react";
+import { AlertTriangle, Package, ClipboardCheck, X, History, Truck, Building2, User, WifiOff, Minus, Plus, CircleCheck, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
@@ -23,7 +23,6 @@ import {
     completeAirconInventory,
     cancelAirconInventory,
     getAirconInventoryHistory,
-    updateAirconProductSuffix,
     checkAirconInventoryItem,
     uncheckAirconInventoryItem,
 } from "@/lib/aircon-actions";
@@ -116,7 +115,6 @@ type InventorySession = {
 export default function AirconInventoryPage() {
     const [products, setProducts] = useState<AirconProduct[]>([]);
     const [loading, setLoading] = useState(true);
-    const [editingSuffix, setEditingSuffix] = useState<Record<number, string>>({});
 
     // 棚卸関連State
     const [activeInventory, setActiveInventory] = useState<InventorySession | null>(null);
@@ -233,12 +231,6 @@ export default function AirconInventoryPage() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             setInventoryHistory(history as any);
 
-            // 初期サフィックス値をセット
-            const suffixMap: Record<number, string> = {};
-            prods.forEach((p: AirconProduct) => {
-                suffixMap[p.id] = p.suffix || "N";
-            });
-            setEditingSuffix(suffixMap);
 
             // 進行中の棚卸がある場合、実数入力値と理由をセット
             if (active) {
@@ -393,21 +385,6 @@ export default function AirconInventoryPage() {
         }
     };
 
-    // サフィックス保存
-    const handleSaveSuffix = async (productId: number) => {
-        const suffix = editingSuffix[productId];
-        if (!suffix?.trim()) {
-            toast.error("サフィックスを入力してください");
-            return;
-        }
-        const result = await updateAirconProductSuffix(productId, suffix.trim().toUpperCase());
-        if (result.success) {
-            toast.success("サフィックスを更新しました");
-            fetchData();
-        } else {
-            toast.error("更新に失敗しました");
-        }
-    };
 
     // 統計計算
     const totalWarehouseStock = products.reduce((acc, p) => acc + p.stock, 0);
@@ -434,7 +411,7 @@ export default function AirconInventoryPage() {
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">エアコン在庫管理</h2>
                 <p className="text-muted-foreground">
-                    ベースコード(RAS-AJ22等)で在庫管理、サフィックスは発注時のみ使用
+                    ベースコード(RAS-AJ22等)で在庫管理
                 </p>
             </div>
 
@@ -621,7 +598,6 @@ export default function AirconInventoryPage() {
                                     <TableHead className="text-center bg-orange-50/50">業者持出</TableHead>
                                     <TableHead className="text-center bg-purple-50/50">持出し内訳</TableHead>
                                     <TableHead className="text-center bg-slate-50/50 font-bold">総在庫</TableHead>
-                                    <TableHead className="text-center">発注サフィックス</TableHead>
                                     {activeInventory && (
                                         <>
                                             <TableHead className="text-center bg-green-50/50">実数</TableHead>
@@ -635,8 +611,6 @@ export default function AirconInventoryPage() {
                             <TableBody>
                                 {products.map((product) => {
                                     const isLowStock = product.totalStock <= product.minStock;
-                                    const currentSuffix = editingSuffix[product.id] || "";
-                                    const suffixChanged = currentSuffix !== product.suffix;
 
                                     // 棚卸アイテムを探す
                                     const invItem = activeInventory?.items.find(
@@ -779,30 +753,6 @@ export default function AirconInventoryPage() {
                                                             </>
                                                         );
                                                     })()}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center justify-center gap-1">
-                                                    <Input
-                                                        value={currentSuffix}
-                                                        onChange={(e) =>
-                                                            setEditingSuffix({
-                                                                ...editingSuffix,
-                                                                [product.id]: e.target.value.toUpperCase(),
-                                                            })
-                                                        }
-                                                        className="w-20 text-center font-mono"
-                                                        maxLength={10}
-                                                    />
-                                                    {suffixChanged && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() => handleSaveSuffix(product.id)}
-                                                        >
-                                                            <Save className="w-4 h-4" />
-                                                        </Button>
-                                                    )}
                                                 </div>
                                             </TableCell>
                                             {activeInventory && invItem && (
