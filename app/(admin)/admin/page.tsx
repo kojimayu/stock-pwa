@@ -273,7 +273,7 @@ export default async function AdminDashboardPage() {
                             href="/admin/orders"
                             className="ml-auto text-xs text-red-700 hover:underline whitespace-nowrap font-medium"
                         >
-                            発注管理へ →
+                            材料 発注管理へ →
                         </Link>
                     </div>
                 )}
@@ -296,10 +296,10 @@ export default async function AdminDashboardPage() {
                             ）
                         </span>
                         <Link
-                            href="/admin/products"
+                            href="/admin/orders"
                             className="ml-auto text-xs text-amber-700 hover:underline whitespace-nowrap font-medium"
                         >
-                            商品管理へ →
+                            材料 発注管理へ →
                         </Link>
                     </div>
                 )}
@@ -325,7 +325,7 @@ export default async function AdminDashboardPage() {
                             href="/admin/aircon-orders"
                             className="ml-auto text-xs text-blue-700 hover:underline whitespace-nowrap font-medium"
                         >
-                            発注管理へ →
+                            エアコン 発注管理へ →
                         </Link>
                     </div>
                 )}
@@ -351,7 +351,7 @@ export default async function AdminDashboardPage() {
                             href="/admin/aircon-orders"
                             className="ml-auto text-xs text-red-700 hover:underline whitespace-nowrap font-medium"
                         >
-                            発注管理へ →
+                            エアコン 発注管理へ →
                         </Link>
                     </div>
                 )}
@@ -367,7 +367,7 @@ export default async function AdminDashboardPage() {
                             href="/admin/aircon-orders"
                             className="ml-auto text-xs text-amber-700 hover:underline whitespace-nowrap font-medium"
                         >
-                            発注管理へ →
+                            エアコン 発注管理へ →
                         </Link>
                     </div>
                 )}
