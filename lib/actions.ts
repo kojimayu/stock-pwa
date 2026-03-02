@@ -718,6 +718,117 @@ const normalizeCode = (code: string) => {
         .toUpperCase();
 };
 
+// =========================================
+// カテゴリ別掛率管理
+// =========================================
+
+// 掛率ルール一覧取得
+export async function getCategoryPricingRules() {
+    return prisma.categoryPricingRule.findMany({
+        orderBy: { category: 'asc' },
+    });
+}
+
+// 掛率ルール更新（管理画面から）
+export async function upsertCategoryPricingRule(category: string, markupRateA: number, markupRateB: number) {
+    if (markupRateA <= 1.0) throw new Error(`掛率A(${markupRateA})は1.0より大きくしてください`);
+    if (markupRateB <= 1.0) throw new Error(`掛率B(${markupRateB})は1.0より大きくしてください`);
+    if (markupRateB >= markupRateA) throw new Error(`掛率B(${markupRateB})は掛率A(${markupRateA})より小さくしてください`);
+
+    const rule = await prisma.categoryPricingRule.upsert({
+        where: { category },
+        update: { markupRateA, markupRateB },
+        create: { category, markupRateA, markupRateB },
+    });
+
+    await logOperation("PRICING_RULE_UPDATE", `カテゴリ: ${category}`, `掛率A: ${markupRateA}, 掛率B: ${markupRateB}`);
+    revalidatePath('/admin/pricing');
+    return rule;
+}
+
+// カテゴリの掛率でpriceA/Bを自動計算
+function calculatePricesByMarkup(cost: number, markupRateA: number, markupRateB: number) {
+    return {
+        priceA: Math.ceil(cost * markupRateA),
+        priceB: Math.ceil(cost * markupRateB),
+    };
+}
+
+// 指定カテゴリの全AUTO商品の価格を再計算
+export async function recalculateCategoryPrices(category: string) {
+    const rule = await prisma.categoryPricingRule.findUnique({ where: { category } });
+    if (!rule) throw new Error(`カテゴリ「${category}」の掛率ルールが見つかりません`);
+
+    const products = await prisma.product.findMany({
+        where: { category, priceMode: 'AUTO' },
+    });
+
+    let updated = 0;
+    for (const p of products) {
+        if (p.cost <= 0) continue; // costが0の商品はスキップ
+        const { priceA, priceB } = calculatePricesByMarkup(p.cost, rule.markupRateA, rule.markupRateB);
+        await prisma.product.update({
+            where: { id: p.id },
+            data: { priceA, priceB },
+        });
+        updated++;
+    }
+
+    await logOperation("PRICING_RECALCULATE", `カテゴリ: ${category}`, `${updated}件の価格を再計算 (A×${rule.markupRateA}, B×${rule.markupRateB})`);
+    revalidatePath('/admin/products');
+    revalidatePath('/admin/pricing');
+    return { updated, total: products.length };
+}
+
+// 価格順序セーフガード: cost < priceB < priceA
+function validatePriceOrder(cost: number, priceB: number, priceA: number): string | null {
+    if (cost > 0 && priceA > 0 && priceA <= cost) {
+        return `売価A(${priceA})が仕入値(${cost})以下です`;
+    }
+    if (cost > 0 && priceB > 0 && priceB <= cost) {
+        return `売価B(${priceB})が仕入値(${cost})以下です`;
+    }
+    if (priceA > 0 && priceB > 0 && priceA <= priceB) {
+        return `売価A(${priceA})が売価B(${priceB})以下です（AはBより高くしてください）`;
+    }
+    return null;
+}
+
+// 価格レポート取得（管理画面用）
+export async function getPricingReport() {
+    const products = await prisma.product.findMany({
+        select: {
+            id: true, code: true, name: true,
+            category: true, priceA: true, priceB: true, priceC: true,
+            cost: true, priceMode: true,
+        },
+        orderBy: [{ category: 'asc' }, { code: 'asc' }],
+    });
+    const rules = await prisma.categoryPricingRule.findMany();
+    const ruleMap = new Map(rules.map(r => [r.category, r]));
+
+    return products.map(p => {
+        const rule = ruleMap.get(p.category);
+        const expectedA = rule && p.cost > 0 ? Math.ceil(p.cost * rule.markupRateA) : null;
+        const expectedB = rule && p.cost > 0 ? Math.ceil(p.cost * rule.markupRateB) : null;
+        const violation = validatePriceOrder(p.cost, p.priceB, p.priceA);
+        return {
+            ...p,
+            markupRateA: rule?.markupRateA ?? null,
+            markupRateB: rule?.markupRateB ?? null,
+            expectedA,
+            expectedB,
+            diffA: expectedA !== null ? p.priceA - expectedA : null,
+            diffB: expectedB !== null ? p.priceB - expectedB : null,
+            violation,
+        };
+    });
+}
+
+// =========================================
+// 商品のCRUD (掛率対応版)
+// =========================================
+
 export async function upsertProduct(data: {
     id?: number;
     code: string;
@@ -738,18 +849,31 @@ export async function upsertProduct(data: {
     manufacturer?: string | null;
     quantityPerBox?: number;
     pricePerBox?: number;
+    priceMode?: string;
 }) {
-    // Validation
-    // Skip profit check if price is 0 (e.g. initial registration without price)
-    if (data.priceA > 0 && data.cost >= data.priceA) throw new Error(`売価A(${data.priceA})が仕入れ値(${data.cost})を下回っています`);
-    if (data.priceB > 0 && data.cost >= data.priceB) throw new Error(`売価B(${data.priceB})が仕入れ値(${data.cost})を下回っています`);
-    if (data.priceC > 0 && data.cost >= data.priceC) throw new Error(`売価C(${data.priceC})が仕入れ値(${data.cost})を下回っています`);
+    // priceMode判定
+    const priceMode = data.priceMode ?? 'AUTO';
+
+    // AUTO時: カテゴリ掛率で自動計算
+    let finalPriceA = data.priceA;
+    let finalPriceB = data.priceB;
+    if (priceMode === 'AUTO' && data.cost > 0) {
+        const rule = await prisma.categoryPricingRule.findUnique({ where: { category: data.category } });
+        if (rule) {
+            const calc = calculatePricesByMarkup(data.cost, rule.markupRateA, rule.markupRateB);
+            finalPriceA = calc.priceA;
+            finalPriceB = calc.priceB;
+        }
+    }
+
+    // セーフガード: cost < priceB < priceA
+    const violation = validatePriceOrder(data.cost, finalPriceB, finalPriceA);
+    if (violation) throw new Error(violation);
 
     const normalizedCode = normalizeCode(data.code);
 
     if (data.id) {
         // Update
-        // Use transaction to ensure log consistency
         const result = await prisma.$transaction(async (tx) => {
             const currentProduct = await tx.product.findUnique({ where: { id: data.id } });
             if (!currentProduct) throw new Error("Product not found");
@@ -760,8 +884,8 @@ export async function upsertProduct(data: {
                 category: data.category,
                 subCategory: data.subCategory,
                 productType: data.productType,
-                priceA: data.priceA,
-                priceB: data.priceB,
+                priceA: finalPriceA,
+                priceB: finalPriceB,
                 priceC: data.priceC,
                 minStock: data.minStock,
                 supplier: data.supplier,
@@ -771,7 +895,7 @@ export async function upsertProduct(data: {
                 manufacturer: data.manufacturer,
                 quantityPerBox: data.quantityPerBox ?? 1,
                 pricePerBox: data.pricePerBox ?? 0,
-                // stock is handled below if changed
+                priceMode,
             };
 
             // costが0より大きい場合のみ更新
@@ -784,7 +908,6 @@ export async function upsertProduct(data: {
                 const diff = data.stock - currentProduct.stock;
                 updateData.stock = data.stock;
 
-                // Create Inventory Log for manual adjustment
                 await tx.inventoryLog.create({
                     data: {
                         productId: currentProduct.id,
@@ -800,16 +923,13 @@ export async function upsertProduct(data: {
                 data: updateData as any,
             });
 
-            // ログ: 原価と在庫の変更を記録 (OperationLog)
-            const logDetail = `PriceA: ${data.priceA}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Stock: ${data.stock !== undefined ? data.stock : '(unchanged)'}, OrderUnit: ${data.orderUnit ?? 1}`;
+            const logDetail = `PriceA: ${finalPriceA}, PriceB: ${finalPriceB}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Mode: ${priceMode}`;
             return { product: updatedProduct, logDetail };
         });
 
-        // Log operation outside transaction to avoid deadlock
         await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, result.logDetail);
     } else {
         // Create
-        // Check if code exists (for manual creation safety)
         const existing = await prisma.product.findUnique({ where: { code: normalizedCode } });
         if (existing) {
             throw new Error(`商品ID ${normalizedCode} は既に使用されています`);
@@ -822,8 +942,8 @@ export async function upsertProduct(data: {
                 category: data.category,
                 subCategory: data.subCategory,
                 productType: data.productType,
-                priceA: data.priceA,
-                priceB: data.priceB,
+                priceA: finalPriceA,
+                priceB: finalPriceB,
                 priceC: data.priceC,
                 minStock: data.minStock,
                 cost: data.cost,
@@ -835,13 +955,15 @@ export async function upsertProduct(data: {
                 manufacturer: data.manufacturer,
                 quantityPerBox: data.quantityPerBox ?? 1,
                 pricePerBox: data.pricePerBox ?? 0,
+                priceMode,
             } as any,
         });
-        await logOperation("PRODUCT_CREATE", `商品: ${normalizedCode}`, `新規商品を作成`);
+        await logOperation("PRODUCT_CREATE", `商品: ${normalizedCode}`, `新規商品を作成 (Mode: ${priceMode})`);
     }
 
     revalidatePath('/admin/products');
 }
+
 
 
 

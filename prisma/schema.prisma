@@ -61,6 +61,7 @@ model Product {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   usageCount     Int                  @default(0)
+  priceMode      String               @default("AUTO") // AUTO=カテゴリ掛率で自動計算, MANUAL=手動設定
   airconProductId Int?                 // エアコンマスタとの紐づけ（買取連携用）
   airconProduct  AirconProduct?       @relation(fields: [airconProductId], references: [id])
   countItems     InventoryCountItem[]
@@ -286,4 +287,14 @@ model DeliveryReceipt {
   deliveryDate DateTime? // 実際の納品日（到着日）
   note         String?   // メモ
   createdAt    DateTime  @default(now())
+}
+
+// カテゴリ別掛率ルール
+model CategoryPricingRule {
+  id          Int      @id @default(autoincrement())
+  category    String   @unique // Product.category に対応
+  markupRateA Float    @default(1.2)  // priceA = ceil(cost * markupRateA)
+  markupRateB Float    @default(1.1)  // priceB = ceil(cost * markupRateB)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
