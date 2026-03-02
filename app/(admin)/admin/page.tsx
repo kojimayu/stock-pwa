@@ -111,7 +111,7 @@ async function getPriceAlerts() {
         // セーフガード違反
         if (p.cost > 0 && p.priceA > 0 && p.priceA <= p.cost) violations.push(p);
         else if (p.cost > 0 && p.priceB > 0 && p.priceB <= p.cost) violations.push(p);
-        else if (p.priceA > 0 && p.priceB > 0 && p.priceA <= p.priceB) violations.push(p);
+        else if (p.priceA > 0 && p.priceB > 0 && p.priceA < p.priceB) violations.push(p);
 
         // 掛率ズレ（AUTOのみ）
         if (p.priceMode === 'AUTO' && p.cost > 0) {

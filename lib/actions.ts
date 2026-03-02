@@ -788,8 +788,8 @@ function validatePriceOrder(cost: number, priceB: number, priceA: number): strin
     if (cost > 0 && priceB > 0 && priceB <= cost) {
         return `売価B(${priceB})が仕入値(${cost})以下です`;
     }
-    if (priceA > 0 && priceB > 0 && priceA <= priceB) {
-        return `売価A(${priceA})が売価B(${priceB})以下です（AはBより高くしてください）`;
+    if (priceA > 0 && priceB > 0 && priceA < priceB) {
+        return `売価A(${priceA})が売価B(${priceB})より小さいです（AはB以上にしてください）`;
     }
     return null;
 }
