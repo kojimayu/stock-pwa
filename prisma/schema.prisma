@@ -94,6 +94,8 @@ model InventoryCountItem {
   expectedStock Int
   actualStock   Int
   adjustment    Int
+  checkedBy     String?        // 確認者名（OKボタン押下時に記録）
+  checkedAt     DateTime?      // 確認日時
   updatedAt     DateTime       @updatedAt
   product       Product        @relation(fields: [productId], references: [id])
   inventory     InventoryCount @relation(fields: [inventoryId], references: [id])
@@ -264,6 +266,8 @@ model AirconInventoryCountItem {
   actualStock   Int                  // 実際にカウントした数
   adjustment    Int                  // actualStock - expectedStock
   reason        String?              // 差異理由（差異がある場合に入力）
+  checkedBy     String?              // 確認者名（OKボタン押下時に記録）
+  checkedAt     DateTime?            // 確認日時
   updatedAt     DateTime             @updatedAt
   product       AirconProduct        @relation(fields: [productId], references: [id])
   inventory     AirconInventoryCount @relation(fields: [inventoryId], references: [id])

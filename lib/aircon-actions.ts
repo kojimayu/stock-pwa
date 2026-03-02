@@ -670,7 +670,46 @@ export async function updateAirconInventoryItem(itemId: number, actualStock: num
     return { success: true };
 }
 
-// 棚卸確定（在庫を実数に更新）
+// エアコン棚卸アイテムの確認（OKボタン）
+export async function checkAirconInventoryItem(itemId: number, checkedBy: string) {
+    const item = await prisma.airconInventoryCountItem.findUnique({
+        where: { id: itemId },
+        include: { inventory: true }
+    });
+    if (!item) throw new Error("Item not found");
+    if (item.inventory.status !== 'IN_PROGRESS') {
+        throw new Error("棚卸は既に完了または中止されています");
+    }
+
+    await prisma.airconInventoryCountItem.update({
+        where: { id: itemId },
+        data: {
+            checkedBy,
+            checkedAt: new Date(),
+        }
+    });
+}
+
+// エアコン棚卸アイテムの確認取消
+export async function uncheckAirconInventoryItem(itemId: number) {
+    const item = await prisma.airconInventoryCountItem.findUnique({
+        where: { id: itemId },
+        include: { inventory: true }
+    });
+    if (!item) throw new Error("Item not found");
+    if (item.inventory.status !== 'IN_PROGRESS') {
+        throw new Error("棚卸は既に完了または中止されています");
+    }
+
+    await prisma.airconInventoryCountItem.update({
+        where: { id: itemId },
+        data: {
+            checkedBy: null,
+            checkedAt: null,
+        }
+    });
+}
+
 export async function completeAirconInventory(id: number, confirmedBy: string) {
     const inventory = await prisma.airconInventoryCount.findUnique({
         where: { id },

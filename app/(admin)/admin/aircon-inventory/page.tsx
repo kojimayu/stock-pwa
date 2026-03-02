@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, Package, ClipboardCheck, X, History, Truck, Building2, User, Save, WifiOff, Minus, Plus } from "lucide-react";
+import { AlertTriangle, Package, ClipboardCheck, X, History, Truck, Building2, User, Save, WifiOff, Minus, Plus, CircleCheck, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import {
@@ -24,7 +24,11 @@ import {
     cancelAirconInventory,
     getAirconInventoryHistory,
     updateAirconProductSuffix,
+    checkAirconInventoryItem,
+    uncheckAirconInventoryItem,
 } from "@/lib/aircon-actions";
+import { format } from "date-fns";
+import { ja } from "date-fns/locale";
 import {
     Popover,
     PopoverContent,
@@ -45,8 +49,6 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
-import { format } from "date-fns";
-import { ja } from "date-fns/locale";
 
 type VendorStockBreakdown = {
     id: number;
@@ -80,6 +82,8 @@ type InventoryItem = {
     actualStock: number;
     adjustment: number;
     reason: string | null;
+    checkedBy: string | null;
+    checkedAt: string | null;
     product: {
         id: number;
         code: string;
@@ -124,10 +128,14 @@ export default function AirconInventoryPage() {
     const [actualStocks, setActualStocks] = useState<Record<number, number>>({});
     const [reasons, setReasons] = useState<Record<number, string>>({});
 
+    // 管理者名
+    const [adminName, setAdminName] = useState("管理者");
+
     // オフラインキュー
     const isOnline = useOnlineStatus();
     const [pendingUpdates, setPendingUpdates] = useState<PendingUpdate[]>([]);
     const retryingRef = useRef(false);
+    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // localStorageからpendingUpdatesを復元
     useEffect(() => {
@@ -182,9 +190,34 @@ export default function AirconInventoryPage() {
         retryingRef.current = false;
     }, [pendingUpdates]);
 
+    // 管理者名をlocalStorageから取得
+    useEffect(() => {
+        const name = localStorage.getItem('adminName');
+        if (name) setAdminName(name);
+        else {
+            const email = localStorage.getItem('adminEmail');
+            if (email) setAdminName(email);
+        }
+    }, []);
+
     useEffect(() => {
         fetchData();
     }, []);
+
+    // 5秒ポーリング（棚卸進行中のみ）
+    useEffect(() => {
+        if (activeInventory?.status === 'IN_PROGRESS') {
+            pollingRef.current = setInterval(() => {
+                fetchData();
+            }, 5000);
+        }
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+        };
+    }, [activeInventory?.status]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -285,18 +318,62 @@ export default function AirconInventoryPage() {
         }
     };
 
+    // OKチェック
+    const handleCheck = async (itemId: number) => {
+        if (!activeInventory) return;
+        // Optimistic update
+        setActiveInventory({
+            ...activeInventory,
+            items: activeInventory.items.map(item =>
+                item.id === itemId ? { ...item, checkedBy: adminName, checkedAt: new Date().toISOString() } : item
+            ),
+        });
+        try {
+            await checkAirconInventoryItem(itemId, adminName);
+        } catch (error) {
+            console.error(error);
+            toast.error("チェックに失敗しました");
+            fetchData();
+        }
+    };
+
+    const handleUncheck = async (itemId: number) => {
+        if (!activeInventory) return;
+        setActiveInventory({
+            ...activeInventory,
+            items: activeInventory.items.map(item =>
+                item.id === itemId ? { ...item, checkedBy: null, checkedAt: null } : item
+            ),
+        });
+        try {
+            await uncheckAirconInventoryItem(itemId);
+        } catch (error) {
+            console.error(error);
+            toast.error("チェック解除に失敗しました");
+            fetchData();
+        }
+    };
+
+    // 棚卸進捗
+    const inventoryProgress = useMemo(() => {
+        if (!activeInventory?.items) return { checked: 0, total: 0 };
+        const total = activeInventory.items.length;
+        const checked = activeInventory.items.filter(item => item.checkedBy).length;
+        return { checked, total };
+    }, [activeInventory]);
+    const allItemsChecked = inventoryProgress.checked === inventoryProgress.total && inventoryProgress.total > 0;
+
     // 棚卸確定
     const handleComplete = async () => {
         if (!activeInventory) return;
-        if (!confirmedBy.trim()) {
-            toast.error("確認者名を入力してください");
+        if (!allItemsChecked) {
+            toast.error(`未確認の商品が ${inventoryProgress.total - inventoryProgress.checked} 件あります。全てOKしてから確定してください。`);
             return;
         }
-        const result = await completeAirconInventory(activeInventory.id, confirmedBy.trim());
+        const result = await completeAirconInventory(activeInventory.id, adminName);
         if (result.success) {
             toast.success("棚卸を確定しました。在庫が更新されました。");
             setConfirmDialogOpen(false);
-            setConfirmedBy("");
             fetchData();
         } else {
             toast.error(result.message || "確定に失敗しました");
@@ -437,10 +514,24 @@ export default function AirconInventoryPage() {
                                 <Button
                                     size="sm"
                                     onClick={() => setConfirmDialogOpen(true)}
-                                    className="bg-blue-600 hover:bg-blue-700"
+                                    className={allItemsChecked ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-300 cursor-not-allowed"}
+                                    disabled={!allItemsChecked}
                                 >
-                                    <ClipboardCheck className="h-4 w-4 mr-1" /> 確定
+                                    <ClipboardCheck className="h-4 w-4 mr-1" /> 確定 {!allItemsChecked && `(残${inventoryProgress.total - inventoryProgress.checked}件)`}
                                 </Button>
+                            </div>
+                        </div>
+                        {/* 進捗バー */}
+                        <div className="mt-3">
+                            <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                <span>確認OK</span>
+                                <span className={allItemsChecked ? "text-green-600 font-bold" : ""}>{inventoryProgress.checked} / {inventoryProgress.total} 件</span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2">
+                                <div
+                                    className={`h-2 rounded-full transition-all ${allItemsChecked ? 'bg-green-500' : 'bg-blue-500'}`}
+                                    style={{ width: `${inventoryProgress.total > 0 ? (inventoryProgress.checked / inventoryProgress.total) * 100 : 0}%` }}
+                                />
                             </div>
                         </div>
                         {inventoryDiffs && inventoryDiffs.count > 0 && (
@@ -536,6 +627,7 @@ export default function AirconInventoryPage() {
                                             <TableHead className="text-center bg-green-50/50">実数</TableHead>
                                             <TableHead className="text-center bg-yellow-50/50">差異</TableHead>
                                             <TableHead className="bg-amber-50/50">差異理由</TableHead>
+                                            <TableHead className="text-center bg-green-50/50 w-20">OK</TableHead>
                                         </>
                                     )}
                                 </TableRow>
@@ -763,6 +855,21 @@ export default function AirconInventoryPage() {
                                                             />
                                                         )}
                                                     </TableCell>
+                                                    <TableCell className="text-center bg-green-50/30">
+                                                        <button
+                                                            onClick={() => invItem.checkedBy ? handleUncheck(invItem.id) : handleCheck(invItem.id)}
+                                                            className={`flex items-center gap-1 px-2 py-1.5 rounded-lg font-bold text-xs transition-all mx-auto ${invItem.checkedBy
+                                                                ? 'bg-green-500 text-white hover:bg-green-600 shadow-sm'
+                                                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200'
+                                                                }`}
+                                                        >
+                                                            {invItem.checkedBy ? <CircleCheck className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                                                            OK
+                                                        </button>
+                                                        {invItem.checkedBy && (
+                                                            <div className="text-[10px] text-green-600 mt-0.5">{invItem.checkedBy}</div>
+                                                        )}
+                                                    </TableCell>
                                                 </>
                                             )}
                                         </TableRow>
@@ -877,6 +984,24 @@ export default function AirconInventoryPage() {
                                                     className="text-sm h-8"
                                                 />
                                             )}
+                                            {/* OKボタン（モバイル） */}
+                                            <div className="flex items-center justify-between mt-2 pt-2 border-t">
+                                                <button
+                                                    onClick={() => invItem.checkedBy ? handleUncheck(invItem.id) : handleCheck(invItem.id)}
+                                                    className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-bold text-sm transition-all ${invItem.checkedBy
+                                                        ? 'bg-green-500 text-white hover:bg-green-600 shadow-sm'
+                                                        : 'bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200'
+                                                        }`}
+                                                >
+                                                    {invItem.checkedBy ? <CircleCheck className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
+                                                    OK
+                                                </button>
+                                                {invItem.checkedBy && (
+                                                    <span className="text-xs text-green-600">
+                                                        ✅ {invItem.checkedBy} ({format(new Date(invItem.checkedAt!), "HH:mm", { locale: ja })})
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
                                 </CardContent>
@@ -1046,17 +1171,11 @@ export default function AirconInventoryPage() {
                                 );
                             })()}
 
-                            {/* 確認者入力 */}
+                            {/* 確認者表示 */}
                             <div className="space-y-2">
                                 <label className="text-sm font-medium flex items-center gap-1">
-                                    <User className="h-4 w-4" /> 確認者
+                                    <User className="h-4 w-4" /> 確認者: {adminName}
                                 </label>
-                                <Input
-                                    placeholder="確認者名を入力"
-                                    value={confirmedBy}
-                                    onChange={(e) => setConfirmedBy(e.target.value)}
-                                    autoFocus
-                                />
                             </div>
                         </div>
                     )}
@@ -1068,7 +1187,7 @@ export default function AirconInventoryPage() {
                         <Button
                             onClick={handleComplete}
                             className="bg-blue-600 hover:bg-blue-700"
-                            disabled={!confirmedBy.trim() || (activeInventory?.items.some((item) => {
+                            disabled={!allItemsChecked || (activeInventory?.items.some((item) => {
                                 const actual = actualStocks[item.id] ?? item.actualStock;
                                 const adj = actual - item.expectedStock;
                                 return adj !== 0 && !(reasons[item.id]?.trim());

@@ -1165,6 +1165,15 @@ export async function adjustStock(productId: number, type: string, quantity: num
             },
         });
     });
+
+    // 管理画面の操作ログにも記録
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    const label = type === 'OUT' ? '出庫' : type === 'IN' ? '入庫' : type;
+    await logOperation(
+        "STOCK_ADJUST",
+        `${product?.name || `商品#${productId}`}`,
+        `${label} ${quantity}個 理由: ${reason}`
+    );
     revalidatePath('/admin/products');
 }
 
@@ -1948,6 +1957,46 @@ export async function updateInventoryItem(itemId: number, actualStock: number) {
     });
 
     // No log here, only on finalize
+}
+
+// 棚卸アイテムの確認（OKボタン）
+export async function checkInventoryItem(itemId: number, checkedBy: string) {
+    const item = await prisma.inventoryCountItem.findUnique({
+        where: { id: itemId },
+        include: { inventory: true }
+    });
+    if (!item) throw new Error("Item not found");
+    if (item.inventory.status !== 'IN_PROGRESS') {
+        throw new Error("棚卸は既に完了または中止されています");
+    }
+
+    await prisma.inventoryCountItem.update({
+        where: { id: itemId },
+        data: {
+            checkedBy,
+            checkedAt: new Date(),
+        }
+    });
+}
+
+// 棚卸アイテムの確認取消
+export async function uncheckInventoryItem(itemId: number) {
+    const item = await prisma.inventoryCountItem.findUnique({
+        where: { id: itemId },
+        include: { inventory: true }
+    });
+    if (!item) throw new Error("Item not found");
+    if (item.inventory.status !== 'IN_PROGRESS') {
+        throw new Error("棚卸は既に完了または中止されています");
+    }
+
+    await prisma.inventoryCountItem.update({
+        where: { id: itemId },
+        data: {
+            checkedBy: null,
+            checkedAt: null,
+        }
+    });
 }
 
 // Vendor Aircon Stock (Dashboard)

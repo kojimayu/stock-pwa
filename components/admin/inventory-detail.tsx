@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { ArrowLeft, CheckCircle, XCircle, Filter, Search } from "lucide-react";
-import { getInventoryCount, updateInventoryItem, finalizeInventory, cancelInventory } from "@/lib/actions";
+import { ArrowLeft, CheckCircle, XCircle, Search, CircleCheck, Circle } from "lucide-react";
+import { getInventoryCount, updateInventoryItem, finalizeInventory, cancelInventory, checkInventoryItem, uncheckInventoryItem } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, normalizeForSearch } from "@/lib/utils";
 
 interface InventoryDetailProps {
@@ -23,23 +22,49 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
     const [saving, setSaving] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("すべて");
     const [searchQuery, setSearchQuery] = useState("");
+    const [adminName, setAdminName] = useState("管理者");
     const router = useRouter();
+    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // 管理者名をlocalStorageから取得
     useEffect(() => {
-        loadData();
-    }, [id]);
+        const name = localStorage.getItem('adminName');
+        if (name) setAdminName(name);
+        else {
+            const email = localStorage.getItem('adminEmail');
+            if (email) setAdminName(email);
+        }
+    }, []);
 
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             const data = await getInventoryCount(id);
             setInventory(data);
         } catch (error) {
             console.error(error);
-            toast.error("データの読み込みに失敗しました");
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
+
+    // 5秒ポーリング（棚卸進行中のみ）
+    useEffect(() => {
+        if (inventory?.status === 'IN_PROGRESS') {
+            pollingRef.current = setInterval(() => {
+                loadData();
+            }, 5000);
+        }
+        return () => {
+            if (pollingRef.current) {
+                clearInterval(pollingRef.current);
+                pollingRef.current = null;
+            }
+        };
+    }, [inventory?.status, loadData]);
 
     // カテゴリー一覧を取得
     const categories = useMemo(() => {
@@ -71,15 +96,15 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
         return items;
     }, [inventory, selectedCategory, searchQuery]);
 
-    // 進捗計算
+    // 進捗計算（確認OK済み件数）
     const progress = useMemo(() => {
-        if (!inventory?.items) return { counted: 0, total: 0 };
+        if (!inventory?.items) return { checked: 0, total: 0 };
         const total = inventory.items.length;
-        // actualStock が expectedStock と異なる、または明示的に入力された場合をカウント済みとみなす
-        // シンプルに: actualStock !== null でカウント（初期値が expectedStock なので差異があるものをカウント）
-        const counted = inventory.items.filter((item: any) => item.actualStock !== item.expectedStock).length;
-        return { counted, total };
+        const checked = inventory.items.filter((item: any) => item.checkedBy).length;
+        return { checked, total };
     }, [inventory]);
+
+    const allChecked = progress.checked === progress.total && progress.total > 0;
 
     const handleStockChange = async (itemId: number, newValue: string) => {
         // 空文字（クリア）を許容
@@ -92,42 +117,77 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
             }));
             return;
         }
-
-        const val = parseInt(newValue);
-        if (isNaN(val) || val < 0) return;
+        const num = parseInt(newValue, 10);
+        if (isNaN(num) || num < 0) return;
 
         // Optimistic update
         setInventory((prev: any) => ({
             ...prev,
             items: prev.items.map((item: any) =>
-                item.id === itemId ? { ...item, actualStock: val, adjustment: val - item.expectedStock } : item
+                item.id === itemId ? { ...item, actualStock: num, adjustment: num - item.expectedStock } : item
             )
         }));
 
         try {
-            await updateInventoryItem(itemId, val);
+            await updateInventoryItem(itemId, num);
         } catch (error) {
-            console.error("Failed to save", error);
-            toast.error("保存に失敗しました");
+            console.error(error);
+            toast.error("更新に失敗しました");
+            loadData();
+        }
+    };
+
+    const handleCheck = async (itemId: number) => {
+        // Optimistic update
+        setInventory((prev: any) => ({
+            ...prev,
+            items: prev.items.map((item: any) =>
+                item.id === itemId ? { ...item, checkedBy: adminName, checkedAt: new Date().toISOString() } : item
+            )
+        }));
+
+        try {
+            await checkInventoryItem(itemId, adminName);
+        } catch (error) {
+            console.error(error);
+            toast.error("チェックに失敗しました");
+            loadData();
+        }
+    };
+
+    const handleUncheck = async (itemId: number) => {
+        // Optimistic update
+        setInventory((prev: any) => ({
+            ...prev,
+            items: prev.items.map((item: any) =>
+                item.id === itemId ? { ...item, checkedBy: null, checkedAt: null } : item
+            )
+        }));
+
+        try {
+            await uncheckInventoryItem(itemId);
+        } catch (error) {
+            console.error(error);
+            toast.error("チェック解除に失敗しました");
+            loadData();
         }
     };
 
     const handleFinalize = async () => {
-        if (!confirm("棚卸を確定しますか？\n差異分が在庫に反映されます。この操作は取り消せません。")) return;
+        if (!allChecked) {
+            toast.error(`未確認の商品が ${progress.total - progress.checked} 件あります。全てOKしてから確定してください。`);
+            return;
+        }
+        if (!confirm("棚卸を確定しますか？\n差異のある商品の在庫が更新されます。")) return;
 
         setSaving(true);
         try {
             const result = await finalizeInventory(id);
             if (result.success) {
-                if (result.code === 'ALREADY_COMPLETED') {
-                    toast.info(result.message);
-                } else {
-                    toast.success("棚卸を確定しました");
-                }
-                router.refresh();
+                toast.success("棚卸を確定しました");
                 router.push('/admin/inventory');
             } else {
-                toast.error(result.message || "確定処理に失敗しました");
+                toast.error(result.message || "確定に失敗しました");
                 setSaving(false);
             }
         } catch (error) {
@@ -191,22 +251,25 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                 {!isCompleted && !isCancelled && (
                     <div className="mt-2">
                         <div className="flex justify-between text-xs text-slate-300 mb-1">
-                            <span>進捗</span>
-                            <span>{progress.counted} / {progress.total} 件</span>
+                            <span>確認OK</span>
+                            <span className={allChecked ? "text-green-400 font-bold" : ""}>{progress.checked} / {progress.total} 件</span>
                         </div>
                         <div className="w-full bg-slate-700 rounded-full h-2">
                             <div
-                                className="bg-green-500 h-2 rounded-full transition-all"
-                                style={{ width: `${progress.total > 0 ? (progress.counted / progress.total) * 100 : 0}%` }}
+                                className={cn(
+                                    "h-2 rounded-full transition-all",
+                                    allChecked ? "bg-green-500" : "bg-blue-500"
+                                )}
+                                style={{ width: `${progress.total > 0 ? (progress.checked / progress.total) * 100 : 0}%` }}
                             />
                         </div>
                     </div>
                 )}
             </header>
 
-            {/* Category Filter - Sticky */}
-            <div className="sticky top-[76px] z-30 bg-white border-b shadow-sm">
-                <div className="flex overflow-x-auto py-2 px-2 gap-2 no-scrollbar">
+            {/* Category & Filter Bar - Sticky */}
+            <div className="sticky top-[90px] z-30 bg-white border-b overflow-x-auto">
+                <div className="flex gap-1 p-2 px-4">
                     <button
                         onClick={() => setSelectedCategory("すべて")}
                         className={cn(
@@ -220,6 +283,7 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                     </button>
                     {categories.map((cat) => {
                         const count = inventory.items.filter((i: any) => i.product.category === cat).length;
+                        const checkedCount = inventory.items.filter((i: any) => i.product.category === cat && i.checkedBy).length;
                         return (
                             <button
                                 key={cat}
@@ -231,7 +295,7 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                                 )}
                             >
-                                {cat} ({count})
+                                {cat} ({checkedCount}/{count})
                             </button>
                         );
                     })}
@@ -254,73 +318,102 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
 
             {/* Item List - Card Based */}
             <div className="flex-1 pb-24">
-                {filteredItems.map((item: any) => (
-                    <div
-                        key={item.id}
-                        className={cn(
-                            "bg-white border-b p-4",
-                            item.adjustment !== 0 && "bg-yellow-50"
-                        )}
-                    >
-                        {/* Product Info */}
-                        <div className="flex items-start justify-between mb-2">
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                                        {item.product.category}
-                                    </span>
-                                    <span className="text-xs text-slate-400 font-mono">{item.product.code}</span>
+                {filteredItems.map((item: any) => {
+                    const isChecked = !!item.checkedBy;
+                    return (
+                        <div
+                            key={item.id}
+                            className={cn(
+                                "bg-white border-b p-4",
+                                isChecked ? "bg-green-50" : item.adjustment !== 0 ? "bg-yellow-50" : ""
+                            )}
+                        >
+                            {/* Product Info */}
+                            <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                            {item.product.category}
+                                        </span>
+                                        <span className="text-xs text-slate-400 font-mono">{item.product.code}</span>
+                                    </div>
+                                    <div className="font-bold text-slate-900 leading-snug line-clamp-2">
+                                        {item.product.name}
+                                    </div>
                                 </div>
-                                <div className="font-bold text-slate-900 leading-snug line-clamp-2">
-                                    {item.product.name}
+                                {/* Adjustment Badge */}
+                                <div className={cn(
+                                    "text-sm font-bold px-2 py-1 rounded min-w-[50px] text-center",
+                                    item.adjustment < 0 ? "bg-red-100 text-red-600" :
+                                        item.adjustment > 0 ? "bg-blue-100 text-blue-600" :
+                                            "bg-gray-100 text-gray-400"
+                                )}>
+                                    {item.adjustment > 0 ? "+" : ""}{item.adjustment}
                                 </div>
                             </div>
-                            {/* Adjustment Badge */}
-                            <div className={cn(
-                                "text-sm font-bold px-2 py-1 rounded min-w-[50px] text-center",
-                                item.adjustment < 0 ? "bg-red-100 text-red-600" :
-                                    item.adjustment > 0 ? "bg-blue-100 text-blue-600" :
-                                        "bg-gray-100 text-gray-400"
-                            )}>
-                                {item.adjustment > 0 ? "+" : ""}{item.adjustment}
-                            </div>
-                        </div>
 
-                        {/* Stock Input Row */}
-                        <div className="flex items-center gap-4 mt-3">
-                            <div className="text-sm text-slate-500">
-                                帳簿: <span className="font-bold text-slate-700">{item.expectedStock}</span>
-                                {item.product.unit && <span className="text-xs ml-1">{item.product.unit}</span>}
-                            </div>
-                            <div className="flex-1 flex items-center gap-2">
-                                <span className="text-sm text-slate-500">実在庫:</span>
-                                {isCompleted || isCancelled ? (
-                                    <span className="font-bold text-lg">{item.actualStock}</span>
-                                ) : (
-                                    <Input
-                                        type="number"
-                                        inputMode="numeric"
-                                        className="w-24 text-center text-lg font-bold h-12"
-                                        value={item.actualStock}
-                                        onChange={(e) => handleStockChange(item.id, e.target.value)}
-                                        onFocus={(e) => {
-                                            e.target.select();
-                                            // 少し遅延させてスクロール（キーボード表示待ち）
-                                            setTimeout(() => {
-                                                e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                            }, 300);
-                                        }}
-                                        onBlur={() => {
-                                            if (item.actualStock === "") {
-                                                handleStockChange(item.id, "0");
-                                            }
-                                        }}
-                                    />
+                            {/* Stock Input Row + OK Button */}
+                            <div className="flex items-center gap-3 mt-3">
+                                <div className="text-sm text-slate-500">
+                                    帳簿: <span className="font-bold text-slate-700">{item.expectedStock}</span>
+                                    {item.product.unit && <span className="text-xs ml-1">{item.product.unit}</span>}
+                                </div>
+                                <div className="flex-1 flex items-center gap-2">
+                                    <span className="text-sm text-slate-500">実在庫:</span>
+                                    {isCompleted || isCancelled ? (
+                                        <span className="font-bold text-lg">{item.actualStock}</span>
+                                    ) : (
+                                        <Input
+                                            type="number"
+                                            inputMode="numeric"
+                                            className="w-24 text-center text-lg font-bold h-12"
+                                            value={item.actualStock}
+                                            onChange={(e) => handleStockChange(item.id, e.target.value)}
+                                            onFocus={(e) => {
+                                                e.target.select();
+                                                setTimeout(() => {
+                                                    e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                }, 300);
+                                            }}
+                                            onBlur={() => {
+                                                if (item.actualStock === "") {
+                                                    handleStockChange(item.id, "0");
+                                                }
+                                            }}
+                                        />
+                                    )}
+                                </div>
+
+                                {/* OK Button */}
+                                {!isCompleted && !isCancelled && (
+                                    <button
+                                        onClick={() => isChecked ? handleUncheck(item.id) : handleCheck(item.id)}
+                                        className={cn(
+                                            "flex items-center gap-1 px-3 py-2 rounded-lg font-bold text-sm transition-all",
+                                            isChecked
+                                                ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
+                                                : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
+                                        )}
+                                    >
+                                        {isChecked ? (
+                                            <CircleCheck className="h-5 w-5" />
+                                        ) : (
+                                            <Circle className="h-5 w-5" />
+                                        )}
+                                        OK
+                                    </button>
                                 )}
                             </div>
+
+                            {/* Checked Info */}
+                            {isChecked && (
+                                <div className="mt-2 text-xs text-green-600">
+                                    ✅ {item.checkedBy} が確認 ({format(new Date(item.checkedAt), "HH:mm", { locale: ja })})
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
 
                 {filteredItems.length === 0 && (
                     <div className="text-center py-12 text-slate-500">
@@ -343,12 +436,15 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                             中止
                         </Button>
                         <Button
-                            className="flex-1 h-12 bg-green-600 hover:bg-green-700 text-white font-bold"
+                            className={cn(
+                                "flex-1 h-12 font-bold text-white",
+                                allChecked ? "bg-green-600 hover:bg-green-700" : "bg-slate-300 cursor-not-allowed"
+                            )}
                             onClick={handleFinalize}
-                            disabled={saving}
+                            disabled={saving || !allChecked}
                         >
                             <CheckCircle className="mr-2 h-5 w-5" />
-                            確定
+                            確定 {!allChecked && `(残${progress.total - progress.checked}件)`}
                         </Button>
                     </div>
                 </div>

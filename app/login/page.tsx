@@ -31,6 +31,17 @@ export default function LoginPage() {
             // セッションID生成・保存
             const sid = 'A-' + Math.random().toString(36).substring(2, 6);
             localStorage.setItem('adminSessionId', sid);
+            localStorage.setItem('adminEmail', email);
+            // 管理者名を取得して保存
+            try {
+                const res = await fetch(`/api/admin-name?email=${encodeURIComponent(email)}`);
+                if (res.ok) {
+                    const { name } = await res.json();
+                    localStorage.setItem('adminName', name);
+                }
+            } catch (e) {
+                console.error("管理者名取得エラー:", e);
+            }
             await logAdminLogin(email, sid).catch(console.error);
             window.location.href = "/admin";
         }
