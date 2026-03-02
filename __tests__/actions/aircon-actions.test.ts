@@ -134,6 +134,64 @@ describe('updateAirconMinStock — 最低在庫数更新', () => {
     });
 });
 
+describe('updateAirconProductPrice — 発注単価更新', () => {
+    it('✅ 正常: 発注単価を更新できる', async () => {
+        const { updateAirconProductPrice } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        const result = await updateAirconProductPrice(product.id, { orderPrice: 55000 });
+        expect(result.success).toBe(true);
+
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.orderPrice).toBe(55000);
+    });
+
+    it('✅ 正常: 0円に設定できる', async () => {
+        const { updateAirconProductPrice } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        await updateAirconProductPrice(product.id, { orderPrice: 50000 });
+        await updateAirconProductPrice(product.id, { orderPrice: 0 });
+
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.orderPrice).toBe(0);
+    });
+});
+
+describe('updateAirconProductSuffix — サフィックス更新', () => {
+    it('✅ 正常: サフィックスを更新できる', async () => {
+        const { updateAirconProductSuffix } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        const result = await updateAirconProductSuffix(product.id, '25SWSET');
+        expect(result.success).toBe(true);
+
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.suffix).toBe('25SWSET');
+    });
+
+    it('✅ 正常: サフィックスは大文字に自動変換される', async () => {
+        const { updateAirconProductSuffix } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        await updateAirconProductSuffix(product.id, 'abc');
+
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.suffix).toBe('ABC');
+    });
+
+    it('✅ 正常: 空文字に設定できる', async () => {
+        const { updateAirconProductSuffix } = await import('@/lib/aircon-actions');
+        const product = await createTestAirconProduct({ stock: 5 });
+
+        await updateAirconProductSuffix(product.id, '25SWS');
+        await updateAirconProductSuffix(product.id, '');
+
+        const updated = await prisma.airconProduct.findUnique({ where: { id: product.id } });
+        expect(updated?.suffix).toBe('');
+    });
+});
+
 describe('updateAirconOrderDeliveryDate — 納期回答日更新', () => {
     it('✅ 正常: 納期回答日を設定できる', async () => {
         const { updateAirconOrderDeliveryDate, createAirconOrder } = await import('@/lib/aircon-actions');

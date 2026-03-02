@@ -46,6 +46,7 @@ export async function updateAirconProductPrice(
     productId: number,
     prices: { orderPrice?: number; priceA?: number; priceB?: number; priceC?: number }
 ) {
+    const product = await prisma.airconProduct.findUnique({ where: { id: productId } });
     await prisma.airconProduct.update({
         where: { id: productId },
         data: {
@@ -57,7 +58,7 @@ export async function updateAirconProductPrice(
     });
     revalidatePath("/admin/aircon-orders/settings");
     revalidatePath("/admin/aircon-inventory");
-    logOperation("AIRCON_PRICE_UPDATE", `AirconProduct ID:${productId}`, `単価更新: ${JSON.stringify(prices)}`);
+    logOperation("AIRCON_PRICE_UPDATE", `${product?.code || productId}`, `単価更新: ${JSON.stringify(prices)}`);
     return { success: true };
 }
 
@@ -66,6 +67,8 @@ export async function updateAirconMinStock(
     productId: number,
     minStock: number
 ) {
+    const product = await prisma.airconProduct.findUnique({ where: { id: productId } });
+    const oldMin = product?.minStock ?? 0;
     await prisma.airconProduct.update({
         where: { id: productId },
         data: { minStock: Math.max(0, minStock) },
@@ -73,7 +76,7 @@ export async function updateAirconMinStock(
     revalidatePath("/admin/aircon-orders/settings");
     revalidatePath("/admin/aircon-inventory");
     revalidatePath("/admin");
-    logOperation("AIRCON_MIN_STOCK_UPDATE", `AirconProduct ID:${productId}`, `最低在庫: ${minStock}`);
+    logOperation("AIRCON_MIN_STOCK_UPDATE", `${product?.code || productId}`, `最低在庫: ${oldMin} → ${minStock}`);
     return { success: true };
 }
 
@@ -208,13 +211,16 @@ export async function updateAirconStock(productId: number, adjustment: number) {
 
 // エアコン商品サフィックス更新
 export async function updateAirconProductSuffix(productId: number, suffix: string) {
+    const product = await prisma.airconProduct.findUnique({ where: { id: productId } });
+    const oldSuffix = product?.suffix || "(なし)";
     await prisma.airconProduct.update({
         where: { id: productId },
         data: { suffix: suffix.toUpperCase() }
     });
     revalidatePath("/admin/aircon-inventory");
     revalidatePath("/admin/aircon-orders");
-    logOperation("AIRCON_SUFFIX_UPDATE", `AirconProduct ID:${productId}`, `サフィックス: ${suffix.toUpperCase()}`);
+    revalidatePath("/admin/aircon-orders/settings");
+    logOperation("AIRCON_SUFFIX_UPDATE", `${product?.code || productId}`, `サフィックス: ${oldSuffix} → ${suffix.toUpperCase()}`);
     return { success: true };
 }
 

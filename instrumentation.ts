@@ -1,4 +1,10 @@
+const globalForInstrumentation = globalThis as typeof globalThis & { __dbInfoShown?: boolean };
+
 export async function register() {
+    // 2回目以降のワーカーでは表示しない
+    if (globalForInstrumentation.__dbInfoShown) return;
+    globalForInstrumentation.__dbInfoShown = true;
+
     // サーバー起動時にDB接続先を表示（安全確認用）
     const dbUrl = process.env.DATABASE_URL || '(未設定)';
     const isTestDb = dbUrl.includes('test-vitest') || dbUrl.includes('test.db');

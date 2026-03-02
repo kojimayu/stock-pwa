@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         // 🔒 単価チェック: 発注単価が0の商品がある場合はメール送信をブロック
         const itemsWithoutPrice = order.items.filter(item => !item.product.orderPrice || item.product.orderPrice <= 0);
         if (itemsWithoutPrice.length > 0) {
-            const names = itemsWithoutPrice.map(item => `${item.product.code}(${item.product.name})`).join(", ");
+            const names = itemsWithoutPrice.map(item => `${item.product.code}${item.product.suffix || ''}(${item.product.name})`).join(", ");
             return NextResponse.json({
                 error: `発注単価が未設定の商品があります: ${names}。エアコン在庫管理の発注設定で単価を入力してください。`,
             }, { status: 400 });
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         // メール本文（HTML）
         const itemRows = order.items.map(item =>
             `<tr>
-                <td style="padding: 6px; border: 1px solid #ddd;">${item.product.code}</td>
+                <td style="padding: 6px; border: 1px solid #ddd;">${item.product.code}${item.product.suffix || ''}</td>
                 <td style="padding: 6px; border: 1px solid #ddd;">${item.product.name}</td>
                 <td style="padding: 6px; border: 1px solid #ddd;">${item.product.capacity}</td>
                 <td style="padding: 6px; border: 1px solid #ddd; text-align: center;">${item.quantity}</td>
