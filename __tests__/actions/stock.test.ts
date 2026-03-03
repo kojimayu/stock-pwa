@@ -117,3 +117,85 @@ describe('エアコン在庫（DBレベル確認）', () => {
         expect(found!.stock).toBe(0);
     });
 });
+
+const { upsertProduct } = await import('@/lib/actions');
+
+describe('価格セーフガード — upsertProduct', () => {
+
+    const baseProduct = {
+        code: `SG-${Date.now()}`,
+        name: 'セーフガードテスト商品',
+        category: '架台・ブロック',
+        priceA: 100,
+        priceB: 80,
+        priceC: 0,
+        minStock: 0,
+        cost: 50,
+        priceMode: 'AUTO',
+    };
+
+    it('✅ AUTO: 売価A==売価Bの同額は許容される', async () => {
+        await expect(
+            upsertProduct({
+                ...baseProduct,
+                code: `SGA-${Date.now()}`,
+                cost: 4,
+                priceA: 5,
+                priceB: 5,
+                priceMode: 'AUTO',
+            })
+        ).resolves.not.toThrow();
+    });
+
+    it('❌ MANUAL: 売価A==売価Bの同額はエラー', async () => {
+        await expect(
+            upsertProduct({
+                ...baseProduct,
+                code: `SGM-${Date.now()}`,
+                cost: 4,
+                priceA: 5,
+                priceB: 5,
+                priceMode: 'MANUAL',
+            })
+        ).rejects.toThrow('以下');
+    });
+
+    it('❌ 売価A < 売価Bは常にエラー', async () => {
+        await expect(
+            upsertProduct({
+                ...baseProduct,
+                code: `SGAB-${Date.now()}`,
+                cost: 50,
+                priceA: 60,
+                priceB: 70,
+                priceMode: 'AUTO',
+            })
+        ).rejects.toThrow();
+    });
+
+    it('❌ 売価Aが仕入値以下はエラー', async () => {
+        await expect(
+            upsertProduct({
+                ...baseProduct,
+                code: `SGC-${Date.now()}`,
+                cost: 100,
+                priceA: 80,
+                priceB: 60,
+                priceMode: 'MANUAL',
+            })
+        ).rejects.toThrow('仕入値');
+    });
+
+    it('✅ 正常: cost < priceB < priceA の順序は保存成功', async () => {
+        await expect(
+            upsertProduct({
+                ...baseProduct,
+                code: `SGOK-${Date.now()}`,
+                cost: 50,
+                priceA: 100,
+                priceB: 80,
+                priceMode: 'MANUAL',
+            })
+        ).resolves.not.toThrow();
+    });
+});
