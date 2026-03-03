@@ -1,63 +1,33 @@
-# 棚卸の複数人同時作業対応
+# 在庫差異からの誤入力推測機能
 
-2人で棚卸する際、相手がどの項目を完了したか分からずダブりが発生する問題を解消。
-項目ごとに「✅ OK」ボタンを追加し、確認済み状態をリアルタイム同期する。
+## 概要
+在庫調整ダイアログで差異を入力すると、履歴から「この取引が原因では？」と推測候補をスコアリング付きで表示する機能。
 
-## User Review Required
+## 前提条件
+- ✅ バックアップ済み: `dev_20260303_101137.db`
+- ✅ **スキーマ変更不要**（既存データの読み取りのみ）
+- ✅ サーバー稼働中のまま実装可能（クライアントコンポーネントの追加のみ）
 
-> [!IMPORTANT]
-> **DBスキーマ変更あり**: `InventoryCountItem`と`AirconInventoryCountItem`に2カラム追加（`checkedBy`, `checkedAt`）。`prisma db push`で適用。既存データに影響なし（NULL許容）。
+## 変更対象ファイル
 
-> [!WARNING]
-> **リアルタイム同期**: Server-Sent Events (SSE) またはポーリングのどちらを採用するか。SSEは接続管理が複雑、ポーリング(5秒間隔)はシンプルで十分実用的。**ポーリング方式を推奨**。
+### 1. [NEW] `lib/discrepancy-detection.ts` — 推測ロジック（サーバーアクション）
+- `getDiscrepancyCandidates(productId, discrepancy)` 関数を新規作成
+- 対象商品の最近のTransactionを検索（過去30日）
+- スコアリング:
+  - **数量近似度** (40%): 差異量と取引量の近さ（完全一致=100点、±1=80点...）
+  - **同一カテゴリ** (20%): 同カテゴリの他商品で逆方向の差異がある取引
+  - **同一業者** (20%): 同じ業者の取引
+  - **時間的近さ** (20%): 直近の取引ほど高スコア
+- 上位5件を返却
 
-## Proposed Changes
+### 2. [MODIFY] `components/admin/stock-adjustment-dialog.tsx` — UI変更
+- 数量入力後に推測候補をリアルタイム表示
+- 各候補: 業者名、日時、商品名、数量、確信度バッジ
+- 候補クリック → 取引詳細へのリンク表示
 
-### DBスキーマ
+### 3. [MODIFY] `docs/MANUAL_ADMIN.md` — マニュアル更新
+### 4. [MODIFY] `docs/CHANGELOG.md` — 変更ログ更新
 
-#### [MODIFY] [schema.prisma](file:///f:/Antigravity/stock-pwa/prisma/schema.prisma)
-- `InventoryCountItem` に `checkedBy String?` と `checkedAt DateTime?` を追加
-- `AirconInventoryCountItem` に同様のフィールドを追加
-
----
-
-### サーバーアクション
-
-#### [MODIFY] [actions.ts](file:///f:/Antigravity/stock-pwa/lib/actions.ts)
-- `checkInventoryItem(itemId, checkedBy)` — OKボタン押下時に確認者と日時を記録
-- `uncheckInventoryItem(itemId)` — OK取消し
-- `getInventoryCount` のレスポンスに `checkedBy`/`checkedAt` を含める
-
-#### [MODIFY] [aircon-actions.ts](file:///f:/Antigravity/stock-pwa/lib/aircon-actions.ts)
-- エアコン棚卸にも同様の `checkAirconInventoryItem` / `uncheckAirconInventoryItem` を追加
-
----
-
-### UI（材料棚卸）
-
-#### [MODIFY] [inventory-detail.tsx](file:///f:/Antigravity/stock-pwa/components/admin/inventory-detail.tsx)
-- 各商品行に「✅ OK」ボタン追加（数量入力の右側）
-- 確認済み: 緑背景 + 確認者名 + タイムスタンプ表示
-- 未確認: 白/黄色背景のまま
-- 進捗バーを「確認OK済み件数 / 全件」に変更
-- **5秒ポーリング**でデータ再取得 → 他ユーザーのOK状態がリアルタイム反映
-
----
-
-### UI（エアコン棚卸）
-
-#### [MODIFY] [aircon-inventory/page.tsx](file:///f:/Antigravity/stock-pwa/app/(admin)/admin/aircon-inventory/page.tsx)
-- 材料と同様に「✅ OK」ボタン + 確認者表示 + ポーリング同期を追加
-
----
-
-## Verification Plan
-
-### Automated Tests
-- `npx vitest run` — 既存テスト通過確認
-- `npm run build` — ビルド成功確認
-
-### Manual Verification
-- 2つのブラウザタブを開き、同じ棚卸セッションを表示
-- 片方でOKボタン押下 → もう片方に5秒以内に反映されることを確認
-- 確定時に全件OKでなくても確定可能（OKは任意）
+## サーバー影響
+- **なし**: スキーマ変更なし、新規ファイル追加+ 既存コンポーネント修正のみ
+- ビルド後のサーバー再起動は必要だが、それまで既存機能に影響なし

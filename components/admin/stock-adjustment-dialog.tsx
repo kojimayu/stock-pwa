@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { adjustStock } from "@/lib/actions";
+import { getDiscrepancyCandidates, type DiscrepancyCandidate } from "@/lib/discrepancy-detection";
 import { toast } from "sonner";
 import {
     Select,
@@ -20,11 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-// Textarea if available, else Input
-
-// Using standard Input for Textarea as simplicity if component missing, but standard shadcn has Textarea.
-// I'll assume standard HTML textArea if shadcn Textarea is not installed, or check later.
-// For safety, I'll use standard Input for reason now.
+import { Search, AlertTriangle, CheckCircle, HelpCircle } from "lucide-react";
 
 interface StockAdjustmentDialogProps {
     open: boolean;
@@ -33,9 +30,61 @@ interface StockAdjustmentDialogProps {
     onSuccess: () => void;
 }
 
+const confidenceConfig = {
+    high: { icon: CheckCircle, color: "text-green-600", bg: "bg-green-50 border-green-200", label: "高" },
+    medium: { icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50 border-amber-200", label: "中" },
+    low: { icon: HelpCircle, color: "text-slate-500", bg: "bg-slate-50 border-slate-200", label: "低" },
+};
+
 export function StockAdjustmentDialog({ open, onOpenChange, product, onSuccess }: StockAdjustmentDialogProps) {
     const [loading, setLoading] = useState(false);
-    const [type, setType] = useState("RESTOCK"); // RESTOCK, CORRECTION, DISPOSAL, OTHER
+    const [type, setType] = useState("RESTOCK");
+    const [quantity, setQuantity] = useState(0);
+    const [candidates, setCandidates] = useState<DiscrepancyCandidate[]>([]);
+    const [searching, setSearching] = useState(false);
+
+    // 推測候補を取得（数量変更後500msのデバウンス）
+    const fetchCandidates = useCallback(async () => {
+        if (!product || quantity === 0) {
+            setCandidates([]);
+            return;
+        }
+
+        // 差異を計算（出庫=マイナス差異、入庫=プラス差異、訂正=そのまま）
+        let discrepancy = quantity;
+        if (type === "DISPOSAL" || type === "OUT") {
+            discrepancy = -Math.abs(quantity);
+        }
+
+        setSearching(true);
+        try {
+            const results = await getDiscrepancyCandidates(product.id, discrepancy);
+            setCandidates(results);
+        } catch (err) {
+            console.error("推測候補の取得に失敗:", err);
+            setCandidates([]);
+        } finally {
+            setSearching(false);
+        }
+    }, [product, quantity, type]);
+
+    useEffect(() => {
+        if (!product || quantity === 0) {
+            setCandidates([]);
+            return;
+        }
+        const timer = setTimeout(fetchCandidates, 500);
+        return () => clearTimeout(timer);
+    }, [quantity, type, fetchCandidates, product]);
+
+    // ダイアログが閉じたらリセット
+    useEffect(() => {
+        if (!open) {
+            setCandidates([]);
+            setQuantity(0);
+            setType("RESTOCK");
+        }
+    }, [open]);
 
     if (!product) return null;
 
@@ -48,22 +97,10 @@ export function StockAdjustmentDialog({ open, onOpenChange, product, onSuccess }
         const quantityInput = Number(formData.get("quantity"));
         const reason = formData.get("reason") as string;
 
-        // Logic: 
-        // If RESTOCK (入庫), quantity added (+).
-        // If DISPOSAL (廃棄/出庫), quantity subtracted (-).
-        // If CORRECTION (棚卸修正), user inputs difference? Or inputs absolute value?
-        // User interface usually prefers "How many to add/remove?"
-        // Let's adopt: User inputs positive number, we calculate sign based on Type.
-
         let finalQuantity = quantityInput;
         if (type === "DISPOSAL" || type === "OUT") {
             finalQuantity = -Math.abs(quantityInput);
         } else if (type === "CORRECTION") {
-            // Correction is tricky. Usually "New Total" is easier for Tanaoroshi.
-            // Let's keep it simple: "Adjustment Amount" (+/-) for now as per "Serious" but manual log.
-            // If user wants "New Total", we need to calculate difference.
-            // Let's stick to simple Add/Sub logic for now to avoid confusion, or allow negative input.
-            // Let's assume input is "Change Amount".
             finalQuantity = quantityInput;
         }
 
@@ -82,7 +119,7 @@ export function StockAdjustmentDialog({ open, onOpenChange, product, onSuccess }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[550px]">
                 <DialogHeader>
                     <DialogTitle>在庫調整: {product.name}</DialogTitle>
                     <DialogDescription>
@@ -119,9 +156,10 @@ export function StockAdjustmentDialog({ open, onOpenChange, product, onSuccess }
                                 defaultValue={0}
                                 className="col-span-3"
                                 required
+                                onChange={(e) => setQuantity(Number(e.target.value))}
                             />
                             <p className="col-start-2 col-span-3 text-xs text-slate-500">
-                                ※入庫は正の値、廃棄は負の値が適用されます(ロジック依存)。<br />
+                                ※入庫は正の値、廃棄は負の値が適用されます。<br />
                                 修正(±)の場合は増減値を入力してください(例: -5 で5個減)。
                             </p>
                         </div>
@@ -137,6 +175,58 @@ export function StockAdjustmentDialog({ open, onOpenChange, product, onSuccess }
                                 placeholder="例: 定期発注分, 破損のため"
                             />
                         </div>
+
+                        {/* 🔍 誤入力推測パネル */}
+                        {(candidates.length > 0 || searching) && (
+                            <div className="border rounded-lg p-3 bg-blue-50/50">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Search className="w-4 h-4 text-blue-600" />
+                                    <span className="text-sm font-medium text-blue-800">
+                                        🔍 原因候補の推測
+                                    </span>
+                                    {searching && (
+                                        <span className="text-xs text-blue-500 animate-pulse">検索中...</span>
+                                    )}
+                                </div>
+
+                                {candidates.length > 0 ? (
+                                    <div className="space-y-1.5">
+                                        {candidates.map((c, i) => {
+                                            const conf = confidenceConfig[c.confidence];
+                                            const Icon = conf.icon;
+                                            const dateStr = new Date(c.date).toLocaleDateString("ja-JP", {
+                                                month: "short",
+                                                day: "numeric",
+                                            });
+                                            return (
+                                                <div
+                                                    key={`${c.transactionId}-${i}`}
+                                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded border text-sm ${conf.bg}`}
+                                                >
+                                                    <Icon className={`w-3.5 h-3.5 shrink-0 ${conf.color}`} />
+                                                    <span className={`text-xs font-bold ${conf.color} min-w-[32px]`}>
+                                                        {c.score}%
+                                                    </span>
+                                                    <span className="text-slate-700 truncate">
+                                                        {dateStr} {c.vendorName}
+                                                        「{c.productCode || c.productName}」
+                                                        {c.quantity}個
+                                                    </span>
+                                                    <span className="ml-auto text-xs text-slate-500 shrink-0 hidden sm:inline">
+                                                        {c.reason}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            ※ 過去30日の取引から推測しています
+                                        </p>
+                                    </div>
+                                ) : searching ? null : (
+                                    <p className="text-xs text-slate-500">候補が見つかりませんでした</p>
+                                )}
+                            </div>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
