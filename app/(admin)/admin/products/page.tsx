@@ -166,6 +166,7 @@ async function getDiscrepancyCostSummary() {
     let plusCount = 0;
     let minusCount = 0;
     const topLosses: { code: string; name: string; amount: number }[] = [];
+    const details: { code: string; name: string; quantity: number; cost: number; amount: number; date: Date; reason: string }[] = [];
 
     for (const adj of adjustments) {
         // 入荷取消し等の操作的なCORRECTIONは除外（実際の損失ではない）
@@ -187,6 +188,16 @@ async function getDiscrepancyCostSummary() {
                 amount,
             });
         }
+
+        details.push({
+            code: adj.product?.code || '',
+            name: adj.product?.name || '不明',
+            quantity: adj.quantity,
+            cost,
+            amount: adj.quantity > 0 ? amount : -amount,
+            date: adj.createdAt,
+            reason: adj.reason || '',
+        });
     }
 
     topLosses.sort((a, b) => b.amount - a.amount);
@@ -199,6 +210,7 @@ async function getDiscrepancyCostSummary() {
         minusCount,
         net: plusTotal - minusTotal,
         topLosses: topLosses.slice(0, 3),
+        details: details.sort((a, b) => b.date.getTime() - a.date.getTime()),
     };
 }
 
@@ -316,6 +328,48 @@ export default async function ProductsPage() {
                         不足上位: {costSummary.topLosses.map(l =>
                             `${l.code || l.name}(¥${l.amount.toLocaleString()})`
                         ).join('、')}
+                    </div>
+                )}
+                {/* 内訳テーブル */}
+                {costSummary.details.length > 0 && (
+                    <div className="mt-3 border-t pt-3">
+                        <div className="text-xs font-semibold text-slate-700 mb-2">内訳 ({costSummary.details.length}件)</div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="border-b text-slate-500">
+                                        <th className="text-left py-1 pr-2">日付</th>
+                                        <th className="text-left py-1 pr-2">商品</th>
+                                        <th className="text-right py-1 pr-2">数量</th>
+                                        <th className="text-right py-1 pr-2">単価</th>
+                                        <th className="text-right py-1">金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {costSummary.details.map((d, i) => (
+                                        <tr key={i} className="border-b border-slate-100">
+                                            <td className="py-1 pr-2 text-slate-500 whitespace-nowrap">
+                                                {new Date(d.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
+                                            </td>
+                                            <td className="py-1 pr-2 font-medium text-slate-800">
+                                                {d.code || d.name}
+                                            </td>
+                                            <td className={`py-1 pr-2 text-right font-medium ${d.quantity > 0 ? 'text-green-700' : 'text-red-700'
+                                                }`}>
+                                                {d.quantity > 0 ? '+' : ''}{d.quantity}
+                                            </td>
+                                            <td className="py-1 pr-2 text-right text-slate-500">
+                                                ¥{d.cost.toLocaleString()}
+                                            </td>
+                                            <td className={`py-1 text-right font-bold ${d.amount >= 0 ? 'text-green-700' : 'text-red-700'
+                                                }`}>
+                                                {d.amount >= 0 ? '+' : ''}¥{d.amount.toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 )}
             </div>
