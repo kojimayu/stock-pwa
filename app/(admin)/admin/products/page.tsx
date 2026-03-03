@@ -1,7 +1,7 @@
 import { getProducts } from "@/lib/actions";
 import { ProductList } from "@/components/admin/product-list";
 import { prisma } from "@/lib/prisma";
-import { ArrowLeftRight, Search } from "lucide-react";
+import { ArrowLeftRight, Search, TrendingDown, TrendingUp, Calculator } from "lucide-react";
 
 /**
  * ペア検出方式: 不足(-)と過剰(+)の調整をペアにして「商品の取り違え」を検出
@@ -142,10 +142,67 @@ async function detectSwapPairs() {
     return pairs;
 }
 
+/**
+ * 在庫差異の金額サマリー（当月）
+ * 各調整の 数量 × 仕入値 で金額算出
+ */
+async function getDiscrepancyCostSummary() {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const adjustments = await prisma.inventoryLog.findMany({
+        where: {
+            createdAt: { gte: monthStart },
+            type: { in: ['CORRECTION', 'DISPOSAL', 'INVENTORY_ADJUSTMENT'] },
+            quantity: { not: 0 },
+        },
+        include: {
+            product: { select: { cost: true, name: true, code: true } },
+        },
+    });
+
+    let plusTotal = 0;   // 過剰在庫の金額
+    let minusTotal = 0;  // 不足(損失)の金額
+    let plusCount = 0;
+    let minusCount = 0;
+    const topLosses: { code: string; name: string; amount: number }[] = [];
+
+    for (const adj of adjustments) {
+        const cost = adj.product?.cost || 0;
+        const amount = Math.abs(adj.quantity) * cost;
+
+        if (adj.quantity > 0) {
+            plusTotal += amount;
+            plusCount++;
+        } else {
+            minusTotal += amount;
+            minusCount++;
+            topLosses.push({
+                code: adj.product?.code || '',
+                name: adj.product?.name || '不明',
+                amount,
+            });
+        }
+    }
+
+    topLosses.sort((a, b) => b.amount - a.amount);
+
+    return {
+        monthLabel: `${now.getFullYear()}年${now.getMonth() + 1}月`,
+        plusTotal,
+        plusCount,
+        minusTotal,
+        minusCount,
+        net: plusTotal - minusTotal,
+        topLosses: topLosses.slice(0, 3),
+    };
+}
+
 export default async function ProductsPage() {
-    const [products, swapPairs] = await Promise.all([
+    const [products, swapPairs, costSummary] = await Promise.all([
         getProducts(),
         detectSwapPairs(),
+        getDiscrepancyCostSummary(),
     ]);
 
     return (
@@ -212,6 +269,52 @@ export default async function ProductsPage() {
                     </p>
                 </div>
             )}
+
+            {/* 在庫差異金額サマリー */}
+            <div className="border rounded-lg p-4 bg-slate-50/50">
+                <div className="flex items-center gap-2 mb-3">
+                    <Calculator className="w-4 h-4 text-slate-600" />
+                    <span className="text-sm font-semibold text-slate-800">
+                        💰 在庫調整金額 ({costSummary.monthLabel})
+                    </span>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                    <div className="px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-center">
+                        <TrendingUp className="w-4 h-4 text-green-600 mx-auto mb-1" />
+                        <div className="text-xs text-green-700">過剰 ({costSummary.plusCount}件)</div>
+                        <div className="text-base font-bold text-green-700">
+                            +¥{costSummary.plusTotal.toLocaleString()}
+                        </div>
+                    </div>
+                    <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-center">
+                        <TrendingDown className="w-4 h-4 text-red-600 mx-auto mb-1" />
+                        <div className="text-xs text-red-700">不足/損失 ({costSummary.minusCount}件)</div>
+                        <div className="text-base font-bold text-red-700">
+                            -¥{costSummary.minusTotal.toLocaleString()}
+                        </div>
+                    </div>
+                    <div className={`px-3 py-2 rounded-lg text-center border ${costSummary.net >= 0
+                            ? 'bg-blue-50 border-blue-200'
+                            : 'bg-orange-50 border-orange-200'
+                        }`}>
+                        <Calculator className={`w-4 h-4 mx-auto mb-1 ${costSummary.net >= 0 ? 'text-blue-600' : 'text-orange-600'
+                            }`} />
+                        <div className={`text-xs ${costSummary.net >= 0 ? 'text-blue-700' : 'text-orange-700'
+                            }`}>純損益</div>
+                        <div className={`text-base font-bold ${costSummary.net >= 0 ? 'text-blue-700' : 'text-orange-700'
+                            }`}>
+                            {costSummary.net >= 0 ? '+' : '-'}¥{Math.abs(costSummary.net).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+                {costSummary.topLosses.length > 0 && (
+                    <div className="mt-2 text-xs text-slate-600">
+                        不足上位: {costSummary.topLosses.map(l =>
+                            `${l.code || l.name}(¥${l.amount.toLocaleString()})`
+                        ).join('、')}
+                    </div>
+                )}
+            </div>
 
             <ProductList products={products} />
         </div>
