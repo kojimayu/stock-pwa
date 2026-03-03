@@ -109,10 +109,28 @@ export default function AirconOrdersPage() {
     const [loading, setLoading] = useState(true);
     const [adminEmail, setAdminEmail] = useState('管理者');
 
-    // 管理者メール取得
+    // 管理者名を取得（adminName → adminEmail → API）
     useEffect(() => {
+        const name = localStorage.getItem('adminName');
+        if (name) {
+            setAdminEmail(name);
+            return;
+        }
         const email = localStorage.getItem('adminEmail');
-        if (email) setAdminEmail(email);
+        if (email) {
+            // メールから名前をAPIで解決
+            fetch(`/api/admin-name?email=${encodeURIComponent(email)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.name) {
+                        setAdminEmail(data.name);
+                        localStorage.setItem('adminName', data.name);
+                    } else {
+                        setAdminEmail(email);
+                    }
+                })
+                .catch(() => setAdminEmail(email));
+        }
     }, []);
 
     // 発注作成ダイアログ
