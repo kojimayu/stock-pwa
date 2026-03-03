@@ -527,52 +527,22 @@ export default async function AdminDashboardPage() {
                     )}
             </div>
 
-            {/* 在庫差異アラート */}
+            {/* 在庫差異アラート（件数+リンクのみ） */}
             {stockAdjustmentAlerts.length > 0 && (
-                <div className="border rounded-lg p-4 bg-purple-50/50 space-y-2">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Search className="w-4 h-4 text-purple-600" />
-                        <span className="text-sm font-semibold text-purple-800">
-                            🔍 在庫差異の推測 ({stockAdjustmentAlerts.length}件)
-                        </span>
-                        <Link
-                            href="/admin/products"
-                            className="ml-auto text-xs text-purple-700 hover:underline font-medium"
-                        >
-                            在庫管理へ →
-                        </Link>
-                    </div>
-                    {stockAdjustmentAlerts.slice(0, 3).map((alert: any) => (
-                        <div
-                            key={alert.adjustmentId}
-                            className={`flex flex-col gap-1 px-3 py-2 rounded border text-sm ${alert.candidate.score >= 75
-                                    ? 'bg-green-50 border-green-200'
-                                    : alert.candidate.score >= 50
-                                        ? 'bg-amber-50 border-amber-200'
-                                        : 'bg-slate-50 border-slate-200'
-                                }`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold min-w-[32px] ${alert.candidate.score >= 75 ? 'text-green-600' :
-                                        alert.candidate.score >= 50 ? 'text-amber-600' : 'text-slate-500'
-                                    }`}>
-                                    {alert.candidate.score}%
-                                </span>
-                                <span className="text-slate-800 font-medium">
-                                    {alert.productCode || alert.productName}
-                                </span>
-                                <span className="text-slate-500 text-xs">
-                                    調整: {alert.quantity > 0 ? '+' : ''}{alert.quantity}個
-                                </span>
-                            </div>
-                            <div className="text-xs text-slate-600 pl-9">
-                                推測: {new Date(alert.candidate.date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}
-                                {' '}{alert.candidate.vendorName}
-                                「{alert.candidate.productName}」{alert.candidate.quantity}個
-                            </div>
-                        </div>
-                    ))}
-                    <p className="text-xs text-slate-500 mt-1">※ 過去7日の在庫調整 × 過去30日の取引から推測</p>
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200">
+                    <Search className="w-4 h-4 text-purple-600 shrink-0" />
+                    <span className="text-sm text-purple-800 font-medium">
+                        在庫差異の推測 {stockAdjustmentAlerts.length}件
+                    </span>
+                    <span className="text-xs text-purple-600">
+                        （過去7日の在庫調整）
+                    </span>
+                    <Link
+                        href="/admin/products"
+                        className="ml-auto text-xs text-purple-700 hover:underline whitespace-nowrap font-medium"
+                    >
+                        在庫管理へ →
+                    </Link>
                 </div>
             )}
 
