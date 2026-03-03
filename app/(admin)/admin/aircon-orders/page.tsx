@@ -583,7 +583,7 @@ export default function AirconOrdersPage() {
                                 <CardContent>
                                     {/* 商品一覧 */}
                                     <table className="w-full text-sm mb-3">
-                                        <thead>
+                                        <thead className="sticky top-0 z-10 bg-white">
                                             <tr className="border-b text-left text-muted-foreground text-xs">
                                                 <th className="pb-2">品番</th>
                                                 <th className="pb-2">品名</th>

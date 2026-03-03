@@ -2,6 +2,7 @@ import { getProducts } from "@/lib/actions";
 import { ProductList } from "@/components/admin/product-list";
 import { prisma } from "@/lib/prisma";
 import { ArrowLeftRight, Search, TrendingDown, TrendingUp, Calculator } from "lucide-react";
+import { CollapsiblePanel } from "@/components/admin/collapsible-panel";
 
 /**
  * ペア検出方式: 不足(-)と過剰(+)の調整をペアにして「商品の取り違え」を検出
@@ -230,13 +231,11 @@ export default async function ProductsPage() {
 
             {/* 商品取り違え推測パネル */}
             {swapPairs.length > 0 && (
-                <div className="border rounded-lg p-4 bg-purple-50/50 space-y-2">
-                    <div className="flex items-center gap-2 mb-2">
-                        <ArrowLeftRight className="w-4 h-4 text-purple-600" />
-                        <span className="text-sm font-semibold text-purple-800">
-                            🔄 商品取り違えの可能性 ({swapPairs.length}件)
-                        </span>
-                    </div>
+                <CollapsiblePanel
+                    title={<span className="text-purple-800">🔄 商品取り違えの可能性 ({swapPairs.length}件)</span>}
+                    icon={<ArrowLeftRight className="w-4 h-4 text-purple-600" />}
+                    className="bg-purple-50/50"
+                >
                     <div className="space-y-2">
                         {swapPairs.map((pair) => {
                             const color = pair.score >= 70 ? 'red'
@@ -283,17 +282,15 @@ export default async function ProductsPage() {
                     <p className="text-xs text-slate-500 mt-1">
                         ※ 過去7日の在庫調整で不足(-) と 過剰(+) をペアにして推測
                     </p>
-                </div>
+                </CollapsiblePanel>
             )}
 
             {/* 在庫差異金額サマリー */}
-            <div className="border rounded-lg p-4 bg-slate-50/50">
-                <div className="flex items-center gap-2 mb-3">
-                    <Calculator className="w-4 h-4 text-slate-600" />
-                    <span className="text-sm font-semibold text-slate-800">
-                        💰 在庫調整金額 ({costSummary.monthLabel})
-                    </span>
-                </div>
+            <CollapsiblePanel
+                title={<span className="text-slate-800">💰 在庫調整金額 ({costSummary.monthLabel})</span>}
+                icon={<Calculator className="w-4 h-4 text-slate-600" />}
+                className="bg-slate-50/50"
+            >
                 <div className="grid grid-cols-3 gap-3">
                     <div className="px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-center">
                         <TrendingUp className="w-4 h-4 text-green-600 mx-auto mb-1" />
@@ -336,7 +333,7 @@ export default async function ProductsPage() {
                         <div className="text-xs font-semibold text-slate-700 mb-2">内訳 ({costSummary.details.length}件)</div>
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs">
-                                <thead>
+                                <thead className="sticky top-0 z-10 bg-white">
                                     <tr className="border-b text-slate-500">
                                         <th className="text-left py-1 pr-2">日付</th>
                                         <th className="text-left py-1 pr-2">商品</th>
@@ -372,7 +369,7 @@ export default async function ProductsPage() {
                         </div>
                     </div>
                 )}
-            </div>
+            </CollapsiblePanel>
 
             <ProductList products={products} />
         </div>
