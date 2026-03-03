@@ -168,6 +168,10 @@ async function getDiscrepancyCostSummary() {
     const topLosses: { code: string; name: string; amount: number }[] = [];
 
     for (const adj of adjustments) {
+        // 入荷取消し等の操作的なCORRECTIONは除外（実際の損失ではない）
+        const reason = (adj.reason || '').toLowerCase();
+        if (reason.includes('receipt cancelled') || reason.includes('order #')) continue;
+
         const cost = adj.product?.cost || 0;
         const amount = Math.abs(adj.quantity) * cost;
 
@@ -294,8 +298,8 @@ export default async function ProductsPage() {
                         </div>
                     </div>
                     <div className={`px-3 py-2 rounded-lg text-center border ${costSummary.net >= 0
-                            ? 'bg-blue-50 border-blue-200'
-                            : 'bg-orange-50 border-orange-200'
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-orange-50 border-orange-200'
                         }`}>
                         <Calculator className={`w-4 h-4 mx-auto mb-1 ${costSummary.net >= 0 ? 'text-blue-600' : 'text-orange-600'
                             }`} />
