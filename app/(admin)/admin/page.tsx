@@ -130,93 +130,25 @@ async function getPriceAlerts() {
     return { violations, markupDiffs, noCost };
 }
 
-// 最近の在庫調整から差異候補を取得（ダッシュボード用）
-async function getRecentStockAdjustments() {
+// 最近の在庫調整から取り違えペア数を取得（ダッシュボード用）
+async function getSwapPairCount() {
     const since = new Date();
     since.setDate(since.getDate() - 7);
 
-    // 最近7日のCORRECTION/DISPOSAL調整を取得
     const adjustments = await prisma.inventoryLog.findMany({
         where: {
             createdAt: { gte: since },
             type: { in: ['CORRECTION', 'DISPOSAL', 'INVENTORY_ADJUSTMENT'] },
+            quantity: { not: 0 },
         },
-        include: {
-            product: { select: { id: true, name: true, code: true, category: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
+        select: { quantity: true },
     });
 
-    // 各調整に対して推測候補を取得
-    const results = [];
-    for (const adj of adjustments) {
-        if (!adj.product || adj.quantity === 0) continue;
+    const shortage = adjustments.filter(a => a.quantity < 0);
+    const excess = adjustments.filter(a => a.quantity > 0);
 
-        // 過去30日のTransactionで同カテゴリ・近い数量の取引を検索
-        const txSince = new Date();
-        txSince.setDate(txSince.getDate() - 30);
-        const transactions = await prisma.transaction.findMany({
-            where: { date: { gte: txSince }, isReturned: false },
-            include: { vendor: { select: { name: true } } },
-            orderBy: { date: 'desc' },
-            take: 50,
-        });
-
-        const absQty = Math.abs(adj.quantity);
-        let bestCandidate: { vendorName: string; productName: string; quantity: number; score: number; date: Date } | null = null;
-
-        for (const tx of transactions) {
-            let items: any[];
-            try { items = JSON.parse(tx.items); } catch { continue; }
-
-            for (const item of items) {
-                if (!item.quantity) continue;
-                const itemQty = Math.abs(item.quantity);
-                const qtyDiff = Math.abs(itemQty - absQty);
-                if (qtyDiff > 5) continue;
-
-                let score = 0;
-                if (qtyDiff === 0) score += 40;
-                else if (qtyDiff <= 1) score += 30;
-                else if (qtyDiff <= 3) score += 20;
-                else score += 10;
-
-                if (item.productId === adj.productId) score += 25;
-                score += 15; // 業者ボーナス
-
-                const days = Math.floor((Date.now() - tx.date.getTime()) / 86400000);
-                if (days <= 3) score += 20;
-                else if (days <= 7) score += 15;
-                else if (days <= 14) score += 10;
-                else score += 5;
-
-                if (score > (bestCandidate?.score || 0)) {
-                    bestCandidate = {
-                        vendorName: tx.vendor?.name || '不明',
-                        productName: item.name || '不明',
-                        quantity: item.quantity,
-                        score,
-                        date: tx.date,
-                    };
-                }
-            }
-        }
-
-        if (bestCandidate && bestCandidate.score >= 40) {
-            results.push({
-                adjustmentId: adj.id,
-                productName: adj.product.name,
-                productCode: adj.product.code,
-                quantity: adj.quantity,
-                adjustedAt: adj.createdAt,
-                reason: adj.reason,
-                candidate: bestCandidate,
-            });
-        }
-    }
-
-    return results;
+    // ペアになりうる組み合わせ数（min）
+    return Math.min(shortage.length, excess.length);
 }
 
 // 最近のエアコン持出し（3件、グループ化）
@@ -305,7 +237,7 @@ function groupLogs(logs: any[]) {
 }
 
 export default async function AdminDashboardPage() {
-    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts, priceAlerts, stockAdjustmentAlerts] =
+    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts, priceAlerts, swapPairCount] =
         await Promise.all([
             getLowStockMaterials(),
             getAirconStockWithVendorBreakdown(),
@@ -313,7 +245,7 @@ export default async function AdminDashboardPage() {
             getRecentAirconLogs(),
             getDeliveryAlerts(),
             getPriceAlerts(),
-            getRecentStockAdjustments(),
+            getSwapPairCount(),
         ]);
 
     const criticalMaterials = lowStockMaterials.filter((p) => p.stock === 0);
@@ -527,12 +459,12 @@ export default async function AdminDashboardPage() {
                     )}
             </div>
 
-            {/* 在庫差異アラート（件数+リンクのみ） */}
-            {stockAdjustmentAlerts.length > 0 && (
+            {/* 商品取り違えアラート（件数+リンクのみ） */}
+            {swapPairCount > 0 && (
                 <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-200">
                     <Search className="w-4 h-4 text-purple-600 shrink-0" />
                     <span className="text-sm text-purple-800 font-medium">
-                        在庫差異の推測 {stockAdjustmentAlerts.length}件
+                        商品取り違えの可能性 {swapPairCount}件
                     </span>
                     <span className="text-xs text-purple-600">
                         （過去7日の在庫調整）
