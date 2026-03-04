@@ -91,7 +91,7 @@ export async function POST(request: Request) {
                         type: type,
                         isProxyInput: Boolean(isProxyInput),
                         note: note || null,
-                        ...(transactionDate ? { createdAt: new Date(transactionDate) } : {}),
+                        ...(transactionDate ? { createdAt: new Date(transactionDate + "T00:00:00+09:00") } : {}),
                     },
                 });
                 logs.push(log);

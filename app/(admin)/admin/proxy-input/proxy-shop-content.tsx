@@ -43,7 +43,7 @@ export function ProxyShopContent({ products, vendor }: ProxyShopContentProps) {
     useEffect(() => {
         setVendor(vendor);
         setProxyMode(true);
-        setTransactionDate(new Date(pickupDate));
+        setTransactionDate(new Date(pickupDate + "T00:00:00+09:00"));
         clearCart(); // 新しいセッション開始時にカートをクリア
         return () => {
             setProxyMode(false);
@@ -54,7 +54,7 @@ export function ProxyShopContent({ products, vendor }: ProxyShopContentProps) {
     // 引取日が変更されたらストアを更新
     useEffect(() => {
         if (pickupDate) {
-            setTransactionDate(new Date(pickupDate));
+            setTransactionDate(new Date(pickupDate + "T00:00:00+09:00"));
         }
     }, [pickupDate, setTransactionDate]);
 
