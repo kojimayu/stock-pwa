@@ -1,14 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useCartStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Package, Truck } from "lucide-react";
 import { LogoutButton } from "@/components/kiosk/logout-button";
+import { AnnouncementModal } from "@/components/kiosk/announcement-modal";
 
 export default function ModeSelectPage() {
     const router = useRouter();
     const setReturnMode = useCartStore((state) => state.setReturnMode);
+    const [showAnnouncement, setShowAnnouncement] = useState(true);
 
     const handleMaterialTakeout = () => {
         setReturnMode(false);
@@ -22,6 +25,11 @@ export default function ModeSelectPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
+            {/* お知らせモーダル（ログイン直後に表示） */}
+            {showAnnouncement && (
+                <AnnouncementModal onDismiss={() => setShowAnnouncement(false)} />
+            )}
+
             <header className="bg-slate-900 text-white p-4 flex justify-between items-center shadow-md">
                 <h1 className="text-xl font-bold">作業モード選択</h1>
                 <LogoutButton />

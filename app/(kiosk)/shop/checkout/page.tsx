@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { CartList } from "@/components/kiosk/cart-list";
 import { CheckoutButton } from "@/components/kiosk/checkout-button";
+import { StockCheckPanel } from "@/components/kiosk/stock-check-panel";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -13,15 +14,13 @@ export default function CheckoutPage() {
     const vendor = useCartStore((state) => state.vendor);
     const items = useCartStore((state) => state.items);
     const [hydrated, setHydrated] = useState(false);
+    const [stockCheckReady, setStockCheckReady] = useState(true); // デフォルトtrue（チェック不要商品のみの場合）
 
     // Zustand persist のハイドレーション完了を待つ
-    // localStorage からの復元が終わるまでローディング表示
     useEffect(() => {
-        // useCartStore.persist.onFinishHydration は zustand/persist が提供するフック
         const unsub = useCartStore.persist.onFinishHydration(() => {
             setHydrated(true);
         });
-        // すでにハイドレーション済みの場合（高速な場合）
         if (useCartStore.persist.hasHydrated()) {
             setHydrated(true);
         }
@@ -30,7 +29,6 @@ export default function CheckoutPage() {
 
     const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
 
-    // ハイドレーション完了前はローディング表示
     if (!hydrated) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -65,11 +63,14 @@ export default function CheckoutPage() {
                 </div>
 
                 <CartList />
+
+                {/* 在庫残数チェックパネル（requireStockCheck商品がある場合のみ表示） */}
+                <StockCheckPanel onReadyChange={setStockCheckReady} />
             </main>
 
             <footer className="bg-white border-t border-slate-200 p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
                 <div className="max-w-2xl mx-auto">
-                    <CheckoutButton />
+                    <CheckoutButton stockCheckReady={stockCheckReady} />
                 </div>
             </footer>
         </div>

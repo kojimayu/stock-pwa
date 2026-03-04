@@ -58,6 +58,7 @@ const navigationGroups = [
     collapsible: true,
     items: [
       { name: "業者管理", href: "/admin/vendors", icon: Users },
+      { name: "設定", href: "/admin/settings", icon: Settings },
       { name: "操作ログ", href: "/admin/logs", icon: History },
       { name: "マニュアル", href: "/admin/manual", icon: BookOpen },
       { name: "更新履歴", href: "/admin/updates", icon: FileText },

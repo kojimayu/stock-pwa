@@ -19,7 +19,7 @@ interface StockItem {
     unit?: string;
 }
 
-export function CheckoutButton() {
+export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: boolean }) {
     const [loading, setLoading] = useState(false);
     const { items, vendor, vendorUser, isProxyMode, transactionDate, clearCart } = useCartStore();
     const router = useRouter();
@@ -89,16 +89,16 @@ export function CheckoutButton() {
         <>
             <Button
                 size="lg"
-                className={`w-full h-16 text-xl font-bold shadow-lg ${!isOnline ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                className={`w-full h-16 text-xl font-bold shadow-lg ${!isOnline ? 'bg-slate-400 cursor-not-allowed' : !stockCheckReady ? 'bg-amber-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                 onClick={handleCheckout}
-                disabled={loading || items.length === 0 || !isOnline}
+                disabled={loading || items.length === 0 || !isOnline || !stockCheckReady}
             >
                 {loading ? (
                     <Loader2 className="mr-2 h-6 w-6 animate-spin" />
                 ) : (
                     !isOnline ? <WifiOff className="mr-2 h-6 w-6" /> : <CheckCircle className="mr-2 h-6 w-6" />
                 )}
-                {!isOnline ? "オフライン (送信不可)" : "出庫を確定する"}
+                {!isOnline ? "オフライン (送信不可)" : !stockCheckReady ? "残数を確認してください" : "出庫を確定する"}
             </Button>
 
             {/* 在庫確認ダイアログ */}

@@ -858,6 +858,7 @@ export async function upsertProduct(data: {
     quantityPerBox?: number;
     pricePerBox?: number;
     priceMode?: string;
+    requireStockCheck?: boolean;
 }) {
     // priceMode判定
     const priceMode = data.priceMode ?? 'AUTO';
@@ -904,6 +905,7 @@ export async function upsertProduct(data: {
                 quantityPerBox: data.quantityPerBox ?? 1,
                 pricePerBox: data.pricePerBox ?? 0,
                 priceMode,
+                requireStockCheck: data.requireStockCheck ?? false,
             };
 
             // costが0より大きい場合のみ更新
@@ -1501,7 +1503,7 @@ export async function createTransaction(
                 items.filter(i => !i.isManual).map(async (item) => {
                     const p = await tx.product.findUnique({
                         where: { id: item.productId },
-                        select: { id: true, stock: true, name: true, code: true, unit: true },
+                        select: { id: true, stock: true, name: true, code: true, unit: true, requireStockCheck: true },
                     });
                     return p;
                 })
@@ -1529,14 +1531,16 @@ export async function createTransaction(
         }
 
         console.log("Transaction created successfully, returning success.");
-        // 在庫確認用に処理後の在庫情報を返す
-        const stockInfo = transactionResult.updatedProducts.map((p: any) => ({
-            productId: p.id,
-            name: p.name,
-            code: p.code,
-            expectedStock: p.stock,
-            unit: p.unit,
-        }));
+        // 在庫確認用に処理後の在庫情報を返す（requireStockCheck=trueの商品のみ）
+        const stockInfo = transactionResult.updatedProducts
+            .filter((p: any) => p.requireStockCheck)
+            .map((p: any) => ({
+                productId: p.id,
+                name: p.name,
+                code: p.code,
+                expectedStock: p.stock,
+                unit: p.unit,
+            }));
         return { success: true, stockInfo };
     } catch (error) {
         console.error("Transaction Error:", error);
@@ -2843,4 +2847,22 @@ export async function getReturnedQuantities(transactionId: number) {
         returnedMap[log.productId] = (returnedMap[log.productId] || 0) + log.quantity;
     }
     return returnedMap;
+}
+
+// =========================================
+// SystemConfig (システム設定)
+// =========================================
+
+export async function getSystemConfig(key: string): Promise<string> {
+    const config = await prisma.systemConfig.findUnique({ where: { key } });
+    return config?.value || "";
+}
+
+export async function setSystemConfig(key: string, value: string): Promise<void> {
+    await prisma.systemConfig.upsert({
+        where: { key },
+        create: { key, value },
+        update: { value },
+    });
+    revalidatePath('/admin/settings');
 }

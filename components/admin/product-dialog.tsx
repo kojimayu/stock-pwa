@@ -45,6 +45,7 @@ interface ProductDialogProps {
         manufacturer?: string | null;
         quantityPerBox?: number;
         pricePerBox?: number;
+        requireStockCheck?: boolean;
     } | null;
     initialValues?: {
         name?: string;
@@ -89,6 +90,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                 manufacturer: formData.get("manufacturer") as string || null,
                 quantityPerBox: Number(formData.get("quantityPerBox")) || 1,
                 pricePerBox: Number(formData.get("pricePerBox")) || 0,
+                requireStockCheck: formData.get("requireStockCheck") === "on",
             });
 
             toast.success(product ? "商品を更新しました" : "商品を登録しました");
@@ -457,6 +459,25 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     defaultValue={product?.pricePerBox || 0}
                                     className="col-span-3"
                                 />
+                            </div>
+
+                            <div className="col-span-2 border-t my-2"></div>
+
+                            {/* 在庫チェック必須トグル */}
+                            <div className="col-span-2 flex items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <input
+                                    type="checkbox"
+                                    id="requireStockCheck"
+                                    name="requireStockCheck"
+                                    defaultChecked={product?.requireStockCheck ?? false}
+                                    className="w-5 h-5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                />
+                                <label htmlFor="requireStockCheck" className="text-sm font-medium text-amber-800 cursor-pointer">
+                                    📦 持出し時に在庫残数の確認を必須にする
+                                    <span className="block text-xs text-amber-600 font-normal mt-0.5">
+                                        Kioskで持出し確定前に「現在庫→持出後」の残数確認が必要になります
+                                    </span>
+                                </label>
                             </div>
                         </div>
                     </div>
