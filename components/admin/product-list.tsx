@@ -169,7 +169,7 @@ export function ProductList({ products }: ProductListProps) {
             </div>
 
             {/* 検索とフィルター - モバイル対応 */}
-            <div className="space-y-3">
+            <div className="space-y-3 sticky top-0 z-20 bg-background pb-2">
                 {/* 検索バー（常に表示） */}
                 <div className="flex gap-2">
                     <div className="relative flex-1">
