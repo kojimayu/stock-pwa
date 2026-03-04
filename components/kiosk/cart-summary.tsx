@@ -3,7 +3,6 @@
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ShoppingCart } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 export function CartSummary() {

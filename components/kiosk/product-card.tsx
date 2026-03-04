@@ -7,7 +7,6 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 import { useCartStore } from "@/lib/store";
 import { toast } from "sonner";
 
