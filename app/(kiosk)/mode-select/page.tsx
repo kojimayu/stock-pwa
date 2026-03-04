@@ -11,6 +11,7 @@ import { AnnouncementModal } from "@/components/kiosk/announcement-modal";
 export default function ModeSelectPage() {
     const router = useRouter();
     const setReturnMode = useCartStore((state) => state.setReturnMode);
+    const vendorUser = useCartStore((state) => state.vendorUser);
     const [showAnnouncement, setShowAnnouncement] = useState(true);
 
     const handleMaterialTakeout = () => {
@@ -27,7 +28,7 @@ export default function ModeSelectPage() {
         <div className="min-h-screen bg-slate-50 flex flex-col">
             {/* お知らせモーダル（ログイン直後に表示） */}
             {showAnnouncement && (
-                <AnnouncementModal onDismiss={() => setShowAnnouncement(false)} />
+                <AnnouncementModal onDismiss={() => setShowAnnouncement(false)} vendorUserId={vendorUser?.id} />
             )}
 
             <header className="bg-slate-900 text-white p-4 flex justify-between items-center shadow-md">
