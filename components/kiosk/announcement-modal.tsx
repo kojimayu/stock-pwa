@@ -31,7 +31,6 @@ function markPlayedToday(vendorUserId: number | null | undefined): void {
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
             if (k && k.startsWith("announcement_voice_") && k !== key) {
-                // キーからの日付部分を取得
                 const datePart = k.split("_").pop();
                 if (datePart && datePart < today) {
                     localStorage.removeItem(k);
@@ -47,8 +46,7 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     const [announcement, setAnnouncement] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
-    const [autoPlayFailed, setAutoPlayFailed] = useState(false);
-    const [hasPlayed, setHasPlayed] = useState(false);
+    const [debugInfo, setDebugInfo] = useState<string>(""); // 一時デバッグ用
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
     useEffect(() => {
@@ -61,98 +59,124 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
             .finally(() => setLoading(false));
     }, []);
 
-    // 音声を再生する共通関数（自動再生・ボタン再生の両方で使用）
-    const speakAnnouncement = (text: string) => {
-        // Fully Kiosk Browser の API を試す
-        const fullyApi = (window as any).fully;
-        if (fullyApi && typeof fullyApi.textToSpeech === "function") {
-            try {
-                fullyApi.textToSpeech(text, "ja_JP");
-                setIsSpeaking(true);
-                setHasPlayed(true);
-                setAutoPlayFailed(false);
-                const estimatedMs = Math.max(text.length * 150, 3000);
-                setTimeout(() => {
-                    setIsSpeaking(false);
-                    markPlayedToday(vendorUserId);
-                }, estimatedMs);
-                return true;
-            } catch (e) {
-                console.error("Fully Kiosk TTS error:", e);
-            }
-        }
-
-        // Web Speech API
-        if ("speechSynthesis" in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = "ja-JP";
-            utterance.rate = 0.9;
-            utterance.pitch = 1.0;
-
-            const voices = speechSynthesis.getVoices();
-            const preferredVoice =
-                voices.find((v) => v.name.includes("Google") && v.lang.startsWith("ja")) ||
-                voices.find((v) => v.name.includes("Nanami")) ||
-                voices.find((v) => v.lang === "ja-JP") ||
-                voices.find((v) => v.lang.startsWith("ja"));
-            if (preferredVoice) utterance.voice = preferredVoice;
-
-            utterance.onstart = () => {
-                setIsSpeaking(true);
-                setHasPlayed(true);
-                setAutoPlayFailed(false);
-            };
-            utterance.onend = () => {
-                setIsSpeaking(false);
-                markPlayedToday(vendorUserId);
-            };
-            utterance.onerror = (e) => {
-                console.error("SpeechSynthesis error:", e);
-                setIsSpeaking(false);
-                // 自動再生が拒否された場合、ボタンを表示
-                setAutoPlayFailed(true);
-            };
-
-            utteranceRef.current = utterance;
-            speechSynthesis.speak(utterance);
-            return true;
-        }
-
-        return false;
-    };
-
-    // 自動再生を試みる
+    // 音声読み上げ開始（お知らせ取得完了後）
     useEffect(() => {
         if (loading || !announcement) return;
         if (hasPlayedToday(vendorUserId)) {
-            setHasPlayed(true);
+            setDebugInfo("⏭ 本日再生済み（スキップ）");
             return;
         }
 
-        const timer = setTimeout(() => {
-            if ("speechSynthesis" in window) {
-                const voices = speechSynthesis.getVoices();
-                if (voices.length > 0) {
-                    speakAnnouncement(announcement);
-                } else {
-                    speechSynthesis.addEventListener("voiceschanged", () => {
-                        speakAnnouncement(announcement);
-                    }, { once: true });
-                    // voiceschangedが来なかった場合のフォールバック
-                    setTimeout(() => {
-                        if (!isSpeaking && !hasPlayed) {
-                            setAutoPlayFailed(true);
-                        }
-                    }, 2000);
-                }
-            } else {
-                // Web Speech API非対応 → ボタン表示
-                setAutoPlayFailed(true);
-            }
-        }, 500);
+        const debug: string[] = [];
 
-        return () => clearTimeout(timer);
+        // 1. Fully Kiosk Browser の API をチェック
+        const fullyApi = (window as any).fully;
+        const hasFullyObj = !!fullyApi;
+        const hasFullyTts = hasFullyObj && typeof fullyApi.textToSpeech === "function";
+        debug.push(`fully: ${hasFullyObj ? "✅あり" : "❌なし"}`);
+        debug.push(`fully.tts: ${hasFullyTts ? "✅あり" : "❌なし"}`);
+
+        // 2. Web Speech API をチェック
+        const hasSpeechSynth = "speechSynthesis" in window;
+        debug.push(`speechSynthesis: ${hasSpeechSynth ? "✅あり" : "❌なし"}`);
+
+        // 方式1: Fully Kiosk TTS
+        if (hasFullyTts) {
+            const timer = setTimeout(() => {
+                try {
+                    fullyApi.textToSpeech(announcement, "ja_JP");
+                    setIsSpeaking(true);
+                    debug.push("🔊 fully.tts 呼び出し成功");
+                    setDebugInfo(debug.join(" | "));
+                    const estimatedMs = Math.max(announcement.length * 150, 3000);
+                    setTimeout(() => {
+                        setIsSpeaking(false);
+                        markPlayedToday(vendorUserId);
+                    }, estimatedMs);
+                } catch (e: any) {
+                    debug.push(`❌ fully.tts エラー: ${e?.message || e}`);
+                    setDebugInfo(debug.join(" | "));
+                    // フォールバック: Web Speech APIを試す
+                    if (hasSpeechSynth) {
+                        tryWebSpeech(announcement, debug);
+                    }
+                }
+            }, 500);
+            setDebugInfo(debug.join(" | "));
+            return () => clearTimeout(timer);
+        }
+
+        // 方式2: Web Speech API
+        if (hasSpeechSynth) {
+            const timer = setTimeout(() => {
+                const voices = speechSynthesis.getVoices();
+                debug.push(`voices: ${voices.length}件`);
+                if (voices.length > 0) {
+                    tryWebSpeech(announcement, debug);
+                } else {
+                    debug.push("⏳ voiceschanged待ち...");
+                    setDebugInfo(debug.join(" | "));
+                    speechSynthesis.addEventListener("voiceschanged", () => {
+                        const v = speechSynthesis.getVoices();
+                        debug.push(`voices(再取得): ${v.length}件`);
+                        tryWebSpeech(announcement, debug);
+                    }, { once: true });
+                    // 3秒待っても来なければ諦め
+                    setTimeout(() => {
+                        if (!isSpeaking) {
+                            debug.push("⚠ voiceschanged タイムアウト");
+                            setDebugInfo(debug.join(" | "));
+                        }
+                    }, 3000);
+                }
+            }, 500);
+            setDebugInfo(debug.join(" | "));
+            return () => clearTimeout(timer);
+        }
+
+        debug.push("❌ 音声API非対応");
+        setDebugInfo(debug.join(" | "));
     }, [loading, announcement, vendorUserId]);
+
+    const tryWebSpeech = (text: string, debug: string[]) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "ja-JP";
+        utterance.rate = 0.9;
+        utterance.pitch = 1.0;
+
+        const voices = speechSynthesis.getVoices();
+        const preferredVoice =
+            voices.find((v) => v.name.includes("Google") && v.lang.startsWith("ja")) ||
+            voices.find((v) => v.name.includes("Nanami")) ||
+            voices.find((v) => v.lang === "ja-JP") ||
+            voices.find((v) => v.lang.startsWith("ja"));
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+            debug.push(`voice: ${preferredVoice.name}`);
+        }
+
+        utterance.onstart = () => {
+            setIsSpeaking(true);
+            debug.push("🔊 再生開始");
+            setDebugInfo(debug.join(" | "));
+        };
+        utterance.onend = () => {
+            setIsSpeaking(false);
+            markPlayedToday(vendorUserId);
+            debug.push("✅ 再生完了");
+            setDebugInfo(debug.join(" | "));
+        };
+        utterance.onerror = (e) => {
+            setIsSpeaking(false);
+            debug.push(`❌ エラー: ${e.error}`);
+            setDebugInfo(debug.join(" | "));
+        };
+
+        utteranceRef.current = utterance;
+        speechSynthesis.speak(utterance);
+        debug.push("speak() 呼び出し済み");
+        setDebugInfo(debug.join(" | "));
+    };
 
     // ロード中 or お知らせ文が空 → 表示しない
     if (loading) return null;
@@ -177,16 +201,6 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
                             <span className="text-sm font-medium">音声案内中...</span>
                         </div>
                     )}
-                    {/* 自動再生失敗時の手動ボタン */}
-                    {autoPlayFailed && !isSpeaking && (
-                        <button
-                            className="mt-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full text-sm font-medium flex items-center gap-2 mx-auto transition-colors"
-                            onClick={() => speakAnnouncement(announcement)}
-                        >
-                            <Volume2 className="w-4 h-4" />
-                            🔊 読み上げる
-                        </button>
-                    )}
                 </div>
 
                 {/* 本文 */}
@@ -195,6 +209,13 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
                         {announcement}
                     </div>
                 </div>
+
+                {/* デバッグ情報（一時的 - 原因特定後に削除） */}
+                {debugInfo && (
+                    <div className="px-6 py-2 bg-slate-100 text-xs text-slate-500 font-mono border-t">
+                        🐛 {debugInfo}
+                    </div>
+                )}
 
                 {/* 確認ボタン */}
                 <div className="p-6 border-t">
