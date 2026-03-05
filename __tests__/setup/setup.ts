@@ -13,6 +13,7 @@ const prisma = new PrismaClient();
 beforeEach(async () => {
     // 依存関係の深いテーブルから順に削除
     await prisma.airConditionerLog.deleteMany();
+    await prisma.systemConfig.deleteMany();
     await prisma.airconOrderItem.deleteMany();
     await prisma.airconOrder.deleteMany();
     await prisma.deliveryLocation.deleteMany();
