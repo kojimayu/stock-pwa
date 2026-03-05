@@ -269,7 +269,7 @@ export function ProductList({ products }: ProductListProps) {
                             <TableHead>商品名</TableHead>
                             <TableHead>カテゴリ</TableHead>
                             <TableHead className="text-right">販売単価</TableHead>
-                            <TableHead className="text-right">在庫</TableHead>
+                            <TableHead className="text-right">在庫/最低</TableHead>
                             <TableHead className="text-right">原価率</TableHead>
                             <TableHead className="text-center w-[50px]" title="持出し時 在庫確認">📦</TableHead>
                             <TableHead className="w-[100px]">操作</TableHead>
@@ -304,6 +304,9 @@ export function ProductList({ products }: ProductListProps) {
                                         <div className={product.stock <= product.minStock ? "text-red-500 font-bold" : ""}>
                                             {product.stock}
                                         </div>
+                                        <div className="text-xs text-muted-foreground">
+                                            最低: {product.minStock}
+                                        </div>
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -325,8 +328,8 @@ export function ProductList({ products }: ProductListProps) {
                                     <TableCell className="text-center">
                                         <button
                                             className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${product.requireStockCheck
-                                                    ? 'bg-blue-600 border-blue-600 text-white'
-                                                    : 'border-slate-300 hover:border-blue-400'
+                                                ? 'bg-blue-600 border-blue-600 text-white'
+                                                : 'border-slate-300 hover:border-blue-400'
                                                 }`}
                                             title={product.requireStockCheck ? '在庫確認ON' : '在庫確認OFF'}
                                             onClick={async () => {
