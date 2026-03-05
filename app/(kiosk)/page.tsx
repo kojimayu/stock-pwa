@@ -40,9 +40,22 @@ export default function KioskLoginPage() {
   const setVendorStore = useCartStore((state) => state.setVendor);
   const setVendorUserStore = useCartStore((state) => state.setVendorUser);
 
-  // Fetch vendors on mount
+  // Fetch vendors on mount & when page regains focus (Fully Kiosk対策)
   useEffect(() => {
-    getVendors().then(setVendors).catch(console.error);
+    const fetchVendors = () => getVendors().then(setVendors).catch(console.error);
+    fetchVendors();
+
+    // Fully Kiosk Browserは画面を維持するので、
+    // タブ復帰時やページ遷移戻り時に業者リストを再取得
+    const handleFocus = () => fetchVendors();
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") fetchVendors();
+    });
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+    };
   }, []);
 
   // Fetch vendor users when vendor selected

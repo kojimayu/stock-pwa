@@ -62,8 +62,32 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     // 音声読み上げ開始（お知らせ取得完了後）
     useEffect(() => {
         if (loading || !announcement) return;
-        if (!("speechSynthesis" in window)) return;
         if (hasPlayedToday(vendorUserId)) return;
+
+        // Fully Kiosk Browser の API を使う場合
+        const fullyApi = (window as any).fully;
+        if (fullyApi && typeof fullyApi.textToSpeech === "function") {
+            const timer = setTimeout(() => {
+                try {
+                    fullyApi.textToSpeech(announcement, "ja-JP");
+                    setIsSpeaking(true);
+                    // Fully Kiosk APIには完了コールバックがないため、
+                    // 概算時間（文字数×150ms）後に終了とみなす
+                    const estimatedMs = Math.max(announcement.length * 150, 3000);
+                    setTimeout(() => {
+                        setIsSpeaking(false);
+                        markPlayedToday(vendorUserId);
+                    }, estimatedMs);
+                } catch (e) {
+                    console.error("Fully Kiosk TTS error:", e);
+                    setIsSpeaking(false);
+                }
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+
+        // Web Speech API フォールバック（通常のChrome等）
+        if (!("speechSynthesis" in window)) return;
 
         // 少し遅延して確実にモーダル表示後に発声
         const startSpeech = () => {
@@ -73,9 +97,6 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
             utterance.pitch = 1.0;
 
             // 高品質な日本語音声を優先選択
-            // Chrome: "Google 日本語" が最も自然
-            // Edge: "Microsoft Nanami" が高品質
-            // フォールバック: 任意の日本語音声
             const voices = speechSynthesis.getVoices();
             const preferredVoice =
                 voices.find((v) => v.name.includes("Google") && v.lang.startsWith("ja")) ||
