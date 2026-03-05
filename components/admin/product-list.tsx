@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Edit, Plus, Trash2, PackagePlus, Search, X, Package, ChevronDown, ChevronUp, ClipboardCheck } from "lucide-react";
+import { Edit, Plus, Trash2, PackagePlus, Search, X, Package, ChevronDown, ChevronUp, ClipboardCheck, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { ProductDialog } from "./product-dialog";
 import { StockAdjustmentDialog } from "./stock-adjustment-dialog";
 import { deleteProduct } from "@/lib/actions";
@@ -53,6 +53,9 @@ interface ProductListProps {
     products: Product[];
 }
 
+type SortKey = "code" | "name" | "category" | "priceA" | "stock" | "minStock" | "cost" | "margin";
+type SortDir = "asc" | "desc";
+
 export function ProductList({ products }: ProductListProps) {
     const [productDialogOpen, setProductDialogOpen] = useState(false);
     const [stockDialogOpen, setStockDialogOpen] = useState(false);
@@ -64,6 +67,8 @@ export function ProductList({ products }: ProductListProps) {
     const [selectedProductType, setSelectedProductType] = useState<string>("all");
     const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
     const [showFilters, setShowFilters] = useState(false);
+    const [sortKey, setSortKey] = useState<SortKey | null>(null);
+    const [sortDir, setSortDir] = useState<SortDir>("asc");
     const router = useRouter();
 
     const totalCount = products.length;
@@ -140,6 +145,41 @@ export function ProductList({ products }: ProductListProps) {
             (product.color && normalizeForSearch(product.color).includes(query))
         );
     });
+
+    // ソート適用
+    const sortedProducts = sortKey
+        ? [...filteredProducts].sort((a, b) => {
+            let cmp = 0;
+            switch (sortKey) {
+                case "code": cmp = a.code.localeCompare(b.code); break;
+                case "name": cmp = a.name.localeCompare(b.name); break;
+                case "category": cmp = `${a.category}${a.subCategory || ""}`.localeCompare(`${b.category}${b.subCategory || ""}`); break;
+                case "priceA": cmp = a.priceA - b.priceA; break;
+                case "stock": cmp = a.stock - b.stock; break;
+                case "minStock": cmp = a.minStock - b.minStock; break;
+                case "cost": cmp = a.cost - b.cost; break;
+                case "margin": cmp = getMargin(a.priceA, a.cost) - getMargin(b.priceA, b.cost); break;
+            }
+            return sortDir === "asc" ? cmp : -cmp;
+        })
+        : filteredProducts;
+
+    const toggleSort = (key: SortKey) => {
+        if (sortKey === key) {
+            if (sortDir === "asc") setSortDir("desc");
+            else { setSortKey(null); setSortDir("asc"); }
+        } else {
+            setSortKey(key);
+            setSortDir("asc");
+        }
+    };
+
+    const SortIcon = ({ k }: { k: SortKey }) => {
+        if (sortKey !== k) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-30" />;
+        return sortDir === "asc"
+            ? <ArrowUp className="w-3 h-3 ml-1 text-blue-600" />
+            : <ArrowDown className="w-3 h-3 ml-1 text-blue-600" />;
+    };
 
     const hasActiveFilters = selectedCategory !== "all" || selectedSubCategory !== "all" || selectedProductType !== "all" || searchQuery !== "";
 
@@ -265,18 +305,30 @@ export function ProductList({ products }: ProductListProps) {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[100px]">ID</TableHead>
-                            <TableHead>商品名</TableHead>
-                            <TableHead>カテゴリ</TableHead>
-                            <TableHead className="text-right">販売単価</TableHead>
-                            <TableHead className="text-right">在庫/最低</TableHead>
-                            <TableHead className="text-right">原価率</TableHead>
+                            <TableHead className="w-[100px] cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("code")}>
+                                <span className="flex items-center">ID<SortIcon k="code" /></span>
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("name")}>
+                                <span className="flex items-center">商品名<SortIcon k="name" /></span>
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("category")}>
+                                <span className="flex items-center">カテゴリ<SortIcon k="category" /></span>
+                            </TableHead>
+                            <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("priceA")}>
+                                <span className="flex items-center justify-end">販売単価<SortIcon k="priceA" /></span>
+                            </TableHead>
+                            <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("stock")}>
+                                <span className="flex items-center justify-end">在庫/最低<SortIcon k="stock" /></span>
+                            </TableHead>
+                            <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("margin")}>
+                                <span className="flex items-center justify-end">原価率<SortIcon k="margin" /></span>
+                            </TableHead>
                             <TableHead className="text-center w-[50px]" title="持出し時 在庫確認">📦</TableHead>
                             <TableHead className="w-[100px]">操作</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredProducts.map((product) => {
+                        {sortedProducts.map((product) => {
                             const margin = getMargin(product.priceA, product.cost);
                             return (
                                 <TableRow key={product.id}>
@@ -358,7 +410,7 @@ export function ProductList({ products }: ProductListProps) {
                                 </TableRow>
                             );
                         })}
-                        {filteredProducts.length === 0 && (
+                        {sortedProducts.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                                     登録されている商品がありません
@@ -371,13 +423,13 @@ export function ProductList({ products }: ProductListProps) {
 
             {/* モバイル用カード表示 */}
             <div className="md:hidden space-y-3">
-                {filteredProducts.length === 0 ? (
+                {sortedProducts.length === 0 ? (
                     <div className="text-center py-12 text-muted-foreground bg-white rounded-lg border">
                         <Package className="w-12 h-12 mx-auto mb-3 text-slate-300" />
                         <p>登録されている商品がありません</p>
                     </div>
                 ) : (
-                    filteredProducts.map((product) => {
+                    sortedProducts.map((product) => {
                         const margin = getMargin(product.priceA, product.cost);
                         return (
                             <div
