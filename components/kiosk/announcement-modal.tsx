@@ -47,6 +47,8 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     const [announcement, setAnnouncement] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [autoPlayFailed, setAutoPlayFailed] = useState(false);
+    const [hasPlayed, setHasPlayed] = useState(false);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
     useEffect(() => {
@@ -59,75 +61,93 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
             .finally(() => setLoading(false));
     }, []);
 
-    // 音声読み上げ開始（お知らせ取得完了後）
-    useEffect(() => {
-        if (loading || !announcement) return;
-        if (hasPlayedToday(vendorUserId)) return;
-
-        // Fully Kiosk Browser の API を使う場合
+    // 音声を再生する共通関数（自動再生・ボタン再生の両方で使用）
+    const speakAnnouncement = (text: string) => {
+        // Fully Kiosk Browser の API を試す
         const fullyApi = (window as any).fully;
         if (fullyApi && typeof fullyApi.textToSpeech === "function") {
-            const timer = setTimeout(() => {
-                try {
-                    fullyApi.textToSpeech(announcement, "ja-JP");
-                    setIsSpeaking(true);
-                    // Fully Kiosk APIには完了コールバックがないため、
-                    // 概算時間（文字数×150ms）後に終了とみなす
-                    const estimatedMs = Math.max(announcement.length * 150, 3000);
-                    setTimeout(() => {
-                        setIsSpeaking(false);
-                        markPlayedToday(vendorUserId);
-                    }, estimatedMs);
-                } catch (e) {
-                    console.error("Fully Kiosk TTS error:", e);
+            try {
+                fullyApi.textToSpeech(text, "ja_JP");
+                setIsSpeaking(true);
+                setHasPlayed(true);
+                setAutoPlayFailed(false);
+                const estimatedMs = Math.max(text.length * 150, 3000);
+                setTimeout(() => {
                     setIsSpeaking(false);
-                }
-            }, 500);
-            return () => clearTimeout(timer);
+                    markPlayedToday(vendorUserId);
+                }, estimatedMs);
+                return true;
+            } catch (e) {
+                console.error("Fully Kiosk TTS error:", e);
+            }
         }
 
-        // Web Speech API フォールバック（通常のChrome等）
-        if (!("speechSynthesis" in window)) return;
-
-        // 少し遅延して確実にモーダル表示後に発声
-        const startSpeech = () => {
-            const utterance = new SpeechSynthesisUtterance(announcement);
+        // Web Speech API
+        if ("speechSynthesis" in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = "ja-JP";
-            utterance.rate = 0.9;  // 少しゆっくりで自然に
+            utterance.rate = 0.9;
             utterance.pitch = 1.0;
 
-            // 高品質な日本語音声を優先選択
             const voices = speechSynthesis.getVoices();
             const preferredVoice =
                 voices.find((v) => v.name.includes("Google") && v.lang.startsWith("ja")) ||
                 voices.find((v) => v.name.includes("Nanami")) ||
                 voices.find((v) => v.lang === "ja-JP") ||
                 voices.find((v) => v.lang.startsWith("ja"));
-            if (preferredVoice) {
-                utterance.voice = preferredVoice;
-            }
+            if (preferredVoice) utterance.voice = preferredVoice;
 
-            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onstart = () => {
+                setIsSpeaking(true);
+                setHasPlayed(true);
+                setAutoPlayFailed(false);
+            };
             utterance.onend = () => {
                 setIsSpeaking(false);
                 markPlayedToday(vendorUserId);
             };
-            utterance.onerror = () => {
+            utterance.onerror = (e) => {
+                console.error("SpeechSynthesis error:", e);
                 setIsSpeaking(false);
+                // 自動再生が拒否された場合、ボタンを表示
+                setAutoPlayFailed(true);
             };
 
             utteranceRef.current = utterance;
             speechSynthesis.speak(utterance);
-        };
+            return true;
+        }
 
-        // Chrome では getVoices() が非同期で空を返すことがあるため、
-        // voiceschanged イベントで音声リスト読み込み完了を待つ
+        return false;
+    };
+
+    // 自動再生を試みる
+    useEffect(() => {
+        if (loading || !announcement) return;
+        if (hasPlayedToday(vendorUserId)) {
+            setHasPlayed(true);
+            return;
+        }
+
         const timer = setTimeout(() => {
-            const voices = speechSynthesis.getVoices();
-            if (voices.length > 0) {
-                startSpeech();
+            if ("speechSynthesis" in window) {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    speakAnnouncement(announcement);
+                } else {
+                    speechSynthesis.addEventListener("voiceschanged", () => {
+                        speakAnnouncement(announcement);
+                    }, { once: true });
+                    // voiceschangedが来なかった場合のフォールバック
+                    setTimeout(() => {
+                        if (!isSpeaking && !hasPlayed) {
+                            setAutoPlayFailed(true);
+                        }
+                    }, 2000);
+                }
             } else {
-                speechSynthesis.addEventListener("voiceschanged", startSpeech, { once: true });
+                // Web Speech API非対応 → ボタン表示
+                setAutoPlayFailed(true);
             }
         }, 500);
 
@@ -137,7 +157,6 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     // ロード中 or お知らせ文が空 → 表示しない
     if (loading) return null;
     if (!announcement) {
-        // お知らせなしなら即座にdismiss
         onDismiss();
         return null;
     }
@@ -157,6 +176,16 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
                             <Volume2 className="w-4 h-4 animate-pulse" />
                             <span className="text-sm font-medium">音声案内中...</span>
                         </div>
+                    )}
+                    {/* 自動再生失敗時の手動ボタン */}
+                    {autoPlayFailed && !isSpeaking && (
+                        <button
+                            className="mt-2 px-4 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-full text-sm font-medium flex items-center gap-2 mx-auto transition-colors"
+                            onClick={() => speakAnnouncement(announcement)}
+                        >
+                            <Volume2 className="w-4 h-4" />
+                            🔊 読み上げる
+                        </button>
                     )}
                 </div>
 
