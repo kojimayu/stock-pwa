@@ -684,6 +684,17 @@ export async function getProducts() {
     });
 }
 
+// 在庫確認フラグをトグル（商品一覧からのインライン操作用）
+export async function toggleRequireStockCheck(productId: number, value: boolean) {
+    "use server";
+    await prisma.product.update({
+        where: { id: productId },
+        data: { requireStockCheck: value },
+    });
+    revalidatePath('/admin/products');
+    return { success: true };
+}
+
 // Special sort for Kiosk Shop
 // 1. In Stock (Stock > 0)
 // 2. Popularity (Usage Count)

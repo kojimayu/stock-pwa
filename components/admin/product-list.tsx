@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Edit, Plus, Trash2, PackagePlus, Search, X, Package, ChevronDown, ChevronUp } from "lucide-react";
+import { Edit, Plus, Trash2, PackagePlus, Search, X, Package, ChevronDown, ChevronUp, ClipboardCheck } from "lucide-react";
 import { ProductDialog } from "./product-dialog";
 import { StockAdjustmentDialog } from "./stock-adjustment-dialog";
 import { deleteProduct } from "@/lib/actions";
@@ -46,6 +46,7 @@ type Product = {
     supplier?: string | null;
     color?: string | null;
     createdAt?: Date | string;
+    requireStockCheck?: boolean;
 };
 
 interface ProductListProps {
@@ -270,6 +271,7 @@ export function ProductList({ products }: ProductListProps) {
                             <TableHead className="text-right">販売単価</TableHead>
                             <TableHead className="text-right">在庫</TableHead>
                             <TableHead className="text-right">原価率</TableHead>
+                            <TableHead className="text-center w-[50px]" title="持出し時 在庫確認">📦</TableHead>
                             <TableHead className="w-[100px]">操作</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -320,6 +322,26 @@ export function ProductList({ products }: ProductListProps) {
                                             原価: {formatCurrency(product.cost)}
                                         </div>
                                     </TableCell>
+                                    <TableCell className="text-center">
+                                        <button
+                                            className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${product.requireStockCheck
+                                                    ? 'bg-blue-600 border-blue-600 text-white'
+                                                    : 'border-slate-300 hover:border-blue-400'
+                                                }`}
+                                            title={product.requireStockCheck ? '在庫確認ON' : '在庫確認OFF'}
+                                            onClick={async () => {
+                                                try {
+                                                    const { toggleRequireStockCheck } = await import('@/lib/actions');
+                                                    await toggleRequireStockCheck(product.id, !product.requireStockCheck);
+                                                    router.refresh();
+                                                } catch (e) {
+                                                    toast.error('更新に失敗しました');
+                                                }
+                                            }}
+                                        >
+                                            {product.requireStockCheck && <ClipboardCheck className="w-3.5 h-3.5" />}
+                                        </button>
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex gap-2">
                                             <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
@@ -335,7 +357,7 @@ export function ProductList({ products }: ProductListProps) {
                         })}
                         {filteredProducts.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                                     登録されている商品がありません
                                 </TableCell>
                             </TableRow>
