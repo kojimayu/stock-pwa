@@ -167,7 +167,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                         商品情報の入力を行います。
                     </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+                <form onSubmit={handleSubmit} className="grid gap-4 py-4" autoComplete="off">
                     <div className="grid gap-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid grid-cols-4 items-center gap-4">
