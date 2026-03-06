@@ -106,9 +106,16 @@ export function ProductList({ products }: ProductListProps) {
         router.refresh();
     };
 
-    const getMargin = (price: number, cost: number) => {
+    // 粗利率 = (price - cost) / price * 100
+    const getGrossMargin = (price: number, cost: number) => {
         if (price === 0) return 0;
         return ((price - cost) / price) * 100;
+    };
+
+    // 手動価格判定（掛率と一致しなければ手動）
+    const isManualPrice = (price: number, cost: number, rate: number) => {
+        if (cost === 0) return false;
+        return price !== Math.ceil(cost * rate);
     };
 
     const attributeOptions = {
@@ -158,7 +165,7 @@ export function ProductList({ products }: ProductListProps) {
                 case "stock": cmp = a.stock - b.stock; break;
                 case "minStock": cmp = a.minStock - b.minStock; break;
                 case "cost": cmp = a.cost - b.cost; break;
-                case "margin": cmp = getMargin(a.priceA, a.cost) - getMargin(b.priceA, b.cost); break;
+                case "margin": cmp = getGrossMargin(a.priceA, a.cost) - getGrossMargin(b.priceA, b.cost); break;
             }
             return sortDir === "asc" ? cmp : -cmp;
         })
@@ -321,7 +328,7 @@ export function ProductList({ products }: ProductListProps) {
                                 <span className="flex items-center justify-end">在庫/最低<SortIcon k="stock" /></span>
                             </TableHead>
                             <TableHead className="text-right cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("margin")}>
-                                <span className="flex items-center justify-end">原価率<SortIcon k="margin" /></span>
+                                <span className="flex items-center justify-end">原価/粗利<SortIcon k="margin" /></span>
                             </TableHead>
                             <TableHead className="text-center w-[50px]" title="持出し時 在庫確認">📦</TableHead>
                             <TableHead className="w-[100px]">操作</TableHead>
@@ -329,7 +336,10 @@ export function ProductList({ products }: ProductListProps) {
                     </TableHeader>
                     <TableBody>
                         {sortedProducts.map((product) => {
-                            const margin = getMargin(product.priceA, product.cost);
+                            const grossMargin = getGrossMargin(product.priceA, product.cost);
+                            const hasManualA = isManualPrice(product.priceA, product.cost, 1.20);
+                            const hasManualB = isManualPrice(product.priceB, product.cost, 1.15);
+                            const hasManual = hasManualA || hasManualB;
                             return (
                                 <TableRow key={product.id}>
                                     <TableCell className="font-medium">{product.code}</TableCell>
@@ -347,7 +357,10 @@ export function ProductList({ products }: ProductListProps) {
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div className="font-bold">{formatCurrency(product.priceA)}</div>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span className="font-bold">{formatCurrency(product.priceA)}</span>
+                                            {hasManual && <span className="text-xs px-1 py-0.5 bg-orange-100 text-orange-700 rounded font-bold">✋</span>}
+                                        </div>
                                         <div className="text-xs text-muted-foreground">
                                             B: {formatCurrency(product.priceB)} / C: {formatCurrency(product.priceC)}
                                         </div>
@@ -370,11 +383,9 @@ export function ProductList({ products }: ProductListProps) {
                                         </Button>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div className={margin < 20 ? "text-red-500" : "text-green-600"}>
-                                            {product.priceA > 0 ? `${margin.toFixed(1)}%` : "-"}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">
-                                            原価: {formatCurrency(product.cost)}
+                                        <div className="font-medium">{formatCurrency(product.cost)}</div>
+                                        <div className={`text-xs ${grossMargin < 15 ? 'text-red-500 font-bold' : 'text-green-600'}`}>
+                                            {product.priceA > 0 ? `${grossMargin.toFixed(1)}%` : "-"}
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -430,7 +441,7 @@ export function ProductList({ products }: ProductListProps) {
                     </div>
                 ) : (
                     sortedProducts.map((product) => {
-                        const margin = getMargin(product.priceA, product.cost);
+                        const grossMargin = getGrossMargin(product.priceA, product.cost);
                         return (
                             <div
                                 key={product.id}
@@ -457,9 +468,9 @@ export function ProductList({ products }: ProductListProps) {
                                         <span className="ml-1 font-bold">{formatCurrency(product.priceA)}</span>
                                     </div>
                                     <div>
-                                        <span className="text-muted-foreground">原価率:</span>
-                                        <span className={`ml-1 font-bold ${margin < 20 ? "text-red-500" : "text-green-600"}`}>
-                                            {product.priceA > 0 ? `${margin.toFixed(1)}%` : "-"}
+                                        <span className="text-muted-foreground">粗利率:</span>
+                                        <span className={`ml-1 font-bold ${grossMargin < 15 ? "text-red-500" : "text-green-600"}`}>
+                                            {product.priceA > 0 ? `${grossMargin.toFixed(1)}%` : "-"}
                                         </span>
                                     </div>
                                 </div>
