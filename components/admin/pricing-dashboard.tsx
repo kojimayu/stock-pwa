@@ -226,7 +226,7 @@ export function PricingDashboard({ rules, report }: Props) {
                         カテゴリ別掛率
                     </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>

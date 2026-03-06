@@ -486,7 +486,7 @@ export default async function AdminDashboardPage() {
                         エアコン在庫（容量別）
                     </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-x-auto">
                     {airconInventory.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-4">
                             エアコン商品が登録されていません
@@ -804,7 +804,7 @@ export default async function AdminDashboardPage() {
                         最近のエアコン持出し
                     </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="overflow-x-auto">
                     {groupedLogs.length === 0 ? (
                         <p className="text-sm text-muted-foreground text-center py-4">
                             データがありません

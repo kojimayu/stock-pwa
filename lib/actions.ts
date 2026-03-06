@@ -872,18 +872,21 @@ export async function upsertProduct(data: {
     requireStockCheck?: boolean;
     compatibleGroupId?: string | null;
 }) {
-    // priceMode判定
-    const priceMode = data.priceMode ?? 'AUTO';
-
-    // AUTO時: カテゴリ掛率で自動計算
+    // priceMode自動判定: カテゴリ掛率と比較して一致しなければMANUAL
     let finalPriceA = data.priceA;
     let finalPriceB = data.priceB;
-    if (priceMode === 'AUTO' && data.cost > 0) {
+    let priceMode: string = 'AUTO';
+
+    if (data.cost > 0) {
         const rule = await prisma.categoryPricingRule.findUnique({ where: { category: data.category } });
         if (rule) {
             const calc = calculatePricesByMarkup(data.cost, rule.markupRateA, rule.markupRateB);
-            finalPriceA = calc.priceA;
-            finalPriceB = calc.priceB;
+            // 送信された価格が掛率計算値と一致するか判定
+            const isAutoA = data.priceA === calc.priceA;
+            const isAutoB = data.priceB === calc.priceB;
+            if (!isAutoA || !isAutoB) {
+                priceMode = 'MANUAL';
+            }
         }
     }
 

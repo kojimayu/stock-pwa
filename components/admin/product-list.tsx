@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { normalizeForSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,8 +70,22 @@ export function ProductList({ products }: ProductListProps) {
     const [selectedProductType, setSelectedProductType] = useState<string>("all");
     const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
     const [showFilters, setShowFilters] = useState(false);
+    const [specialFilter, setSpecialFilter] = useState<"manual" | "stockCheck" | null>(null);
     const [sortKey, setSortKey] = useState<SortKey | null>(null);
     const [sortDir, setSortDir] = useState<SortDir>("asc");
+    const stickyFilterRef = useRef<HTMLDivElement>(null);
+    const [filterHeight, setFilterHeight] = useState(0);
+
+    // 検索バーの高さを測定してテーブルヘッダーのtopに反映
+    useEffect(() => {
+        const el = stickyFilterRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver(entries => {
+            for (const e of entries) setFilterHeight(e.contentRect.height + 8); // +8 for pb-2
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
     const router = useRouter();
 
     const totalCount = products.length;
@@ -143,6 +157,9 @@ export function ProductList({ products }: ProductListProps) {
         if (selectedCategory !== "all" && product.category !== selectedCategory) return false;
         if (selectedSubCategory !== "all" && product.subCategory !== selectedSubCategory) return false;
         if (selectedProductType !== "all" && product.productType !== selectedProductType) return false;
+        // 特殊フィルター
+        if (specialFilter === "manual" && product.priceMode !== "MANUAL") return false;
+        if (specialFilter === "stockCheck" && !product.requireStockCheck) return false;
         if (!searchQuery) return true;
         const query = normalizeForSearch(searchQuery);
         return (
@@ -191,7 +208,7 @@ export function ProductList({ products }: ProductListProps) {
             : <ArrowDown className="w-3 h-3 ml-1 text-blue-600" />;
     };
 
-    const hasActiveFilters = selectedCategory !== "all" || selectedSubCategory !== "all" || selectedProductType !== "all" || searchQuery !== "";
+    const hasActiveFilters = selectedCategory !== "all" || selectedSubCategory !== "all" || selectedProductType !== "all" || searchQuery !== "" || specialFilter !== null;
 
     return (
         <div className="space-y-4">
@@ -220,7 +237,7 @@ export function ProductList({ products }: ProductListProps) {
             </div>
 
             {/* 検索とフィルター - モバイル対応 */}
-            <div className="space-y-3 sticky top-0 z-20 bg-background pb-2">
+            <div ref={stickyFilterRef} className="space-y-3 sticky top-0 z-20 bg-background pb-2">
                 {/* 検索バー（常に表示） */}
                 <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -249,6 +266,7 @@ export function ProductList({ products }: ProductListProps) {
                                 setSelectedSubCategory("all");
                                 setSelectedProductType("all");
                                 setSearchQuery("");
+                                setSpecialFilter(null);
                             }}
                         >
                             <X className="w-4 h-4 mr-1" />
@@ -308,12 +326,36 @@ export function ProductList({ products }: ProductListProps) {
                         </SelectContent>
                     </Select>
                 </div>
+
+                {/* 特殊フィルター（手動価格 / 在庫チェック） */}
+                <div className="flex gap-2 flex-wrap">
+                    <button
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${specialFilter === "manual"
+                                ? "bg-orange-100 text-orange-700 border-orange-300"
+                                : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                            }`}
+                        onClick={() => setSpecialFilter(specialFilter === "manual" ? null : "manual")}
+                    >
+                        ✋ 手動価格のみ
+                        {specialFilter !== "manual" && <span className="text-muted-foreground/60">({products.filter(p => p.priceMode === "MANUAL").length})</span>}
+                    </button>
+                    <button
+                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${specialFilter === "stockCheck"
+                                ? "bg-blue-100 text-blue-700 border-blue-300"
+                                : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                            }`}
+                        onClick={() => setSpecialFilter(specialFilter === "stockCheck" ? null : "stockCheck")}
+                    >
+                        📦 在庫チェック対象
+                        {specialFilter !== "stockCheck" && <span className="text-muted-foreground/60">({products.filter(p => p.requireStockCheck).length})</span>}
+                    </button>
+                </div>
             </div>
 
             {/* PC用テーブル表示 */}
             <div className="hidden md:block border rounded-lg">
                 <Table>
-                    <TableHeader>
+                    <TableHeader style={{ top: filterHeight }}>
                         <TableRow>
                             <TableHead className="w-[100px] cursor-pointer select-none hover:bg-muted/50" onClick={() => toggleSort("code")}>
                                 <span className="flex items-center">ID<SortIcon k="code" /></span>

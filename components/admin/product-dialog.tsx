@@ -120,6 +120,8 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
             setCurrentCost(product?.cost || 0);
             setCurrentPriceA(initialValues?.priceA || product?.priceA || 0);
             setCurrentPriceB(product?.priceB || 0);
+            // 編集時は価格ロック（新規登録時はロックなし）
+            setPricesLocked(!!product);
         }
     }, [open, product, initialValues?.priceA]);
 
@@ -353,15 +355,29 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                 </div>
                             )}
                             {!pricesLocked && product && (
-                                <div className="col-span-2 flex justify-center">
+                                <div className="col-span-2 flex justify-center gap-2">
                                     <button
                                         type="button"
                                         className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
                                         onClick={() => setPricesLocked(true)}
                                     >
-                                        <Unlock className="w-3 h-3" />
+                                        <Lock className="w-3 h-3" />
                                         価格をロック
                                     </button>
+                                    {(isManualPriceA || isManualPriceB) && currentCost > 0 && (
+                                        <button
+                                            type="button"
+                                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+                                            onClick={() => {
+                                                if (confirm('販売単価A/Bを原価から自動計算（A=\u00d71.20 / B=\u00d71.15\uff09に戻しますか？')) {
+                                                    setCurrentPriceA(Math.ceil(currentCost * 1.20));
+                                                    setCurrentPriceB(Math.ceil(currentCost * 1.15));
+                                                }
+                                            }}
+                                        >
+                                            ↻ 自動計算に戻す
+                                        </button>
+                                    )}
                                 </div>
                             )}
 

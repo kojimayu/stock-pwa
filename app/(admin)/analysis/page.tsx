@@ -54,7 +54,7 @@ export default async function AnalysisPage() {
                     <AlertTriangle className="mr-2 h-5 w-5 text-yellow-500" />
                     低利益率商品 (利益率 10%未満)
                 </h2>
-                <div className="border rounded-lg">
+                <div className="border rounded-lg overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
