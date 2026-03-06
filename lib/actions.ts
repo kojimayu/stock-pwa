@@ -2312,41 +2312,45 @@ export async function getOrderById(id: number) {
 }
 
 export async function generateDraftOrders() {
-    // 0. 既存の未完了注文（DRAFT/ORDERED/PARTIAL）に含まれる商品IDを取得
-    // これらの商品は既に発注済みなので候補から除外する
+    // 0. 既存の未完了注文（DRAFT/ORDERED/PARTIAL）の発注済み数量をproductId別に集計
     const pendingOrderItems = await prisma.orderItem.findMany({
         where: {
             order: {
                 status: { in: ['DRAFT', 'ORDERED', 'PARTIAL'] }
             }
         },
-        select: { productId: true }
+        select: { productId: true, quantity: true, receivedQuantity: true }
     });
-    const pendingProductIds = new Set(pendingOrderItems.map(i => i.productId));
-
-    // 1. Get products low on stock (stock < minStock) で、未発注のもの
-    const lowStockProducts = await prisma.product.findMany({
-        where: {
-            stock: {
-                lt: prisma.product.fields.minStock
-            },
-            minStock: {
-                gt: 0
-            }
+    // 商品ごとの未入荷数量を集計（発注数 - 入荷済み数）
+    const pendingQtyByProduct = new Map<number, number>();
+    for (const item of pendingOrderItems) {
+        const pending = item.quantity - item.receivedQuantity;
+        if (pending > 0) {
+            pendingQtyByProduct.set(
+                item.productId,
+                (pendingQtyByProduct.get(item.productId) || 0) + pending
+            );
         }
-    });
-
-    // 既に発注済みの商品を除外
-    const targetProducts = lowStockProducts.filter(p => !pendingProductIds.has(p.id));
-
-    if (targetProducts.length === 0) {
-        if (lowStockProducts.length > 0) {
-            return { success: false, message: `基準在庫を下回っている商品(${lowStockProducts.length}件)は全て発注済み/入荷待ちです。` };
-        }
-        return { success: false, message: "基準在庫を下回っている商品はありません。" };
     }
 
-    // 2. Group by supplier
+    // 1. 最低在庫 > 0 の全商品を取得
+    const allProducts = await prisma.product.findMany({
+        where: {
+            minStock: { gt: 0 }
+        }
+    });
+
+    // 2. 在庫 + 発注済み数量 < 最低在庫 の商品を候補として抽出
+    const targetProducts = allProducts.filter(p => {
+        const pendingQty = pendingQtyByProduct.get(p.id) || 0;
+        return (p.stock + pendingQty) < p.minStock;
+    });
+
+    if (targetProducts.length === 0) {
+        return { success: false, message: "在庫＋発注済み数が最低在庫を上回っている商品のみです。追加発注の必要はありません。" };
+    }
+
+    // 3. Group by supplier
     const groupedBySupplier = targetProducts.reduce((acc, p) => {
         const supplier = p.supplier || "未指定";
         if (!acc[supplier]) acc[supplier] = [];
@@ -2354,8 +2358,9 @@ export async function generateDraftOrders() {
         return acc;
     }, {} as Record<string, typeof targetProducts>);
 
-    // 3. Create Draft Orders
+    // 4. Create Draft Orders
     let createdCount = 0;
+    let itemCount = 0;
     for (const [supplier, products] of Object.entries(groupedBySupplier)) {
         await prisma.order.create({
             data: {
@@ -2363,7 +2368,9 @@ export async function generateDraftOrders() {
                 status: 'DRAFT',
                 items: {
                     create: products.map(p => {
-                        const deficit = Math.max(0, p.minStock - p.stock + 1);
+                        const pendingQty = pendingQtyByProduct.get(p.id) || 0;
+                        // 不足分 = 最低在庫 - 現在庫 - 発注済み数
+                        const deficit = Math.max(1, p.minStock - p.stock - pendingQty);
                         // @ts-ignore
                         const unit = p.orderUnit || 1;
                         const quantity = Math.ceil(deficit / unit) * unit;
@@ -2378,13 +2385,12 @@ export async function generateDraftOrders() {
             }
         });
         createdCount++;
+        itemCount += products.length;
     }
 
-    const skippedCount = lowStockProducts.length - targetProducts.length;
-    const skippedMsg = skippedCount > 0 ? `（${skippedCount}件は発注済みのためスキップ）` : "";
-    await logOperation("ORDER_DRAFT_GENERATE", `発注候補 ${createdCount}件作成`, `対象商品: ${targetProducts.length}件, スキップ: ${skippedCount}件`);
+    await logOperation("ORDER_DRAFT_GENERATE", `発注候補 ${createdCount}件作成`, `対象商品: ${itemCount}件（在庫+発注済み < 最低在庫）`);
     revalidatePath('/admin/orders');
-    return { success: true, message: `${createdCount}件の発注候補を作成しました。${skippedMsg}` };
+    return { success: true, message: `${createdCount}件の発注候補を作成しました（${itemCount}商品）。` };
 }
 
 export async function confirmOrder(id: number) {

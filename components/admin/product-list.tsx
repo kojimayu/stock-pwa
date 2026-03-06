@@ -301,7 +301,7 @@ export function ProductList({ products }: ProductListProps) {
             </div>
 
             {/* PC用テーブル表示 */}
-            <div className="hidden md:block border rounded-lg">
+            <div className="hidden md:block border rounded-lg overflow-auto max-h-[70vh]">
                 <Table>
                     <TableHeader>
                         <TableRow>
