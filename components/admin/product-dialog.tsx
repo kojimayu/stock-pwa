@@ -13,7 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { upsertProduct } from "@/lib/actions";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock, Unlock } from "lucide-react";
 import {
     Select,
     SelectContent,
@@ -62,6 +62,8 @@ interface ProductDialogProps {
 
 export function ProductDialog({ open, onOpenChange, product, initialValues, attributeOptions, onSuccess }: ProductDialogProps) {
     const [loading, setLoading] = useState(false);
+    // 編集時は価格フィールドをロック（新規登録時はロックなし）
+    const [pricesLocked, setPricesLocked] = useState(!!product);
 
     async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -327,11 +329,39 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     name="cost"
                                     type="number"
                                     value={currentCost}
-                                    className="col-span-3"
+                                    className={`col-span-3 ${pricesLocked ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                                     required
+                                    readOnly={pricesLocked}
+                                    tabIndex={pricesLocked ? -1 : undefined}
                                     onChange={handleCostChange}
                                 />
                             </div>
+
+                            {/* 価格ロック解除ボタン */}
+                            {pricesLocked && (
+                                <div className="col-span-2 flex justify-center">
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors"
+                                        onClick={() => setPricesLocked(false)}
+                                    >
+                                        <Lock className="w-4 h-4" />
+                                        🔓 価格を編集する
+                                    </button>
+                                </div>
+                            )}
+                            {!pricesLocked && product && (
+                                <div className="col-span-2 flex justify-center">
+                                    <button
+                                        type="button"
+                                        className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+                                        onClick={() => setPricesLocked(true)}
+                                    >
+                                        <Unlock className="w-3 h-3" />
+                                        価格をロック
+                                    </button>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <label htmlFor="priceA" className="text-right text-sm font-medium">
@@ -344,8 +374,10 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                         type="number"
                                         value={currentPriceA}
                                         onChange={(e) => setCurrentPriceA(Number(e.target.value))}
-                                        className={`flex-1 ${isManualPriceA ? "border-orange-500 bg-orange-50" : ""}`}
+                                        className={`flex-1 ${isManualPriceA ? 'border-orange-500 bg-orange-50' : ''} ${pricesLocked ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                                         required
+                                        readOnly={pricesLocked}
+                                        tabIndex={pricesLocked ? -1 : undefined}
                                     />
                                     {isManualPriceA ? (
                                         <span className="text-xs text-orange-600 font-bold whitespace-nowrap">手動設定中</span>
@@ -365,8 +397,10 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                         type="number"
                                         value={currentPriceB}
                                         onChange={(e) => setCurrentPriceB(Number(e.target.value))}
-                                        className={`flex-1 ${isManualPriceB ? "border-orange-500 bg-orange-50" : ""}`}
+                                        className={`flex-1 ${isManualPriceB ? 'border-orange-500 bg-orange-50' : ''} ${pricesLocked ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                                         required
+                                        readOnly={pricesLocked}
+                                        tabIndex={pricesLocked ? -1 : undefined}
                                     />
                                     {isManualPriceB ? (
                                         <span className="text-xs text-orange-600 font-bold whitespace-nowrap">手動設定中</span>
@@ -385,8 +419,10 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                         name="priceC"
                                         type="number"
                                         defaultValue={product?.priceC || 0}
-                                        className="flex-1"
+                                        className={`flex-1 ${pricesLocked ? 'bg-slate-100 cursor-not-allowed' : ''}`}
                                         required
+                                        readOnly={pricesLocked}
+                                        tabIndex={pricesLocked ? -1 : undefined}
                                     />
                                     <span className="text-xs text-muted-foreground whitespace-nowrap">(掛率)</span>
                                 </div>
@@ -457,7 +493,9 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     type="number"
                                     min="0"
                                     defaultValue={product?.pricePerBox || 0}
-                                    className="col-span-3"
+                                    className={`col-span-3 ${pricesLocked ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                                    readOnly={pricesLocked}
+                                    tabIndex={pricesLocked ? -1 : undefined}
                                 />
                             </div>
 
