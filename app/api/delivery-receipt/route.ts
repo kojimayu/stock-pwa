@@ -43,17 +43,15 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // 同日・同orderId・同typeの既存レコードがあれば写真をマージ
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        // 10分以内の同orderId・同typeの既存レコードがあれば写真をマージ
+        // （同一便の複数アイテム入荷は数分以内。別便は10分以上空く想定）
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 
         const existingReceipt = await prisma.deliveryReceipt.findFirst({
             where: {
                 type,
                 orderId,
-                createdAt: { gte: today, lt: tomorrow },
+                createdAt: { gte: tenMinutesAgo },
             },
             orderBy: { createdAt: "desc" },
         });
