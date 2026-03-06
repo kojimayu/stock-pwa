@@ -46,7 +46,6 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     const [announcement, setAnnouncement] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
-    const [debugInfo, setDebugInfo] = useState<string>(""); // 一時デバッグ用
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
     useEffect(() => {
@@ -62,121 +61,71 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     // 音声読み上げ開始（お知らせ取得完了後）
     useEffect(() => {
         if (loading || !announcement) return;
-        if (hasPlayedToday(vendorUserId)) {
-            setDebugInfo("⏭ 本日再生済み（スキップ）");
-            return;
-        }
+        if (hasPlayedToday(vendorUserId)) return;
 
-        const debug: string[] = [];
-
-        // 1. Fully Kiosk Browser の API をチェック
+        // 方式1: Fully Kiosk Browser の TTS API
         const fullyApi = (window as any).fully;
-        const hasFullyObj = !!fullyApi;
-        const hasFullyTts = hasFullyObj && typeof fullyApi.textToSpeech === "function";
-        debug.push(`fully: ${hasFullyObj ? "✅あり" : "❌なし"}`);
-        debug.push(`fully.tts: ${hasFullyTts ? "✅あり" : "❌なし"}`);
-
-        // 2. Web Speech API をチェック
-        const hasSpeechSynth = "speechSynthesis" in window;
-        debug.push(`speechSynthesis: ${hasSpeechSynth ? "✅あり" : "❌なし"}`);
-
-        // 方式1: Fully Kiosk TTS
-        if (hasFullyTts) {
+        if (fullyApi && typeof fullyApi.textToSpeech === "function") {
             const timer = setTimeout(() => {
                 try {
                     fullyApi.textToSpeech(announcement, "ja_JP");
                     setIsSpeaking(true);
-                    debug.push("🔊 fully.tts 呼び出し成功");
-                    setDebugInfo(debug.join(" | "));
                     const estimatedMs = Math.max(announcement.length * 150, 3000);
                     setTimeout(() => {
                         setIsSpeaking(false);
                         markPlayedToday(vendorUserId);
                     }, estimatedMs);
-                } catch (e: any) {
-                    debug.push(`❌ fully.tts エラー: ${e?.message || e}`);
-                    setDebugInfo(debug.join(" | "));
-                    // フォールバック: Web Speech APIを試す
-                    if (hasSpeechSynth) {
-                        tryWebSpeech(announcement, debug);
-                    }
+                } catch (e) {
+                    console.error("Fully Kiosk TTS error:", e);
+                    setIsSpeaking(false);
                 }
             }, 500);
-            setDebugInfo(debug.join(" | "));
             return () => clearTimeout(timer);
         }
 
-        // 方式2: Web Speech API
-        if (hasSpeechSynth) {
-            const timer = setTimeout(() => {
-                const voices = speechSynthesis.getVoices();
-                debug.push(`voices: ${voices.length}件`);
-                if (voices.length > 0) {
-                    tryWebSpeech(announcement, debug);
-                } else {
-                    debug.push("⏳ voiceschanged待ち...");
-                    setDebugInfo(debug.join(" | "));
-                    speechSynthesis.addEventListener("voiceschanged", () => {
-                        const v = speechSynthesis.getVoices();
-                        debug.push(`voices(再取得): ${v.length}件`);
-                        tryWebSpeech(announcement, debug);
-                    }, { once: true });
-                    // 3秒待っても来なければ諦め
-                    setTimeout(() => {
-                        if (!isSpeaking) {
-                            debug.push("⚠ voiceschanged タイムアウト");
-                            setDebugInfo(debug.join(" | "));
-                        }
-                    }, 3000);
-                }
-            }, 500);
-            setDebugInfo(debug.join(" | "));
-            return () => clearTimeout(timer);
-        }
+        // 方式2: Web Speech API フォールバック
+        if (!("speechSynthesis" in window)) return;
 
-        debug.push("❌ 音声API非対応");
-        setDebugInfo(debug.join(" | "));
+        const startSpeech = () => {
+            const utterance = new SpeechSynthesisUtterance(announcement);
+            utterance.lang = "ja-JP";
+            utterance.rate = 0.9;
+            utterance.pitch = 1.0;
+
+            const voices = speechSynthesis.getVoices();
+            const preferredVoice =
+                voices.find((v) => v.name.includes("Google") && v.lang.startsWith("ja")) ||
+                voices.find((v) => v.name.includes("Nanami")) ||
+                voices.find((v) => v.lang === "ja-JP") ||
+                voices.find((v) => v.lang.startsWith("ja"));
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+            }
+
+            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onend = () => {
+                setIsSpeaking(false);
+                markPlayedToday(vendorUserId);
+            };
+            utterance.onerror = () => {
+                setIsSpeaking(false);
+            };
+
+            utteranceRef.current = utterance;
+            speechSynthesis.speak(utterance);
+        };
+
+        const timer = setTimeout(() => {
+            const voices = speechSynthesis.getVoices();
+            if (voices.length > 0) {
+                startSpeech();
+            } else {
+                speechSynthesis.addEventListener("voiceschanged", startSpeech, { once: true });
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
     }, [loading, announcement, vendorUserId]);
-
-    const tryWebSpeech = (text: string, debug: string[]) => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "ja-JP";
-        utterance.rate = 0.9;
-        utterance.pitch = 1.0;
-
-        const voices = speechSynthesis.getVoices();
-        const preferredVoice =
-            voices.find((v) => v.name.includes("Google") && v.lang.startsWith("ja")) ||
-            voices.find((v) => v.name.includes("Nanami")) ||
-            voices.find((v) => v.lang === "ja-JP") ||
-            voices.find((v) => v.lang.startsWith("ja"));
-        if (preferredVoice) {
-            utterance.voice = preferredVoice;
-            debug.push(`voice: ${preferredVoice.name}`);
-        }
-
-        utterance.onstart = () => {
-            setIsSpeaking(true);
-            debug.push("🔊 再生開始");
-            setDebugInfo(debug.join(" | "));
-        };
-        utterance.onend = () => {
-            setIsSpeaking(false);
-            markPlayedToday(vendorUserId);
-            debug.push("✅ 再生完了");
-            setDebugInfo(debug.join(" | "));
-        };
-        utterance.onerror = (e) => {
-            setIsSpeaking(false);
-            debug.push(`❌ エラー: ${e.error}`);
-            setDebugInfo(debug.join(" | "));
-        };
-
-        utteranceRef.current = utterance;
-        speechSynthesis.speak(utterance);
-        debug.push("speak() 呼び出し済み");
-        setDebugInfo(debug.join(" | "));
-    };
 
     // ロード中 or お知らせ文が空 → 表示しない
     if (loading) return null;
@@ -209,13 +158,6 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
                         {announcement}
                     </div>
                 </div>
-
-                {/* デバッグ情報（一時的 - 原因特定後に削除） */}
-                {debugInfo && (
-                    <div className="px-6 py-2 bg-slate-100 text-xs text-slate-500 font-mono border-t">
-                        🐛 {debugInfo}
-                    </div>
-                )}
 
                 {/* 確認ボタン */}
                 <div className="p-6 border-t">
