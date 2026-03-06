@@ -285,7 +285,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
             </Card>
 
             {/* 取引テーブル */}
-            <div className="border rounded-lg relative bg-white overflow-x-auto">
+            <div className="border rounded-lg relative bg-white">
                 {loading && (
                     <div className="absolute inset-0 bg-white/50 z-50 flex items-center justify-center">
                         <Loader2 className="animate-spin text-blue-600 w-8 h-8" />

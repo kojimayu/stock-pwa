@@ -1007,47 +1007,45 @@ export default function AirconInventoryPage() {
                                                 </div>
                                             </AccordionTrigger>
                                             <AccordionContent>
-                                                <div className="overflow-x-auto">
-                                                    <Table>
-                                                        <TableHeader>
-                                                            <TableRow>
-                                                                <TableHead>コード</TableHead>
-                                                                <TableHead>名称</TableHead>
-                                                                <TableHead className="text-center">システム</TableHead>
-                                                                <TableHead className="text-center">実数</TableHead>
-                                                                <TableHead className="text-center">差異</TableHead>
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>コード</TableHead>
+                                                            <TableHead>名称</TableHead>
+                                                            <TableHead className="text-center">システム</TableHead>
+                                                            <TableHead className="text-center">実数</TableHead>
+                                                            <TableHead className="text-center">差異</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {inv.items.map((item) => (
+                                                            <TableRow
+                                                                key={item.id}
+                                                                className={
+                                                                    item.adjustment !== 0
+                                                                        ? item.adjustment > 0
+                                                                            ? "bg-green-50"
+                                                                            : "bg-red-50"
+                                                                        : ""
+                                                                }
+                                                            >
+                                                                <TableCell className="font-mono">{item.product.code}</TableCell>
+                                                                <TableCell>{item.product.name}</TableCell>
+                                                                <TableCell className="text-center">{item.expectedStock}</TableCell>
+                                                                <TableCell className="text-center font-bold">{item.actualStock}</TableCell>
+                                                                <TableCell className="text-center">
+                                                                    {item.adjustment !== 0 ? (
+                                                                        <span className={`font-bold ${item.adjustment > 0 ? "text-green-600" : "text-red-600"}`}>
+                                                                            {item.adjustment > 0 ? `+${item.adjustment}` : item.adjustment}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400">±0</span>
+                                                                    )}
+                                                                </TableCell>
                                                             </TableRow>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                            {inv.items.map((item) => (
-                                                                <TableRow
-                                                                    key={item.id}
-                                                                    className={
-                                                                        item.adjustment !== 0
-                                                                            ? item.adjustment > 0
-                                                                                ? "bg-green-50"
-                                                                                : "bg-red-50"
-                                                                            : ""
-                                                                    }
-                                                                >
-                                                                    <TableCell className="font-mono">{item.product.code}</TableCell>
-                                                                    <TableCell>{item.product.name}</TableCell>
-                                                                    <TableCell className="text-center">{item.expectedStock}</TableCell>
-                                                                    <TableCell className="text-center font-bold">{item.actualStock}</TableCell>
-                                                                    <TableCell className="text-center">
-                                                                        {item.adjustment !== 0 ? (
-                                                                            <span className={`font-bold ${item.adjustment > 0 ? "text-green-600" : "text-red-600"}`}>
-                                                                                {item.adjustment > 0 ? `+${item.adjustment}` : item.adjustment}
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-slate-400">±0</span>
-                                                                        )}
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            ))}
-                                                        </TableBody>
-                                                    </Table>
-                                                </div>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
                                             </AccordionContent>
                                         </AccordionItem>
                                     </Accordion>
@@ -1056,7 +1054,8 @@ export default function AirconInventoryPage() {
                         )}
                     </CardContent>
                 </Card>
-            )}
+            )
+            }
 
             {/* 棚卸確定 確認ダイアログ */}
             <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
@@ -1150,6 +1149,6 @@ export default function AirconInventoryPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }

@@ -395,7 +395,7 @@ export default function AirconOrderSettingsPage() {
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>

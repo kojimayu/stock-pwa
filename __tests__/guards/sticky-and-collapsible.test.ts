@@ -41,14 +41,14 @@ describe('テーブルヘッダー固定チェック', () => {
         expect(content).toContain('bg-background');
     });
 
-    it('Table コンテナが overflow-x-clip であること（auto だと sticky が効かない）', () => {
+    it('Table コンテナがレスポンシブ overflow であること（モバイル: auto, PC: clip）', () => {
         const tableUi = resolve(projectRoot, 'components/ui/table.tsx');
         const content = readFileSync(tableUi, 'utf-8');
 
-        // overflow-x-auto は sticky を阻害するので使われていないこと
-        expect(content).not.toContain('overflow-x-auto');
-        // overflow-x-clip が使われていること
-        expect(content).toContain('overflow-x-clip');
+        // モバイルで横スクロール可能
+        expect(content).toContain('overflow-x-auto');
+        // PCではstickyヘッダーのためclip
+        expect(content).toContain('md:overflow-x-clip');
     });
 
     it('ネイティブ <thead> を使うファイルにも sticky が適用されていること', () => {

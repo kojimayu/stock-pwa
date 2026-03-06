@@ -68,20 +68,26 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
             return;
         }
 
+        // 写真・メモを先にキャプチャしてからstateクリア（重複送信防止）
+        const photosToSend = [...receivePhotos];
+        const dateToSend = receiveDeliveryDate;
+        const noteToSend = receiveNote;
+        setReceivePhotos([]);
+
         setIsUpdating(true);
         try {
             await receiveOrderItem(item.id, qty);
 
-            // 納品記録を同時保存
-            if (receivePhotos.length > 0 || receiveDeliveryDate || receiveNote) {
+            // 納品記録を同時保存（写真がある場合のみ）
+            if (photosToSend.length > 0 || dateToSend || noteToSend) {
                 try {
                     const formData = new FormData();
                     formData.append("type", "MATERIAL");
                     formData.append("orderId", String(order.id));
                     formData.append("confirmedBy", adminEmail);
-                    if (receiveDeliveryDate) formData.append("deliveryDate", receiveDeliveryDate);
-                    if (receiveNote) formData.append("note", receiveNote);
-                    receivePhotos.forEach(f => formData.append("photos", f));
+                    if (dateToSend) formData.append("deliveryDate", dateToSend);
+                    if (noteToSend) formData.append("note", noteToSend);
+                    photosToSend.forEach(f => formData.append("photos", f));
                     await fetch("/api/delivery-receipt", { method: "POST", body: formData });
                 } catch (e) {
                     console.error("納品記録保存エラー:", e);
@@ -90,7 +96,6 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
 
             toast.success(`${item.product.name}を入荷しました`);
             setReceiveQtys(prev => ({ ...prev, [item.id]: 0 }));
-            setReceivePhotos([]);
             router.refresh();
         } catch (e: any) {
             toast.error(e.message || "エラーが発生しました");

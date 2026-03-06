@@ -4,38 +4,28 @@ import { resolve } from 'path';
 
 /**
  * モバイル横スクロール ガードテスト
- * テーブルを直接表示する画面に overflow-x-auto が適用されていることを保証する。
- * table.tsx の overflow-x-clip (sticky ヘッダーに必要) はそのまま維持しつつ、
- * 各ページの親コンテナで overflow-x-auto を設定することで横スクロールを実現する。
+ * table.tsx のレスポンシブクラスを検証:
+ * - モバイル: overflow-x-auto（横スクロール可能）
+ * - PC (md以上): overflow-x-clip（sticky ヘッダー維持）
  */
 
 const projectRoot = resolve(__dirname, '../../');
 
-// テーブルを直接モバイルで表示する画面一覧
-// カードUIにフォールバックする画面 (product-list, order-list, order-detail, logs-client) は除外
-const pagesWithDirectTable: { file: string; description: string }[] = [
-    { file: 'components/admin/transaction-list.tsx', description: '取引履歴' },
-    { file: 'components/admin/vendor-list.tsx', description: '仕入先一覧' },
-    { file: 'components/admin/pricing-dashboard.tsx', description: '価格設定' },
-    { file: 'app/(admin)/admin/page.tsx', description: 'ダッシュボード' },
-    { file: 'app/(admin)/admin/logs/login/page.tsx', description: 'ログイン履歴' },
-    { file: 'app/(admin)/admin/aircon-logs/page.tsx', description: 'エアコンログ' },
-    { file: 'app/(admin)/admin/aircon-orders/settings/page.tsx', description: 'エアコン発注設定' },
-    { file: 'app/(admin)/analysis/page.tsx', description: '利益分析' },
-];
-
 describe('モバイル横スクロール ガードテスト', () => {
-    it('table.tsx は overflow-x-clip を維持していること（sticky ヘッダーに必要）', () => {
+    it('table.tsx にレスポンシブ overflow クラスがあること', () => {
         const tableUi = resolve(projectRoot, 'components/ui/table.tsx');
         const content = readFileSync(tableUi, 'utf-8');
-        expect(content).toContain('overflow-x-clip');
+
+        // モバイル: overflow-x-auto, PC: overflow-x-clip
+        expect(content).toContain('overflow-x-auto');
+        expect(content).toContain('md:overflow-x-clip');
     });
 
-    pagesWithDirectTable.forEach(({ file, description }) => {
-        it(`${description} (${file}) に overflow-x-auto があること`, () => {
-            const filePath = resolve(projectRoot, file);
-            const content = readFileSync(filePath, 'utf-8');
-            expect(content).toContain('overflow-x-auto');
-        });
+    it('table.tsx に sticky ヘッダーがあること', () => {
+        const tableUi = resolve(projectRoot, 'components/ui/table.tsx');
+        const content = readFileSync(tableUi, 'utf-8');
+        expect(content).toContain('sticky');
+        expect(content).toContain('top-0');
+        expect(content).toContain('z-10');
     });
 });

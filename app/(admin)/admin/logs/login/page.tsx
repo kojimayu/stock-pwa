@@ -29,7 +29,7 @@ export default async function LoginHistoryPage() {
                 <CardHeader>
                     <CardTitle>履歴一覧</CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-x-auto">
+                <CardContent>
                     <Table>
                         <TableHeader>
                             <TableRow>

@@ -43,7 +43,55 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // DB保存（写真パスはJSON配列として保存、1枚の場合は単独パス）
+        // 同日・同orderId・同typeの既存レコードがあれば写真をマージ
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const existingReceipt = await prisma.deliveryReceipt.findFirst({
+            where: {
+                type,
+                orderId,
+                createdAt: { gte: today, lt: tomorrow },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+
+        if (existingReceipt && photoPaths.length > 0) {
+            // 既存レコードに写真を追加
+            const existingPhotos = existingReceipt.photoPath
+                ? (existingReceipt.photoPath.startsWith("[")
+                    ? JSON.parse(existingReceipt.photoPath) as string[]
+                    : [existingReceipt.photoPath])
+                : [];
+            const mergedPhotos = [...existingPhotos, ...photoPaths];
+            const mergedNote = [existingReceipt.note, note].filter(Boolean).join(" / ");
+
+            await prisma.deliveryReceipt.update({
+                where: { id: existingReceipt.id },
+                data: {
+                    photoPath: mergedPhotos.length > 1
+                        ? JSON.stringify(mergedPhotos)
+                        : mergedPhotos[0] || null,
+                    note: mergedNote || null,
+                    confirmedBy: confirmedBy || existingReceipt.confirmedBy,
+                    confirmedAt: new Date(),
+                    deliveryDate: deliveryDate ? new Date(deliveryDate) : existingReceipt.deliveryDate,
+                },
+            });
+
+            const label = type === "AIRCON" ? "エアコン" : "材料";
+            await logOperation(
+                "DELIVERY_RECEIPT",
+                `${label}発注 #${orderId}`,
+                `納品記録に写真追加(マージ) 確認者: ${confirmedBy || '不明'}, 追加写真: ${photoPaths.length}枚, 合計: ${mergedPhotos.length}枚`
+            );
+
+            return NextResponse.json({ success: true, receipt: existingReceipt, merged: true });
+        }
+
+        // 新規レコード作成
         const photoPath = photoPaths.length > 1
             ? JSON.stringify(photoPaths)
             : photoPaths[0] || null;

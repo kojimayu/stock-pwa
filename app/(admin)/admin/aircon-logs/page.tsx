@@ -492,7 +492,7 @@ export default function AirconLogsPage() {
             })()}
 
             {/* ログテーブル */}
-            <div className="border rounded-lg bg-white overflow-x-auto">
+            <div className="border rounded-lg bg-white">
                 {loading ? (
                     <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
                 ) : (
