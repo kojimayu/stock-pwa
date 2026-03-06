@@ -46,6 +46,7 @@ interface ProductDialogProps {
         quantityPerBox?: number;
         pricePerBox?: number;
         requireStockCheck?: boolean;
+        compatibleGroupId?: string | null;
     } | null;
     initialValues?: {
         name?: string;
@@ -93,6 +94,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                 quantityPerBox: Number(formData.get("quantityPerBox")) || 1,
                 pricePerBox: Number(formData.get("pricePerBox")) || 0,
                 requireStockCheck: formData.get("requireStockCheck") === "on",
+                compatibleGroupId: (formData.get("compatibleGroupId") as string)?.trim() || null,
             });
 
             toast.success(product ? "商品を更新しました" : "商品を登録しました");
@@ -516,6 +518,25 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                         Kioskで持出し確定前に「現在庫→持出後」の残数確認が必要になります
                                     </span>
                                 </label>
+                            </div>
+
+                            {/* 互換品グループ */}
+                            <div className="col-span-2 grid grid-cols-4 items-center gap-4">
+                                <label htmlFor="compatibleGroupId" className="text-right text-sm font-medium">
+                                    ⚡ 互換グループ
+                                </label>
+                                <div className="col-span-3">
+                                    <Input
+                                        id="compatibleGroupId"
+                                        name="compatibleGroupId"
+                                        defaultValue={product?.compatibleGroupId || ""}
+                                        placeholder="例: KS70系、LD70互換"
+                                        autoComplete="off"
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        同じグループ名の商品が互換品として紐づきます
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>

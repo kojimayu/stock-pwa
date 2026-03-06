@@ -1,106 +1,137 @@
-# 在庫確認強化 3機能セット — 実装計画
+# 互換品管理システム — 実装計画
 
 ## 概要
-業者のログイン〜持出し完了のフローに3つの在庫確認機能を組み込む。
 
-```
-業者ログイン → ①お知らせモーダル → モード選択 → 商品選択 → ②残数チェック → 確定 → ③簡易棚卸
-```
+同じ規格で仕入先/メーカーが異なる互換品を管理する仕組みを追加する。
+- **ユースケース**: 関東機材KS70 ⇔ 因幡電機LD70（互換品、売値同じ/仕入値違い）
+- 通常は関東機材から仕入れるが、緊急時は因幡電機(中国電通経由)から購入
 
-## 見積もり
+## 設計方針
 
-| # | 機能 | 作業量 | 概算時間 |
-|---|------|:---:|:---:|
-| ① | ログイン後お知らせモーダル | DB+Admin UI+Kioskモーダル | 45分 |
-| ② | 持出し確定時の残数チェック | DBフラグ+Admin toggle+checkout修正 | 30分 |
-| ③ | 持出し後の簡易棚卸 | 既存`StockVerificationDialog`を拡張 | 20分 |
-| | テスト+コミット | | 15分 |
-| | **合計** | | **約2時間** |
+**別商品＋互換グループID方式** を採用。
 
-> [!NOTE]
-> ②③は既存コードの基盤が整っているため、想定より軽い。
-
----
-
-## Proposed Changes
-
-### ① ログイン後お知らせモーダル（必読）
-
-#### [MODIFY] [schema.prisma](file:///f:/Antigravity/stock-pwa/prisma/schema.prisma)
-- `SystemConfig`モデルを新設（key-value型）
-  ```prisma
-  model SystemConfig {
-    key       String   @id
-    value     String
-    updatedAt DateTime @updatedAt
-  }
-  ```
-- キー `kiosk_announcement` に文面を保存
-
-#### [NEW] [announcement-settings.tsx](file:///f:/Antigravity/stock-pwa/app/(admin)/admin/settings/announcement-settings.tsx)
-- 管理画面にお知らせ設定ページ（テキストエリア+保存ボタン）
-- 空文字にすればお知らせ無効
-
-#### [NEW] [api/config/route.ts](file:///f:/Antigravity/stock-pwa/app/api/config/route.ts)
-- GET: `kiosk_announcement`の値を返すAPI（既存であれば流用）
-
-#### [MODIFY] [page.tsx (Kioskログイン)](file:///f:/Antigravity/stock-pwa/app/(kiosk)/page.tsx)
-- ログイン成功後、`kiosk_announcement`を取得
-- 文面があればモーダル表示 → 「確認しました」押下で`mode-select`へ遷移
-- モーダルは全画面、閉じるボタンなし、スクロール可、大きめフォント
-
----
-
-### ② 持出し確定時の残数チェック（必須）
-
-#### [MODIFY] [schema.prisma](file:///f:/Antigravity/stock-pwa/prisma/schema.prisma)
-- `Product`モデルに `requireStockCheck Boolean @default(false)` 追加
-
-#### [MODIFY] [product-dialog.tsx](file:///f:/Antigravity/stock-pwa/components/admin/product-dialog.tsx)
-- 商品編集ダイアログに「在庫チェック必須」トグル追加
-
-#### [MODIFY] [checkout page](file:///f:/Antigravity/stock-pwa/app/(kiosk)/shop/checkout/page.tsx)
-- カートの各商品に対し、`requireStockCheck=true`の商品について：
-  - 「現在庫: XX個 → 持出し後: YY個」を表示
-  - ☑「残数を確認しました」チェックボックスを追加
-  - 全チェック完了まで「出庫を確定する」ボタンを無効化
-
----
-
-### ③ 持出し後の簡易棚卸
-
-#### [MODIFY] [stock-verification-dialog.tsx](file:///f:/Antigravity/stock-pwa/components/kiosk/stock-verification-dialog.tsx)
-- 既存ダイアログの「在庫が合っている/合っていない」フローを活用
-- 現在は`expectedStock`を表示するだけ → 変更なしで既に③の機能を持っている
-
-> [!NOTE]
-> 既存の`StockVerificationDialog`と`CheckoutButton`が③を実質的に実現済み。
-> `createTransaction`が`stockInfo`を返しており、チェックアウト後にダイアログが表示される。
-> 追加作業: `createTransaction`のstockInfo対象を`requireStockCheck=true`の商品限定にするか、全商品にするかの調整のみ。
-
----
-
-## 検討事項
+| 項目 | 方針 |
+|---|---|
+| 商品登録 | KS70とLD70は**別商品として個別登録** |
+| 在庫管理 | 完全に独立（各商品ごとに在庫数） |
+| 売値 | 同じ値を手動設定（互換グループでの自動共有は第2段階） |
+| 仕入値 | 商品ごとに異なる → 粗利率がそれぞれ算出される |
+| 紐づけ | `compatibleGroupId`（任意の文字列）で互換グループ化 |
 
 > [!IMPORTANT]
-> 1. **お知らせの表示頻度**: セッションごと（ログインするたび毎回）でよいか？
->    - 提案: セッションごと（ログイン時に毎回表示）
-> 2. **管理画面の配置**: お知らせ設定はどこに置くか？
->    - 提案: `/admin/settings` に新しいページを作成、またはダッシュボードに設定パネル
-> 3. **既存③のカバー範囲**: 持出し後の在庫確認ダイアログは既に全商品で出ているが、`requireStockCheck`商品のみに絞るか？
+> **第1段階はスキーマ追加＋UI表示のみ。** 売値の自動同期は第2段階で検討（必要な場合）。
 
 ---
 
-## Verification Plan
+## 影響分析
 
-### Automated Tests
-- `npx vitest run` — 全テスト通過確認
-- SystemConfig CRUD テスト追加
-- requireStockCheck フラグのテスト追加
+### 影響なし（変更不要）
+| ファイル | 理由 |
+|---|---|
+| `lib/actions.ts`の`generateDraftOrders` | 商品ごとに独立判定のため影響なし |
+| `lib/actions.ts`の`upsertProduct` | 新フィールドを保存するだけ（追加のみ） |
+| `lib/return-actions.ts` | Product参照はIDベースで影響なし |
+| `app/api/products/stock-check/route.ts` | 在庫チェックは個別商品単位 |
+| Kioskの商品カード、カート、チェックアウト | Product.idベースで影響なし |
+| テスト（既存） | nullableフィールド追加なのでmock更新不要 |
 
-### Manual Verification
-- Kioskログイン → お知らせモーダル表示確認
-- お知らせ文を空にして → モーダル非表示確認
-- requireStockCheck商品を含むカートで残数チェック表示確認
-- チェック未完了で確定ボタン無効確認
-- 持出し後の簡易棚卸ダイアログ表示確認
+### 変更が必要
+| ファイル | 変更内容 |
+|---|---|
+| `prisma/schema.prisma` | Product に `compatibleGroupId String?` 追加 |
+| `lib/actions.ts` (`upsertProduct`) | `compatibleGroupId` の保存に対応 |
+| `lib/actions.ts` (`getProducts`) | 変更不要（全カラム取得済み） |
+| `components/admin/product-list.tsx` | 互換マーク `⚡` 表示、互換品ツールチップ |
+| `components/admin/product-dialog.tsx` | 互換グループ選択UI追加 |
+| `app/(admin)/admin/products/page.tsx` | 互換グループ情報をProductListに渡す（変更不要：全カラム取得済み） |
+
+---
+
+## 実装ステップ
+
+### Step 1: スキーマ変更
+**ファイル**: `prisma/schema.prisma`
+
+```prisma
+model Product {
+  // 既存フィールド...
+  compatibleGroupId String?  // 互換品グループID（同じIDを持つ商品は互換品）
+}
+```
+
+マイグレーション: `npx prisma db push`（nullableなのでデータ影響なし）
+
+### Step 2: upsertProduct修正
+**ファイル**: `lib/actions.ts`
+
+`upsertProduct`関数に`compatibleGroupId`の保存を追加。
+既存のフォームデータから取得し、create/updateに含める。
+
+### Step 3: 商品編集ダイアログにUI追加
+**ファイル**: `components/admin/product-dialog.tsx`
+
+- 「互換グループ」テキスト入力フィールドを追加（任意入力）
+- 既存の互換グループIDをサジェスト表示
+- 入力例: `KS70系` や `LD70互換` など自由入力
+
+### Step 4: 商品一覧に互換マーク表示
+**ファイル**: `components/admin/product-list.tsx`
+
+- `compatibleGroupId`を持つ商品にバッジ `⚡互換` を表示
+- ツールチップまたはホバーで互換品一覧を表示
+  例: `互換品: LD70B（因幡電機）原価110`
+
+### Step 5: 自動発注画面で互換品情報表示（任意）
+**ファイル**: `components/admin/order-list.tsx`
+
+- 発注候補に互換品がある場合、「⚡互換品あり」の注記を表示
+- 「緊急時は因幡電機からも調達可能」のような情報を提供
+
+---
+
+## テスト計画
+
+### 新規テスト: `__tests__/actions/compatible-products.test.ts`
+
+```
+テストケース一覧:
+
+1. 互換グループIDの保存テスト
+   - compatibleGroupIdを指定して商品を作成・更新
+   - null（未設定）で商品作成
+
+2. 互換グループのフィルタリングテスト
+   - 同じcompatibleGroupIdを持つ商品を正しくグループ化
+   - compatibleGroupId未設定の商品はグループ外
+
+3. 互換品UI表示ロジックテスト
+   - 互換品がある商品 → バッジ表示あり
+   - 互換品がない商品 → バッジ表示なし
+
+4. 自動発注への影響なしテスト（回帰テスト）
+   - 互換品が存在しても自動発注ロジックは個別商品単位で動作
+   - 互換品の在庫を合算しない（独立管理の確認）
+```
+
+### 既存テスト: 回帰確認
+- `npx vitest run` で全テスト（161件）がパスすることを確認
+
+---
+
+## 検証計画
+
+1. マイグレーション後にDBバックアップ → 既存データ破損がないか確認
+2. 商品編集ダイアログで互換グループIDを設定・保存・再表示
+3. 商品一覧で互換マークが正しく表示されること
+4. 自動発注候補が互換品の有無に影響されないこと
+5. 全テスト（161件＋新規テスト）がパスすること
+
+---
+
+## リスク
+
+| リスク | 対策 |
+|---|---|
+| マイグレーションでデータ喪失 | `db push`前にdevデータベースのバックアップ |
+| 互換品の売値に差が出る | 第1段階では手動管理、将来的に同期機能を検討 |
+| 互換グループIDの命名が自由すぎる | 既存グループIDをサジェスト表示してタイポ防止 |

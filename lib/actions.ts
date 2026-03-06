@@ -870,6 +870,7 @@ export async function upsertProduct(data: {
     pricePerBox?: number;
     priceMode?: string;
     requireStockCheck?: boolean;
+    compatibleGroupId?: string | null;
 }) {
     // priceMode判定
     const priceMode = data.priceMode ?? 'AUTO';
@@ -917,6 +918,7 @@ export async function upsertProduct(data: {
                 pricePerBox: data.pricePerBox ?? 0,
                 priceMode,
                 requireStockCheck: data.requireStockCheck ?? false,
+                compatibleGroupId: data.compatibleGroupId ?? null,
             };
 
             // costが0より大きい場合のみ更新
@@ -977,6 +979,7 @@ export async function upsertProduct(data: {
                 quantityPerBox: data.quantityPerBox ?? 1,
                 pricePerBox: data.pricePerBox ?? 0,
                 priceMode,
+                compatibleGroupId: data.compatibleGroupId ?? null,
             } as any,
         });
         await logOperation("PRODUCT_CREATE", `商品: ${normalizedCode}`, `新規商品を作成 (Mode: ${priceMode})`);

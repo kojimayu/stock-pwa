@@ -1,195 +1,24 @@
+# タスク一覧（2026-03-06）
 
-# 調査タスク：Kioskログイン不具合と画面リセット問題
+## 互換品管理システム
+- [x] Step 1: スキーマ変更（`compatibleGroupId` 追加）
+- [x] Step 2: `upsertProduct` 修正
+- [x] Step 3: 商品編集ダイアログにUI追加
+- [x] Step 4: 商品一覧に互換マーク表示
+- [ ] Step 5: 自動発注画面で互換品情報表示（任意、第2段階）
+- [x] テスト作成（`compatible-products.test.ts` 10件）
+- [x] 回帰テスト（全171件パス）
+- [x] CHANGELOG更新
+- [ ] マニュアル改訂（次回対応）
 
-## 1. 現象の分析 (Root Cause Analysis)
-- [x] ログイン時の「ぐるぐる（スピナー）」が止まらない原因の特定
-- [x] 「別端末で初期画面を開くと、他端末もリセットされる」現象の調査
-    - [x] WebSocket / Server-Sent Events (SSE) の有無を確認
-    - [x] `revalidatePath` やグローバルなリダイレクト処理の確認
-    - [x] **原因特定:** `dev.db` 更新によるNext.jsのホットリロード発生
-
-## 2. サーバーサイドの調査
-- [x] `lib/actions.ts` の `verifyVendorPin` 周辺のログ出力強化
-- [x] `logOperation` の実装見直し（非同期化・タイムアウト設定）
-- [x] サーバーサイドでの「ログイン状態」のグローバル管理の有無を確認
-
-## 3. クライアントサイドの調査
-- [x] `app/layout.tsx` および `app/(kiosk)/layout.tsx` の調査
-- [x] `IdleTimer.tsx` のリダイレクトトリガーを確認
-
-## 4. 対策の提案 (一旦原因究明後に実施)
-- [x] 特定された原因に基づく修正案の作成
-- [x] 修正の実施と検証（`next.config.ts` の修正）
-
-# Kiosk UI改善 (Done)
-- [x] Kiosk画面（商品一覧、カート、確認画面）から金額表示を削除・非表示にする
-
-# 今後の実装タスク
-- [ ] **再発防止策: マスタデータとUIの整備**
-    - [x] `scripts/fix-product-units.js` の更新と実行（ビニールテープの単位「巻」化、IV線の単位「m」化）
-    - [x] `QuantitySelectorDialog` の改善: 「箱（巻）」ボタンに入数を表示する
-    - [x] `QuantitySelectorDialog` の改善: 箱選択時に「在庫からXX個減ります」と注釈を出す
-
-- [x] **誤入力修正機能（取引編集）の実装**
-    - [x] `implementation_plan.md` に基づくバックエンド実装 (Transaction更新、在庫自動調整)
-    - [x] 管理画面のUI実装 (取引履歴からの編集呼び出し)
-
-# 2026-02-10 追加フィードバック & 不具合対応
-- [ ] **管理機能改善**
-- [x] **Excelインポート改善**: ID照合時の変更検知（品番変更対応）とプレビュー強化、ハイフン入りの品番許容
-    - [!] **業者による返品処理**: 在庫数確認フローの実装（FEEDBACK.md参照）
-
-- [/] **Kiosk UI/UX改善**
-    - [ ] **品番の常時表示**: 商品一覧、カート、確認画面すべてで品番(code)を併記する
-    - [x] **予備部材の持ち出し対応**: 案件引き当て以外に、予備として余分に持ち出せる運用（在庫管理上は許容する）の検討・実装
-    - [x] 数量入力の改善 (直接入力 or +5/+10ボタン)
-    - [x] カート・確認画面でのカテゴリ/サブカテゴリ表示
-    - [x] **3カラムレイアウト化**: カテゴリー大・中・小を統合(左)、商品(中央)、カート常時表示(右)へ変更。
-        - [x] Create `MergedCategoryList` (Tree View)
-        - [x] **Material Unit**: Clarify unit (individual vs rolls) in history.
-        - [x] **Tablet Layout**: Collapsible category sidebar + Persistent cart.
-        - [x] **Test Env**: Fix 3001 port issues (PIN prompt, All vendors shown).
-
-## Operations & Reliability (BCP)
-- [x] **Business Continuity Plan**: Document strategy for PC failure (Cold Standby + Cloud Backup).
-- [ ] **Cloud Backup Setup**: Configure daily auto-backup to cloud storage (OneDrive/Google Drive).
-- [ ] **Standby Machine Setup**: Instructions for preparing a secondary PC.
-
-## Future Development
-        - [ ] **Duplicate Check**: Prevent double checkout of same management number.
-        - [x] Create `CartSidebar` (Persistent)
-        - [x] Integrate into `ShopInterface` layout
-        - [x] Responsive adjustments (Tablet/PC)
-  - [x] **返品モードUI実装**
-    - [x] **`lib/store.ts`**: Storeに`isReturnMode`を追加。
-    - [x] **`app/(kiosk)/mode-select/page.tsx`**: 「部材返却」ボタン(Return)を追加。
-    - [x] **`components/kiosk/shop-interface.tsx`**: Storeの`isReturnMode`に応じてヘッダー色やスタイルを変更(例: オレンジ色)。
-    - [x] **`components/kiosk/cart-sidebar.tsx`**: 「注文確定」から「返却確認」への文言変更とクリック時の分岐。
-
-- [x] **在庫確認ダイアログ実装**
-    - [x] **`components/kiosk/inventory-check-dialog.tsx`**: 作成。
-        - カート内商品について「計算上の在庫数(現在+返却分)」を表示。
-        - ユーザーに「実在庫数」を入力させる。
-        - 差異があれば調整として記録する旨を明示。
-        - **`lib/actions.ts`** に `getLatestStocks(ids)` を追加し、ダイアログ表示時に最新在庫を取得。
-
-- [x] **バックエンドロジック実装**
-    - [x] **`lib/actions.ts`**:
-        - `getVendorPurchaseHistory(vendorId)`: 過去の購入履歴を取得・集計。
-        - `processVerifiedReturn(...)`:
-            - 履歴チェック(正当な返品か)。
-            - 在庫加算(返品分)。
-            - 実在庫との差異チェック & 自動調整(InventoryLog: ADJUSTMENT)。
-            - Transaction作成(負の数量)。
-
-- [x] **履歴からの返品選択機能**
-    - [x] **`lib/return-actions.ts`**: `getVendorReturnableProducts` 実装。
-    - [x] **`components/kiosk/shop-interface.tsx`**: 返品モード時に商品リストを履歴ベースに切り替え。
-
-- [ ] **不具合調査・修正**
-    - [x] **発注番号のデータ修正**: 過去の確定済み発注に番号が付与されていない問題を解消（データ移行）
-    - [x] **VVF/IV線の単位統一と履歴補正**:
-        - [x] 商品マスタの単位を「m」に統一（単価・在庫数の補正）
-        - [x] **過去の取引履歴のデータ移行**: 過去に「巻」で記録された取引を、「m」換算した数量と単価に書き換え（scripts/migrate_vvf_units.ts実行済み）。
-    - [x] 完了画面で「0点」と表示されるバグの調査
-    - [x] **ログ機能強化**:
-        - [x] 自動ログアウト(AUTO_LOGOUT)の記録
-        - [x] 手動ログアウト(LOGOUT)の記録
-        - [x] 管理画面ログイン(ADMIN_LOGIN)の記録
-        - [x] **ログフォーマット統一**: 会社名＋担当者名に統一
-    - [x] **ログイン後の画面遷移フリーズ(2026/02/14調査)**:
-        - **症状**: PIN入力後にフリーズし、他端末で操作すると初期画面にリセットされる。
-        - **原因(有力説)**: 開発モードのNext.jsが、DB書き込み（ログ保存）に伴う `dev.db-wal` などの変更を検知して **Hot Reload（画面の自動再読み込み）** を引き起こしていた。これにより処理が中断され、初期画面に戻されていた。
-        - **対策**: `next.config.ts` でDBの関連ファイルを一括して監視対象外（ignore）に設定。
-        - [x] `logOperation` の最適化（セッションチェック回避、高速化）。
-        - [/] **継続監視**: START/END/SUCCESSログを追加し、再発時にどのフェーズで止まったか特定可能に。
-        [/] **継続監視**: START/END/SUCCESSログを追加し、再発時にどのフェーズで止まったか特定可能に。
-    - [!] **既知の問題**: `orderNumber`エラー（Prisma Client同期ズレ） -> 開発サーバー再起動で解消予定。
-    - [x] **本番ビルド修正**: Next.js 16のTurbopack競合（--webpackフラグ追加）を修正。
-    - [x] **TypeScriptビルド修正**: `scripts` フォルダをビルド対象外に設定し、補助スクリプトのエラーがビルドを妨げないよう修正。
-
-
-## Phase 8: 自動テストの導入
-- [x] **テスト環境の構築**
-    - [x] Playwrightのインストールと設定
-    - [x] `e2e` ディレクトリの作成
-    - [x] テスト用DBデータのシードスクリプト作成 (`db:test:seed`)
-    - [x] **Vitestのインストールと設定** (2026-02-19)
-        - [x] `vitest.config.ts` 作成（テスト用DB分離、直列実行）
-        - [x] `__tests__/setup/` にGlobalSetup・ファクトリ関数作成
-        - [x] テスト専用DB (`test-vitest.db`) で開発DBと完全分離
-- [x] **単体テスト（Phase 1: サーバーアクション）** (2026-02-19)
-    - [x] `auth.test.ts`: PIN認証・変更・リセット・担当者登録 (10テスト通過)
-    - [x] `transaction.test.ts`: チェックアウト・在庫チェック・返品 (8テスト通過)
-    - [x] `stock.test.ts`: 在庫調整・棚卸し・エアコン在庫 (9テスト通過)
-    - [x] **🐛 バグ発見**: `adjustStock` がOUT時もstockを加算するバグを検出
-- [ ] **E2Eテストの実装**（優先度: 低）
-    - [x] Kioskモード: ログイン〜商品選択〜注文完了フロー (Login完了)
-    - [ ] Kioskモード: 返品フロー（在庫確認ダイアログ）
-    - [ ] 管理画面: 商品マスタのCRUD操作
-- [ ] **CI/CD準備**
-    - [ ] GitHub Actionsワークフローの作成（PR時にテスト実行）
-
-# 開発ルール
-- **修正フロー**: 修正時は必ず `npx next dev -p 3001 -H 0.0.0.0` でテスト環境を起動し、動作確認を行ってから本番(3000)へマージ・適用すること。
-- **コミット**: コミットメッセージは日本語で記述すること。
-
-- [x] **エアコンの予備持ち出し（自社倉庫在庫）**:
-    - [x] `components/kiosk/checkout-type-select.tsx`: 「予備（自社在庫）」ボタンを追加。
-    - [x] `lib/actions.ts`: `createAirConditionerLog` で `INTERNAL` 等の特殊な管理Noを許容/処理する。
-    - [x] 管理画面のエアコン履歴で `INTERNAL` を「自社在庫」と表示する。
-
-- [ ] **エアコン管理・UX改善 (2026-02-16)**
-    - [/] **担当者記録**: エアコン持出し履歴に「会社名」だけでなく「担当者名」も表示する。
-        - [x] Kiosk: `vendorUserId` をAPIに送信。
-        - [x] API: `vendorUserId` をDBに保存。
-        - [x] Admin: 履歴一覧で担当者名を表示。
-    - [/] **内機・外機区分の対応**:
-        - [x] API/DB: `type` カラムを追加し、保存処理を実装。
-        - [x] Kiosk: 持ち出し時に区分を選択可能にする（デフォルトはSET）。
-        - [x] Admin: 履歴に区分を表示。
-    - [ ] **手動入力モード（業者在庫・新築先行）**:
-        - [ ] Kiosk: 「業者在庫として持出し（手動入力）」ボタンを実装。
-        - [ ] Kiosk: 管理Noと顧客名を任意入力可能にする。
-    - [/] **業者別予備在庫ダッシュボード（在庫管理統合版）**:
-        - [x] API: `getAirconStockWithVendorBreakdown` を実装。
-        - [x] Admin: `/admin/aircon-inventory` に業者在庫・総在庫カラムを追加。
-        - [x] Admin: `/admin/aircon-inventory` に業者在庫・総在庫カラムを追加。
-    - [x] Logic: 「業者在庫」の定義修正（管理番号なし＝業者在庫）。Schema変更含む。
-    - [ ] UI: 倉庫在庫 + 業者在庫 = 総在庫 の表示（未実装？要確認）。
-    - [ ] UI: 業者在庫の内訳（どの業者が持っているか）を表示（実装済みだが表示調整？要確認）。
-
-    - [ ] **材料取引履歴の表示改善**:
-        - [ ] 数量の単位を表示（個/巻/箱など）。
-
-    - [ ] **業者画面(Kiosk)レイアウト改善**:
-        - [ ] タブレット表示時のカラム幅調整（左・右を狭く、中央を広く）。
-
-    - [ ] **テスト環境デバッグ**:
-        - [ ] 業者ログイン時のPIN要求挙動の調査。
-        - [ ] 業者一覧の表示フィルタリング確認。
-
-    - [ ] **管理番号重複チェック**:
-        - [ ] 管理番号(`managementNo`)に紐づいたエアコン持出し時に、既に持出し中の番号であればエラーにする。
-
-
-# 運用・保守
-- [x] **定期バックアップの自動化**
-    - [x] バックアップスクリプト(`scripts/backup_db.ps1`)の作成
-    - [x] Windowsタスクスケジューラへの登録（毎日 自動実行）
-
-- [x] **ダッシュボード改善 (2026-02-16)**
-    - [x] **在庫アラートの厳格化**: 「在庫注意」の判定を「最低在庫以下(<=)」から「最低在庫未満(<)」に変更。在庫数と最低在庫が同数の場合はアラート対象外とし、ニッチ商品のノイズを除去。
-    - [x] **発注済み商品の除外**: 既に発注済み（ステータス: ORDERED, PARTIAL）の商品は、在庫が少なくてもアラート一覧から除外するように変更。
-
-- [x] **ユーザーフィードバック対応 (2026-02-13)**
-    - [x] **Kioskヘッダー表示改善**: 作業モード選択画面で担当者名を表示する
-
-
-
-- [x] **ユーザーフィードバック対応 (2026-02-12)**
-    - [x] **数量選択ダイアログ改善**: 在庫超え防止、1箱/1巻のデフォルト化(VVF/IV)、表示の明確化（セット→箱/巻）
-    - [x] **カート表示改善**: 金額非表示化、サイドバー幅拡大、スクロール修正
-    - [x] **カート内数量・単位表示の改善**: 「1セット」→「合計: 50個」「100m」などの詳細表示を追加
-    - [x] **ヘッダー表示改善**: 担当者名の表示
-    - [x] **ダイアログ・確認画面の修正**: 合計点数→商品種類数への変更、金額非表示、自動ログアウト確認
+## 本日完了済み
+- [x] 自動発注ロジック修正（`stock + 発注済み数量 < minStock`）
+- [x] 自動発注テスト追加（12件）
+- [x] 粗利率表示修正（原価率→粗利率に統一）
+- [x] 手動価格バッジ（✋）追加
+- [x] 価格ロック機能追加
+- [x] stickyヘッダー方式変更（インフレーム→ページスクロール）
+- [x] お知らせモーダルデバッグ削除＋1日1回制限維持
+- [x] autocomplete=off追加
+- [x] 商品管理テーブルのカラムソート機能
+- [x] CHANGELOG更新

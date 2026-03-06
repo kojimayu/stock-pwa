@@ -47,6 +47,9 @@ type Product = {
     color?: string | null;
     createdAt?: Date | string;
     requireStockCheck?: boolean;
+    compatibleGroupId?: string | null;
+    manufacturer?: string | null;
+    priceMode?: string;
 };
 
 interface ProductListProps {
@@ -344,11 +347,27 @@ export function ProductList({ products }: ProductListProps) {
                                 <TableRow key={product.id}>
                                     <TableCell className="font-medium">{product.code}</TableCell>
                                     <TableCell>
-                                        <div>{product.name}</div>
+                                        <div className="flex items-center gap-1">
+                                            <span>{product.name}</span>
+                                            {product.compatibleGroupId && (
+                                                <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-bold whitespace-nowrap">⚡互換</span>
+                                            )}
+                                        </div>
                                         <div className="text-xs text-muted-foreground">
                                             {product.supplier && <span className="mr-2">仕入: {product.supplier}</span>}
                                             {product.color && <span>色: {product.color}</span>}
                                         </div>
+                                        {product.compatibleGroupId && (() => {
+                                            const compatibles = sortedProducts.filter(
+                                                p => p.compatibleGroupId === product.compatibleGroupId && p.id !== product.id
+                                            );
+                                            if (compatibles.length === 0) return null;
+                                            return (
+                                                <div className="text-xs text-blue-600 mt-0.5">
+                                                    互換: {compatibles.map(c => `${c.code}(${c.supplier || '不明'})`).join(', ')}
+                                                </div>
+                                            );
+                                        })()}
                                     </TableCell>
                                     <TableCell>
                                         <div>{product.category}</div>

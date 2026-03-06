@@ -63,6 +63,7 @@ model Product {
   usageCount     Int                  @default(0)
   priceMode      String               @default("AUTO") // AUTO=カテゴリ掛率で自動計算, MANUAL=手動設定
   requireStockCheck Boolean            @default(false) // 持出し時の在庫確認必須
+  compatibleGroupId String?            // 互換品グループID（同じIDの商品は互換品）
   airconProductId Int?                 // エアコンマスタとの紐づけ（買取連携用）
   airconProduct  AirconProduct?       @relation(fields: [airconProductId], references: [id])
   countItems     InventoryCountItem[]
