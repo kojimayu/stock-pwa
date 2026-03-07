@@ -17,21 +17,24 @@ export default function GlobalError({
     error: Error & { digest?: string };
     reset: () => void;
 }) {
-    const [countdown, setCountdown] = useState(5);
-    const [retryCount, setRetryCount] = useState(0);
+    const [countdown, setCountdown] = useState(3);
 
     useEffect(() => {
         console.error("[GlobalError]", error.message);
     }, [error]);
 
-    // 5秒後に自動リロード
+    // 3秒後に自動リロード（sessionStorageでリトライ回数を管理しループ防止）
     useEffect(() => {
+        const retryKey = "global-error-retry";
+        const lastRetry = sessionStorage.getItem(retryKey);
+        const retryCount = lastRetry ? parseInt(lastRetry, 10) : 0;
+
         const timer = setInterval(() => {
             setCountdown(prev => {
                 if (prev <= 1) {
-                    // 3回リトライしてもダメなら強制フルリロード（キャッシュクリア）
-                    if (retryCount >= 2) {
-                        // Service Workerを解除してからリロード
+                    if (retryCount >= 1) {
+                        // 2回目以降: SW解除 + キャッシュバストで完全リセット
+                        sessionStorage.removeItem(retryKey);
                         if ("serviceWorker" in navigator) {
                             navigator.serviceWorker.getRegistrations().then(registrations => {
                                 registrations.forEach(reg => reg.unregister());
@@ -42,17 +45,26 @@ export default function GlobalError({
                             window.location.href = window.location.pathname + "?cache_bust=" + Date.now();
                         }
                     } else {
-                        setRetryCount(r => r + 1);
-                        reset();
+                        // 初回: 通常リロード
+                        sessionStorage.setItem(retryKey, String(retryCount + 1));
+                        window.location.reload();
                     }
-                    return 5;
+                    return 3;
                 }
                 return prev - 1;
             });
         }, 1000);
 
-        return () => clearInterval(timer);
-    }, [reset, retryCount]);
+        // 成功した場合にリトライカウントをリセット（5秒後にクリア）
+        const clearTimer = setTimeout(() => {
+            sessionStorage.removeItem(retryKey);
+        }, 5000);
+
+        return () => {
+            clearInterval(timer);
+            clearTimeout(clearTimer);
+        };
+    }, []);
 
     return (
         <html lang="ja">
@@ -117,16 +129,6 @@ export default function GlobalError({
                     >
                         今すぐリロード
                     </button>
-                    {retryCount > 0 && (
-                        <p style={{
-                            fontSize: "0.75rem",
-                            color: "#94a3b8",
-                            marginTop: "1rem",
-                        }}>
-                            リトライ: {retryCount}回目
-                            {retryCount >= 2 && " (キャッシュクリア予定)"}
-                        </p>
-                    )}
                 </div>
             </body>
         </html>
