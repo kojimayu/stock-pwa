@@ -48,7 +48,7 @@ export function ProxyInputClient({ products, vendors }: ProxyInputClientProps) {
 
     if (isShopMode && selectedVendor) {
         return (
-            <div className="-m-4 md:-m-8 flex flex-col" style={{ height: "100vh" }}>
+            <div className="-m-4 md:-m-8 flex flex-col" style={{ height: "100dvh" }}>
                 {/* 代理入力バナー */}
                 <div className="bg-amber-500 text-white p-2 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-2">

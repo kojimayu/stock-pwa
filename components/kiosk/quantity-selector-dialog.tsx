@@ -100,7 +100,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
 
     return (
         <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setShowOddWarning(false); }}>
-            <DialogContent className="sm:max-w-2xl border-none shadow-2xl">
+            <DialogContent className="max-w-[95vw] sm:max-w-2xl border-none shadow-2xl overflow-y-auto max-h-[90vh]">
                 <DialogHeader className="pb-2 border-b border-slate-100">
                     <DialogTitle className="text-2xl font-bold text-center text-slate-800">{product.name}</DialogTitle>
                 </DialogHeader>
@@ -158,12 +158,12 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                             )}
 
                             {/* Quantity Control Area */}
-                            <div className="flex items-center justify-center gap-6 w-full px-2">
+                            <div className="flex items-center justify-center gap-2 sm:gap-6 w-full px-1 sm:px-2">
                                 {/* Decrease Buttons */}
                                 <div className="flex gap-2">
                                     <Button
                                         variant="outline"
-                                        className="h-16 w-16 p-0 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold text-lg hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 active:scale-95 transition-all shadow-sm"
+                                        className="h-12 w-12 sm:h-16 sm:w-16 p-0 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold text-base sm:text-lg hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 active:scale-95 transition-all shadow-sm"
                                         onClick={() => {
                                             const newQty = Math.max(1, quantity - 10);
                                             setQuantity(newQty);
@@ -174,7 +174,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                     </Button>
                                     <Button
                                         variant="outline"
-                                        className="h-16 w-16 p-0 rounded-2xl border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 active:scale-95 transition-all shadow-sm"
+                                        className="h-12 w-12 sm:h-16 sm:w-16 p-0 rounded-2xl border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 active:scale-95 transition-all shadow-sm"
                                         onClick={handleDecrement}
                                         disabled={quantity <= 1}
                                     >
@@ -183,9 +183,9 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                 </div>
 
                                 {/* Quantity Display */}
-                                <div className="flex flex-col items-center justify-center w-72 h-32 bg-slate-50 rounded-2xl mx-1 shadow-inner ring-1 ring-slate-100 px-4">
+                                <div className="flex flex-col items-center justify-center w-32 sm:w-72 h-24 sm:h-32 bg-slate-50 rounded-2xl mx-1 shadow-inner ring-1 ring-slate-100 px-2 sm:px-4">
                                     <div className="flex items-baseline gap-1">
-                                        <span className="text-7xl font-black text-slate-800 tracking-tighter tabular-nums leading-none">
+                                        <span className="text-4xl sm:text-7xl font-black text-slate-800 tracking-tighter tabular-nums leading-none">
                                             {quantity}
                                         </span>
                                         <span className="text-xl font-bold text-slate-500">
@@ -203,7 +203,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                 <div className="flex gap-2">
                                     <Button
                                         variant="outline"
-                                        className="h-16 w-16 p-0 rounded-2xl border-blue-100 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all shadow-sm"
+                                        className="h-12 w-12 sm:h-16 sm:w-16 p-0 rounded-2xl border-blue-100 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all shadow-sm"
                                         onClick={handleIncrement}
                                         disabled={quantity >= maxQuantity}
                                     >
@@ -211,7 +211,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                     </Button>
                                     <Button
                                         variant="outline"
-                                        className="h-16 w-16 p-0 rounded-2xl border-blue-100 bg-blue-50 text-blue-600 font-bold text-lg hover:bg-blue-100 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all shadow-sm"
+                                        className="h-12 w-12 sm:h-16 sm:w-16 p-0 rounded-2xl border-blue-100 bg-blue-50 text-blue-600 font-bold text-base sm:text-lg hover:bg-blue-100 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all shadow-sm"
                                         onClick={() => {
                                             // If quantity is 1 (default), set to 10. Otherwise add 10.
                                             const newQty = quantity === 1 ? 10 : Math.min(quantity + 10, maxQuantity);
