@@ -36,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createManualOrder } from "@/lib/actions";
+import { isShippingCheckTarget, checkShippingFee, FREE_SHIPPING_THRESHOLD } from "@/lib/shipping-utils";
 
 interface OrderListProps {
     initialOrders: any[];
@@ -159,6 +160,7 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                             <TableHead className="w-[100px]">番号</TableHead>
                             <TableHead>仕入先</TableHead>
                             <TableHead>作成日</TableHead>
+                            <TableHead className="text-right">金額</TableHead>
                             <TableHead>アイテム数</TableHead>
                             <TableHead>ステータス</TableHead>
                             <TableHead className="text-right">操作</TableHead>
@@ -179,6 +181,24 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                                     </TableCell>
                                     <TableCell>{order.supplier}</TableCell>
                                     <TableCell>{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</TableCell>
+                                    <TableCell className="text-right">
+                                        {(() => {
+                                            const total = order.items?.reduce((s: number, i: any) => s + (i.cost * i.quantity), 0) || 0;
+                                            const isTarget = isShippingCheckTarget(order.supplier);
+                                            if (!isTarget) return <span className="text-sm text-muted-foreground">¥{total.toLocaleString()}</span>;
+                                            const { isFreeShipping, shortage } = checkShippingFee(total);
+                                            return (
+                                                <div>
+                                                    <span className="font-medium">¥{total.toLocaleString()}</span>
+                                                    {isFreeShipping ? (
+                                                        <span className="text-xs text-green-600 block">送料無料</span>
+                                                    ) : (
+                                                        <span className="text-xs text-amber-600 block">⚠ あと¥{shortage.toLocaleString()}</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                    </TableCell>
                                     <TableCell>{order.items?.length || 0} 品目</TableCell>
                                     <TableCell>{getStatusBadge(order.status)}</TableCell>
                                     <TableCell className="text-right">
@@ -239,6 +259,21 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                                     <span>{format(new Date(order.createdAt), "yyyy/MM/dd HH:mm")}</span>
                                     <span>{order.items?.length || 0} 品目</span>
                                 </div>
+                                {(() => {
+                                    const total = order.items?.reduce((s: number, i: any) => s + (i.cost * i.quantity), 0) || 0;
+                                    const isTarget = isShippingCheckTarget(order.supplier);
+                                    return (
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-medium">¥{total.toLocaleString()}</span>
+                                            {isTarget && (() => {
+                                                const { isFreeShipping, shortage } = checkShippingFee(total);
+                                                return isFreeShipping
+                                                    ? <span className="text-xs text-green-600">送料無料</span>
+                                                    : <span className="text-xs text-amber-600">⚠ あと¥{shortage.toLocaleString()}</span>;
+                                            })()}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                             {order.status === 'DRAFT' && (
                                 <div className="mt-3 pt-3 border-t">

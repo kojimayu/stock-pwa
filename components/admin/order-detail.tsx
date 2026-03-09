@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     Table,
     TableBody,
@@ -20,7 +20,9 @@ import {
     Copy,
     RotateCcw,
     Package,
-    Trash2
+    Trash2,
+    Truck,
+    AlertTriangle
 } from "lucide-react";
 import Link from "next/link";
 import { confirmOrder, receiveOrderItem, updateOrderItemQty, searchProducts, addOrderItem, deleteOrderItem, cancelReceipt, cancelOrder } from "@/lib/actions";
@@ -28,6 +30,9 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { DeliveryReceiptSection } from "@/components/admin/delivery-receipt-section";
 import { PhotoDropzone } from "@/components/admin/photo-dropzone";
+import { checkShippingFee, getShippingInfo, isShippingCheckTarget, FREE_SHIPPING_THRESHOLD } from "@/lib/shipping-utils";
+import { format } from "date-fns";
+import { ja } from "date-fns/locale";
 
 interface OrderDetailProps {
     initialOrder: any;
@@ -42,6 +47,14 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     const [receivePhotos, setReceivePhotos] = useState<File[]>([]);
     const [receiveDeliveryDate, setReceiveDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
     const [receiveNote, setReceiveNote] = useState("");
+
+    // 送料チェック関連
+    const isShippingTarget = isShippingCheckTarget(order.supplier);
+    const totalCost = useMemo(() => {
+        return order.items.reduce((sum: number, item: any) => sum + (item.cost * item.quantity), 0);
+    }, [order.items]);
+    const shippingFee = useMemo(() => checkShippingFee(totalCost), [totalCost]);
+    const shippingInfo = useMemo(() => getShippingInfo(new Date()), []);
 
     useEffect(() => {
         const email = localStorage.getItem('adminEmail');
@@ -262,6 +275,50 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                 </div>
             </div>
 
+            {/* 送料チェック（関東機材のみ） */}
+            {isShippingTarget && (
+                <div className={`rounded-lg border p-3 md:p-4 ${shippingFee.isFreeShipping
+                    ? "bg-green-50 border-green-200"
+                    : "bg-amber-50 border-amber-200"
+                    }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                        {/* 金額 */}
+                        <div className="flex items-center gap-2 flex-1">
+                            <Truck className={`w-5 h-5 flex-shrink-0 ${shippingFee.isFreeShipping ? "text-green-600" : "text-amber-600"
+                                }`} />
+                            <div>
+                                <div className="font-bold text-lg">
+                                    合計: ¥{totalCost.toLocaleString()}
+                                    <span className="text-sm font-normal text-slate-500 ml-1">(税抜)</span>
+                                </div>
+                                {shippingFee.isFreeShipping ? (
+                                    <p className="text-sm text-green-700 font-medium">🟢 送料無料</p>
+                                ) : (
+                                    <p className="text-sm text-amber-700 font-medium flex items-center gap-1">
+                                        <AlertTriangle className="w-3.5 h-3.5" />
+                                        送料がかかります（あと ¥{shippingFee.shortage.toLocaleString()} で送料無料）
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        {/* 出荷予定日 */}
+                        <div className="text-sm text-slate-600 sm:text-right">
+                            <div className="font-medium">
+                                {shippingInfo.isSameDay ? (
+                                    <span className="text-green-700">📦 本日出荷</span>
+                                ) : (
+                                    <span>📦 {format(shippingInfo.shippingDate, "M月d日(E)", { locale: ja })} 出荷</span>
+                                )}
+                            </div>
+                            {shippingInfo.cutoffPassed && (
+                                <p className="text-xs text-slate-500">※ 11:00の締切を過ぎています</p>
+                            )}
+                            <p className="text-xs text-slate-400 mt-0.5">※ 関東機材の休業日は別途ご確認ください</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* 商品追加 (下書き時のみ) */}
             {order.status === 'DRAFT' && (
                 <div className="bg-slate-50 p-3 md:p-4 rounded-lg border">
@@ -287,7 +344,7 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                                         className="p-3 hover:bg-slate-100 cursor-pointer flex justify-between items-center"
                                         onClick={async () => {
                                             try {
-                                                await addOrderItem(order.id, product.id, 1);
+                                                await addOrderItem(order.id, product.id, product.orderUnit || 1);
                                                 toast.success("追加しました");
                                                 setSearchQuery("");
                                                 setSearchResults([]);
