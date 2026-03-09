@@ -11,7 +11,7 @@
  * - createInventoryCount は重複開始を防がない → TODO
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
     createTestProduct,
     createTestAirconProduct,
@@ -121,6 +121,17 @@ describe('エアコン在庫（DBレベル確認）', () => {
 const { upsertProduct } = await import('@/lib/actions');
 
 describe('価格セーフガード — upsertProduct', () => {
+    // カテゴリ掛率ルールをセットアップ
+    // markupRateA=1.5, markupRateB=1.2
+    // → cost=4 の場合: expectedA = ceil(4*1.5) = 6, expectedB = ceil(4*1.2) = 5
+    // → cost=50 の場合: expectedA = ceil(50*1.5) = 75, expectedB = ceil(50*1.2) = 60
+    beforeEach(async () => {
+        await prisma.categoryPricingRule.upsert({
+            where: { category: '架台・ブロック' },
+            update: { markupRateA: 1.5, markupRateB: 1.2 },
+            create: { category: '架台・ブロック', markupRateA: 1.5, markupRateB: 1.2 },
+        });
+    });
 
     const baseProduct = {
         code: `SG-${Date.now()}`,
@@ -134,20 +145,24 @@ describe('価格セーフガード — upsertProduct', () => {
         priceMode: 'AUTO',
     };
 
-    it('✅ AUTO: 売価A==売価Bの同額は許容される', async () => {
+    it('✅ AUTO: 掛率一致時は同額でもAUTOとして許容される', async () => {
+        // cost=10, markupA=1.5→priceA=15, markupB=1.2→priceB=12
+        // 掛率計算と一致 → AUTO判定 → 同額チェックなし
         await expect(
             upsertProduct({
                 ...baseProduct,
                 code: `SGA-${Date.now()}`,
-                cost: 4,
-                priceA: 5,
-                priceB: 5,
+                cost: 10,
+                priceA: 15,
+                priceB: 12,
                 priceMode: 'AUTO',
             })
         ).resolves.not.toThrow();
     });
 
     it('❌ MANUAL: 売価A==売価Bの同額はエラー', async () => {
+        // cost=4, expectedA=6, expectedB=5 → priceA=5,priceB=5は不一致 → MANUAL判定
+        // MANUAL時 priceA<=priceB → エラー
         await expect(
             upsertProduct({
                 ...baseProduct,
@@ -161,6 +176,8 @@ describe('価格セーフガード — upsertProduct', () => {
     });
 
     it('❌ 売価A < 売価Bは常にエラー', async () => {
+        // cost=50, expectedA=75, expectedB=60 → priceA=60,priceB=70は不一致 → MANUAL判定
+        // priceA(60) < priceB(70) → エラー
         await expect(
             upsertProduct({
                 ...baseProduct,
