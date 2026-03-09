@@ -44,7 +44,7 @@ interface ProductOption {
 export function InventoryList() {
     const [counts, setCounts] = useState<InventoryCount[]>([]);
     const [loading, setLoading] = useState(true);
-    const [discrepancyCount, setDiscrepancyCount] = useState(0);
+    const [discrepancies, setDiscrepancies] = useState<any[]>([]);
     const router = useRouter();
 
     // スポット棚卸ダイアログ
@@ -66,7 +66,7 @@ export function InventoryList() {
                 getStockDiscrepancies('PENDING'),
             ]);
             setCounts(data);
-            setDiscrepancyCount(discrepancies.length);
+            setDiscrepancies(discrepancies);
         } catch (error) {
             console.error(error);
             toast.error("棚卸データの取得に失敗しました");
@@ -162,10 +162,10 @@ export function InventoryList() {
                 <div className="p-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <h1 className="text-xl font-bold">棚卸管理</h1>
-                        {discrepancyCount > 0 && (
+                        {discrepancies.length > 0 && (
                             <Badge variant="destructive" className="text-xs">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
-                                {discrepancyCount}件の不一致報告
+                                {discrepancies.length}件の不一致報告
                             </Badge>
                         )}
                         <Dialog>
@@ -205,9 +205,9 @@ export function InventoryList() {
                         <Button onClick={openSpotDialog} size="sm" variant="outline" className="h-10">
                             <ClipboardCheck className="mr-1 h-4 w-4" />
                             スポット棚卸
-                            {discrepancyCount > 0 && (
+                            {discrepancies.length > 0 && (
                                 <Badge variant="destructive" className="ml-1 text-xs px-1 py-0">
-                                    {discrepancyCount}
+                                    {discrepancies.length}
                                 </Badge>
                             )}
                         </Button>
@@ -218,6 +218,41 @@ export function InventoryList() {
                     </div>
                 </div>
             </div>
+
+            {/* 不一致申告詳細 */}
+            {discrepancies.length > 0 && (
+                <div className="bg-red-50 border-b border-red-200">
+                    <div className="p-4">
+                        <h2 className="font-bold text-red-800 flex items-center gap-2 mb-3">
+                            <AlertTriangle className="h-4 w-4" />
+                            未解決の在庫不一致申告 ({discrepancies.length}件)
+                        </h2>
+                        <div className="space-y-2">
+                            {discrepancies.map((d: any) => (
+                                <div key={d.id} className="bg-white rounded-lg p-3 border border-red-200 flex items-center gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-sm">{d.product?.name}</div>
+                                        <div className="text-xs text-slate-500">
+                                            {d.product?.code} · 報告者: {d.vendor?.name}
+                                            {d.note && <span className="ml-2 text-slate-400">({d.note})</span>}
+                                        </div>
+                                    </div>
+                                    <div className="text-right text-sm">
+                                        <div className="text-slate-500">システム: <span className="font-bold">{d.systemStock}</span></div>
+                                        <div className="text-red-600">報告: <span className="font-bold">{d.reportedStock}</span></div>
+                                        <div className="text-xs font-bold text-red-700">
+                                            差異: {d.reportedStock - d.systemStock > 0 ? '+' : ''}{d.reportedStock - d.systemStock}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-slate-400 whitespace-nowrap">
+                                        {format(new Date(d.createdAt), 'MM/dd HH:mm', { locale: ja })}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* List */}
             <div className="divide-y">

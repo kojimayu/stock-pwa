@@ -208,6 +208,15 @@ export function StockCheckPanel({ onReadyChange }: StockCheckPanelProps) {
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4">
                         <h3 className="font-bold text-lg text-slate-900">在庫不一致の報告</h3>
+                        <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                            <div className="font-bold text-slate-900">
+                                {stockCheckItems.find(i => i.productId === reportingId)?.name}
+                            </div>
+                            <div className="text-sm text-slate-500">
+                                システム在庫: {stockCheckItems.find(i => i.productId === reportingId)?.currentStock}
+                                {stockCheckItems.find(i => i.productId === reportingId)?.unit}
+                            </div>
+                        </div>
                         <p className="text-sm text-slate-600">
                             棚にある実際の数を入力してください。事務所に通知されます。
                         </p>
