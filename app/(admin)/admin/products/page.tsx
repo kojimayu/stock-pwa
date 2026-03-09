@@ -1,4 +1,4 @@
-import { getProducts } from "@/lib/actions";
+import { getProducts, getCategoryPricingRules } from "@/lib/actions";
 import { ProductList } from "@/components/admin/product-list";
 import { prisma } from "@/lib/prisma";
 import { TrendingDown, TrendingUp, Calculator } from "lucide-react";
@@ -76,10 +76,15 @@ async function getDiscrepancyCostSummary() {
 }
 
 export default async function ProductsPage() {
-    const [products, costSummary] = await Promise.all([
+    const [products, costSummary, pricingRulesArr] = await Promise.all([
         getProducts(),
         getDiscrepancyCostSummary(),
+        getCategoryPricingRules(),
     ]);
+    const pricingRules: Record<string, { markupRateA: number; markupRateB: number }> = {};
+    for (const r of pricingRulesArr) {
+        pricingRules[r.category] = { markupRateA: r.markupRateA, markupRateB: r.markupRateB };
+    }
 
     return (
         <div className="space-y-6">
@@ -174,7 +179,7 @@ export default async function ProductsPage() {
                 )}
             </CollapsiblePanel>
 
-            <ProductList products={products} />
+            <ProductList products={products} pricingRules={pricingRules} />
         </div>
     );
 }

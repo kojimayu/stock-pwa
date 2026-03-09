@@ -43,6 +43,8 @@ type PricingReportItem = {
     expectedB: number | null;
     diffA: number | null;
     diffB: number | null;
+    isPriceAManual: boolean;
+    isPriceBManual: boolean;
     violation: string | null;
 };
 
@@ -72,6 +74,7 @@ export function PricingDashboard({ rules, report }: Props) {
     const violations = report.filter(r => r.violation);
     const autoCount = report.filter(r => r.priceMode === "AUTO").length;
     const manualCount = report.filter(r => r.priceMode === "MANUAL").length;
+    const priceBManualCount = report.filter(r => r.isPriceBManual).length;
     const markupDiffs = report.filter(r => r.priceMode === "AUTO" && r.diffA !== null && r.diffA !== 0);
     const noCostCount = report.filter(r => r.cost === 0 && r.priceA > 0).length;
 
@@ -153,11 +156,13 @@ export function PricingDashboard({ rules, report }: Props) {
             ? violations
             : filter === "manual"
                 ? report.filter(r => r.priceMode === "MANUAL")
-                : filter === "diff"
-                    ? markupDiffs
-                    : filter === "noCost"
-                        ? report.filter(r => r.cost === 0 && r.priceA > 0)
-                        : report.filter(r => r.category === filter);
+                : filter === "priceBManual"
+                    ? report.filter(r => r.isPriceBManual)
+                    : filter === "diff"
+                        ? markupDiffs
+                        : filter === "noCost"
+                            ? report.filter(r => r.cost === 0 && r.priceA > 0)
+                            : report.filter(r => r.category === filter);
 
     return (
         <div className="space-y-6">
@@ -297,6 +302,11 @@ export function PricingDashboard({ rules, report }: Props) {
                                 className={filter !== "manual" && manualCount > 0 ? "text-purple-600 border-purple-200" : ""}
                                 onClick={() => setFilter("manual")}>
                                 手動 ({manualCount})
+                            </Button>
+                            <Button size="sm" variant={filter === "priceBManual" ? "default" : "outline"}
+                                className={filter !== "priceBManual" && priceBManualCount > 0 ? "text-orange-600 border-orange-200" : ""}
+                                onClick={() => setFilter("priceBManual")}>
+                                価格Bズレ ({priceBManualCount})
                             </Button>
                             {noCostCount > 0 && (
                                 <Button size="sm" variant={filter === "noCost" ? "default" : "outline"}

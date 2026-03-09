@@ -359,10 +359,18 @@ export async function getUniqueProductAttributes() {
         orderBy: { supplier: 'asc' }
     });
 
+    // カテゴリ別掛率ルールも取得
+    const pricingRules = await prisma.categoryPricingRule.findMany();
+    const pricingRuleMap: Record<string, { markupRateA: number; markupRateB: number }> = {};
+    for (const rule of pricingRules) {
+        pricingRuleMap[rule.category] = { markupRateA: rule.markupRateA, markupRateB: rule.markupRateB };
+    }
+
     return {
         categories: categories.map(c => c.category),
         subCategories: subCategories.map(c => c.subCategory).filter(Boolean) as string[],
         suppliers: suppliers.map(c => c.supplier).filter(Boolean) as string[],
+        pricingRules: pricingRuleMap,
     };
 }
 
@@ -839,6 +847,8 @@ export async function getPricingReport() {
             expectedB,
             diffA: expectedA !== null ? p.priceA - expectedA : null,
             diffB: expectedB !== null ? p.priceB - expectedB : null,
+            isPriceAManual: expectedA !== null && p.priceA !== expectedA,
+            isPriceBManual: expectedB !== null && p.priceB !== expectedB,
             violation,
         };
     });

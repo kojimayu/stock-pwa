@@ -55,8 +55,9 @@ interface ProductDialogProps {
     attributeOptions?: {
         categories: string[];
         subCategories: string[];
-        productTypes?: string[]; // Add this
+        productTypes?: string[];
         suppliers: string[];
+        pricingRules?: Record<string, { markupRateA: number; markupRateB: number }>;
     };
     onSuccess: () => void;
 }
@@ -111,16 +112,21 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
     const [currentCost, setCurrentCost] = useState(product?.cost || 0);
     const [currentPriceA, setCurrentPriceA] = useState(initialValues?.priceA || product?.priceA || 0);
     const [currentPriceB, setCurrentPriceB] = useState(product?.priceB || 0);
+    const [currentCategory, setCurrentCategory] = useState(product?.category || "");
+
+    // カテゴリに応じた掛率を取得（デフォルト: 1.20 / 1.15）
+    const getRates = (cat: string) => {
+        const rule = attributeOptions?.pricingRules?.[cat];
+        return { rateA: rule?.markupRateA ?? 1.20, rateB: rule?.markupRateB ?? 1.15 };
+    };
 
     // 【重要】ダイアログが開かれた時、または商品が変わった時にstateを同期する
-    // useStateはマウント時のみ初期化されるため、propが変わっても自動では更新されない
     useEffect(() => {
         if (open) {
-            // ダイアログが開かれたタイミングで、productから値を再設定
             setCurrentCost(product?.cost || 0);
             setCurrentPriceA(initialValues?.priceA || product?.priceA || 0);
             setCurrentPriceB(product?.priceB || 0);
-            // 編集時は価格ロック（新規登録時はロックなし）
+            setCurrentCategory(product?.category || "");
             setPricesLocked(!!product);
         }
     }, [open, product, initialValues?.priceA]);
@@ -128,39 +134,47 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
     const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         const newCost = Number(val);
+        const { rateA, rateB } = getRates(currentCategory);
 
-        // Update input storage
-        // Pre-calculation checks to decide whether to update Price A/B automatically
-        // If current Price A matches the "Old Calculated Price A" (based on currentCost), then update it.
-        // Otherwise, it's manually set, so leave it alone.
+        const oldCalculatedA = Math.ceil(currentCost * rateA);
+        const oldCalculatedB = Math.ceil(currentCost * rateB);
 
-        const oldCalculatedA = Math.ceil(currentCost * 1.20);
-        const oldCalculatedB = Math.ceil(currentCost * 1.15);
-
-        // Check if currently auto-calculated (before this change)
-        // If product is new (currentCost=0), always auto-calc unless user typed price first
         const isAutoA = currentPriceA === oldCalculatedA || currentCost === 0;
         const isAutoB = currentPriceB === oldCalculatedB || currentCost === 0;
 
         setCurrentCost(isNaN(newCost) ? 0 : newCost);
 
         if (!isNaN(newCost) && newCost > 0) {
-            // Only update if it was previously auto-calculated
             if (isAutoA) {
-                setCurrentPriceA(Math.ceil(newCost * 1.20));
+                setCurrentPriceA(Math.ceil(newCost * rateA));
             }
             if (isAutoB) {
-                setCurrentPriceB(Math.ceil(newCost * 1.15));
+                setCurrentPriceB(Math.ceil(newCost * rateB));
             }
         }
     };
 
-    // Calculate manual status based on CURRENT cost (newCost)
-    // If currentPrice doesn't match Math.ceil(currentCost * rate), it's manual.
-    const expectedPriceA = Math.ceil(currentCost * 1.20);
-    const expectedPriceB = Math.ceil(currentCost * 1.15);
+    // カテゴリ変更時に掛率を再計算
+    const handleCategoryChange = (newCategory: string) => {
+        setCurrentCategory(newCategory);
+        if (currentCost > 0) {
+            const oldRates = getRates(currentCategory);
+            const newRates = getRates(newCategory);
+            // 旧掛率と一致していた場合のみ新掛率で再計算
+            if (currentPriceA === Math.ceil(currentCost * oldRates.rateA)) {
+                setCurrentPriceA(Math.ceil(currentCost * newRates.rateA));
+            }
+            if (currentPriceB === Math.ceil(currentCost * oldRates.rateB)) {
+                setCurrentPriceB(Math.ceil(currentCost * newRates.rateB));
+            }
+        }
+    };
 
-    // Only show "Manual" if cost is > 0
+    // Calculate manual status based on CURRENT cost and category rates
+    const { rateA: currentRateA, rateB: currentRateB } = getRates(currentCategory);
+    const expectedPriceA = Math.ceil(currentCost * currentRateA);
+    const expectedPriceB = Math.ceil(currentCost * currentRateB);
+
     const isManualPriceA = currentCost > 0 && currentPriceA !== expectedPriceA;
     const isManualPriceB = currentCost > 0 && currentPriceB !== expectedPriceB;
 
@@ -234,6 +248,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     placeholder="例: 電動工具"
                                     required
                                     list="category-options"
+                                    onChange={(e) => handleCategoryChange(e.target.value)}
                                 />
                                 <datalist id="category-options">
                                     {attributeOptions?.categories.map((c) => (
@@ -369,9 +384,9 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                             type="button"
                                             className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
                                             onClick={() => {
-                                                if (confirm('販売単価A/Bを原価から自動計算（A=\u00d71.20 / B=\u00d71.15\uff09に戻しますか？')) {
-                                                    setCurrentPriceA(Math.ceil(currentCost * 1.20));
-                                                    setCurrentPriceB(Math.ceil(currentCost * 1.15));
+                                                if (confirm(`販売単価A/Bを原価から自動計算（A=×${currentRateA} / B=×${currentRateB}）に戻しますか？`)) {
+                                                    setCurrentPriceA(Math.ceil(currentCost * currentRateA));
+                                                    setCurrentPriceB(Math.ceil(currentCost * currentRateB));
                                                 }
                                             }}
                                         >
@@ -400,7 +415,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     {isManualPriceA ? (
                                         <span className="text-xs text-orange-600 font-bold whitespace-nowrap">手動設定中</span>
                                     ) : (
-                                        <span className="text-xs text-muted-foreground whitespace-nowrap">(原価 × 1.20)</span>
+                                        <span className="text-xs text-muted-foreground whitespace-nowrap">(原価 × {currentRateA})</span>
                                     )}
                                 </div>
                             </div>
@@ -423,7 +438,7 @@ export function ProductDialog({ open, onOpenChange, product, initialValues, attr
                                     {isManualPriceB ? (
                                         <span className="text-xs text-orange-600 font-bold whitespace-nowrap">手動設定中</span>
                                     ) : (
-                                        <span className="text-xs text-muted-foreground whitespace-nowrap">(原価 × 1.15)</span>
+                                        <span className="text-xs text-muted-foreground whitespace-nowrap">(原価 × {currentRateB})</span>
                                     )}
                                 </div>
                             </div>

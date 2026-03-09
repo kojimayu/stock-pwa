@@ -54,12 +54,13 @@ type Product = {
 
 interface ProductListProps {
     products: Product[];
+    pricingRules?: Record<string, { markupRateA: number; markupRateB: number }>;
 }
 
 type SortKey = "code" | "name" | "category" | "priceA" | "stock" | "minStock" | "cost" | "margin";
 type SortDir = "asc" | "desc";
 
-export function ProductList({ products }: ProductListProps) {
+export function ProductList({ products, pricingRules }: ProductListProps) {
     const [productDialogOpen, setProductDialogOpen] = useState(false);
     const [stockDialogOpen, setStockDialogOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -129,10 +130,14 @@ export function ProductList({ products }: ProductListProps) {
         return ((price - cost) / price) * 100;
     };
 
-    // 手動価格判定（掛率と一致しなければ手動）
-    const isManualPrice = (price: number, cost: number, rate: number) => {
-        if (cost === 0) return false;
-        return price !== Math.ceil(cost * rate);
+    // 手動価格判定（カテゴリ別掛率と比較）
+    const isManualPrice = (product: Product, tier: 'A' | 'B') => {
+        if (product.cost === 0) return false;
+        const rule = pricingRules?.[product.category];
+        if (!rule) return false;
+        const rate = tier === 'A' ? rule.markupRateA : rule.markupRateB;
+        const expected = Math.ceil(product.cost * rate);
+        return tier === 'A' ? product.priceA !== expected : product.priceB !== expected;
     };
 
     const attributeOptions = {
@@ -158,7 +163,8 @@ export function ProductList({ products }: ProductListProps) {
         if (selectedSubCategory !== "all" && product.subCategory !== selectedSubCategory) return false;
         if (selectedProductType !== "all" && product.productType !== selectedProductType) return false;
         // 特殊フィルター
-        if (specialFilter === "manual" && product.priceMode !== "MANUAL") return false;
+        // 特殊フィルター: 「手動価格」はpriceModeまたは実際の掛率不一致を検知
+        if (specialFilter === "manual" && !(product.priceMode === "MANUAL" || isManualPrice(product, 'A') || isManualPrice(product, 'B'))) return false;
         if (specialFilter === "stockCheck" && !product.requireStockCheck) return false;
         if (!searchQuery) return true;
         const query = normalizeForSearch(searchQuery);
@@ -331,8 +337,8 @@ export function ProductList({ products }: ProductListProps) {
                 <div className="flex gap-2 flex-wrap">
                     <button
                         className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${specialFilter === "manual"
-                                ? "bg-orange-100 text-orange-700 border-orange-300"
-                                : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                            ? "bg-orange-100 text-orange-700 border-orange-300"
+                            : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
                             }`}
                         onClick={() => setSpecialFilter(specialFilter === "manual" ? null : "manual")}
                     >
@@ -341,8 +347,8 @@ export function ProductList({ products }: ProductListProps) {
                     </button>
                     <button
                         className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${specialFilter === "stockCheck"
-                                ? "bg-blue-100 text-blue-700 border-blue-300"
-                                : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                            ? "bg-blue-100 text-blue-700 border-blue-300"
+                            : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
                             }`}
                         onClick={() => setSpecialFilter(specialFilter === "stockCheck" ? null : "stockCheck")}
                     >
@@ -382,8 +388,8 @@ export function ProductList({ products }: ProductListProps) {
                     <TableBody>
                         {sortedProducts.map((product) => {
                             const grossMargin = getGrossMargin(product.priceA, product.cost);
-                            const hasManualA = isManualPrice(product.priceA, product.cost, 1.20);
-                            const hasManualB = isManualPrice(product.priceB, product.cost, 1.15);
+                            const hasManualA = isManualPrice(product, 'A');
+                            const hasManualB = isManualPrice(product, 'B');
                             const hasManual = hasManualA || hasManualB;
                             return (
                                 <TableRow key={product.id}>
