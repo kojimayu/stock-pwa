@@ -1,33 +1,42 @@
-# タスク一覧（2026-03-07 更新）
+# タスク一覧（2026-03-09 更新）
 
-## 今回完了
-- [x] テーブル横スクロール根本修正（`table.tsx` → `overflow-x-auto md:overflow-x-clip`）
-- [x] 全ページの per-page `overflow-x-auto` クリーンアップ（9ファイル）
-- [x] 納品記録の写真重複防止（`order-detail.tsx`）
-- [x] 同日マージ → 10分以内マージに変更（`delivery-receipt/route.ts`）
-- [x] global-error.tsx リカバリループ修正（reset()→即リロード方式）
-- [x] 代理入力画面スマホ対応（`proxy-shop-content.tsx` レスポンシブ化）
-- [x] 数量ダイアログのスマホ見切れ修正（`quantity-selector-dialog.tsx`）
-- [x] カート画面の高さ修正（100vh→100dvh）
+## スポット棚卸 + 在庫不一致申告
 
-## テスト確認済み（2026-03-07）
-- [x] **エラー自動回復テスト**: kiosk用 `error.tsx` がエラーをキャッチし「接続を確認しています」画面を表示。サーバー復帰後に自動的に正常画面に復帰。
-- [x] **セキュリティ確認**: エラー画面中もIdleTimerが動作し、10分放置で自動ログアウトされることを確認。問題なし。
-- 補足: `global-error.tsx` は `error.tsx` で捕捉できないルートレベルエラー用の最終防衛線。通常のkioskエラーは `error.tsx` が処理。
+### スキーマ変更
+- [x] `InventoryCount.type` フィールド追加（FULL/SPOT）
+- [x] `StockDiscrepancy` モデル追加
+- [x] `prisma db push` 実行・データ件数確認
+- [x] テストDB同期
+- [x] `setup.ts` クリーンアップ追加
 
-## 次回引き継ぎ（⚠️ 必ず確認）
+### サーバーアクション
+- [/] `createSpotInventory(productIds, note?)` — スポット棚卸開始
+- [ ] `reportStockDiscrepancy(...)` — 業者から不一致申告
+- [ ] `getStockDiscrepancies(status?)` — 申告一覧取得
+- [ ] `resolveDiscrepancy(id)` — 申告を解決済みに
 
-### ✅ テスト修正完了（2026-03-09）
-- [x] `❌ MANUAL: 売価A==売価Bの同額はエラー` テスト修正
-  - 修正: `beforeEach`でカテゴリ掛率ルールをセットアップし、テスト値が掛率計算結果と不一致→MANUAL判定される→同額エラーが出る
-  - `setup.ts`: `categoryPricingRule.deleteMany()` をクリーンアップに追加
+### Admin UI
+- [ ] 棚卸一覧ページ: スポット棚卸ボタン + 商品選択ダイアログ
+- [ ] 棚卸一覧: type バッジ表示
+- [ ] ダッシュボード: 未解決申告バッジ
 
-### モバイル表示確認（ユーザー確認待ち）
-- [ ] 代理入力画面がスマホで正しく動作するか
-- [ ] 数量ダイアログがスマホで全ボタン見えるか
-- [ ] カートのチェックアウトボタンが見切れないか
-- [ ] 取引履歴など他のテーブルの横スクロールが正しく動くか
+### Kiosk UI
+- [ ] 在庫チェック画面に「在庫が合わない」ボタン
+- [ ] 実数入力→申告送信
 
-### 第2段階（未着手）
-- [ ] 自動発注画面で互換品情報表示
-- [ ] 互換品の売値同期機能（要検討）
+### テスト
+- [ ] `createSpotInventory` テスト
+- [ ] `reportStockDiscrepancy` テスト
+- [ ] 全テストリグレッション確認
+
+### コミット・デプロイ
+- [ ] CHANGELOG更新
+- [ ] コミット＆push
+
+---
+
+## 前回完了
+- [x] MANUAL価格テスト修正
+- [x] CollapsiblePanelテスト修正
+- [x] 発注一覧の行クリック修正
+- [x] 送料チェック機能（UI統合済み）

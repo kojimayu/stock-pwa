@@ -1,95 +1,117 @@
-# 引き継ぎタスク実装計画（2026-03-06 会話2）
+# スポット棚卸 + 業者在庫不一致申告 実装計画
 
-FEEDBACK.md「🔵 次回引き継ぎタスク」セクションの4項目に対応する。
+## 背景
 
----
+現在の棚卸機能は「一斉棚卸」のみ（全商品対象）。
+特定の商品だけを素早くカウントする「スポット棚卸」+ 業者がKiosk画面から「在庫が合わない」と申告できる機能を追加。
 
-## タスク一覧
+## 設計方針
 
-### タスク1: マニュアル改訂（`MANUAL_ADMIN.md`）🔴 最優先
+### フロー概要
 
-以下の4つの変更を `MANUAL_ADMIN.md` に反映する。
+```
+業者(Kiosk) → 持出し時「在庫が合わない」申告 → DBに記録
+                                                    ↓
+管理者(Admin) → 「スポット棚卸」開始 → 申告済み商品が自動提案 + 手動選択
+                                        ↓
+                                    実数入力 → 確定 → 在庫修正
+```
 
-#### ① 互換品管理システム（⚡互換グループ設定方法）
-- **対象セクション**: `## 1. 商品マスタ管理` 内に新しいサブセクション追加
-- **追加内容**:
-  - 商品編集ダイアログの「⚡ 互換グループ」フィールドの使い方
-  - 同じグループ名を設定すると互換品として紐づくことの説明
-  - 商品一覧の⚡互換バッジの見方
-  - 互換品の仕入先・品番が表示される動作
-  - 在庫は独立管理、自動発注も個別判定であることの注記
-
-#### ② 価格ロック機能（🔓解除操作）
-- **対象セクション**: `## 1. 商品マスタ管理` の「商品の編集」
-- **追加内容**:
-  - 編集時は価格フィールド（原価/販売単価A,B,C/箱単価）がデフォルトでロックされていること
-  - 「🔓 価格を編集する」ボタンでロック解除する操作
-  - ブラウザ自動入力による誤変更防止が目的であること
-
-#### ③ 粗利率表示への変更
-- **対象セクション**: `## 1. 商品マスタ管理` または `## 6.6 価格設定・掛率管理`
-- **追加内容**:
-  - 「原価率」と表示していたものは「粗利率」に修正されたこと
-  - 計算式: `(販売単価 - 原価) / 販売単価 × 100`
-  - 商品一覧のカラムが「原価（上段）/ 粗利率%（下段）」の2段表示になったこと
-
-#### ④ 自動発注ロジックの動作変更
-- **対象セクション**: `## 6. 発注・入荷管理` の「発注書の作成（自動）」
-- **変更内容**:
-  - 旧: `在庫 < 最低在庫` の商品が候補
-  - 新: `在庫 + 発注済み数量 < 最低在庫` の商品が候補
-  - 発注済み数量は既存の未完了注文（DRAFT/ORDERED/PARTIAL）の `発注数 - 入荷済み数` を集計
-  - 不足分 = `最低在庫 - 在庫 - 発注済み数量`
-  - 既に発注中の分を考慮して重複発注を防ぐ仕組みであることの説明
+### DB設計
+- `InventoryCount.type`: `FULL` / `SPOT` を追加
+- **新規テーブル `StockDiscrepancy`**: 業者からの在庫不一致申告を記録
 
 ---
 
-### タスク2: 自動発注画面で互換品情報表示（第2段階）
-- **ステータス**: 今回は対応しない（第2段階として引き継ぎ）
-- FEEDBACK.md の記載はそのまま維持
+## Proposed Changes
 
-### タスク3: 互換品の売値同期機能（第2段階、要検討）
-- **ステータス**: 今回は対応しない（第2段階として引き継ぎ）
-- FEEDBACK.md の記載はそのまま維持
+### 1. スキーマ変更
 
-### タスク4: 商品管理stickyヘッダー追加確認
-- **ステータス**: 実機動作確認待ち
-- ユーザーに確認結果を問い合わせる
+#### [MODIFY] [schema.prisma](file:///f:/Antigravity/stock-pwa/prisma/schema.prisma)
 
----
+```prisma
+// InventoryCount に type 追加
+model InventoryCount {
+  // ... 既存フィールド
+  type      String    @default("FULL")  // FULL / SPOT
+}
 
-## 変更対象ファイル
+// 新規: 業者からの在庫不一致申告
+model StockDiscrepancy {
+  id            Int       @id @default(autoincrement())
+  productId     Int
+  vendorId      Int
+  vendorUserId  Int?
+  reportedStock Int       // 業者が確認した実際の数
+  systemStock   Int       // 申告時のシステム在庫
+  note          String?   // メモ（任意）
+  status        String    @default("PENDING") // PENDING / RESOLVED
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  product       Product   @relation(fields: [productId], references: [id])
+  vendor        Vendor    @relation(fields: [vendorId], references: [id])
+}
+```
 
-### マニュアル改訂
-
-#### [MODIFY] [MANUAL_ADMIN.md](file:///f:/Antigravity/stock-pwa/docs/MANUAL_ADMIN.md)
-
-1. **セクション1「商品マスタ管理」** に以下を追加:
-   - 「商品の編集」の下に価格ロック機能の説明
-   - 新サブセクション「互換品グループの設定」
-   - 粗利率表示の説明
-
-2. **セクション6「発注・入荷管理」** の自動発注説明を更新:
-   - 発注候補の判定ロジックを新しいものに差し替え
-
-### ドキュメント更新
-
-#### [MODIFY] [task.md](file:///f:/Antigravity/stock-pwa/docs/stock-pwa/task.md)
-- 今回のタスク一覧に更新
-
-#### [MODIFY] [FEEDBACK.md](file:///f:/Antigravity/stock-pwa/docs/FEEDBACK.md)
-- マニュアル改訂タスクを完了済みに変更
-
-#### [MODIFY] [CHANGELOG.md](file:///f:/Antigravity/stock-pwa/docs/CHANGELOG.md)
-- マニュアル改訂のエントリ追加
+→ マイグレーション実行
 
 ---
 
-## 検証計画
+### 2. サーバーアクション
 
-### 手動検証
-マニュアルの内容改訂のみ（コード変更なし）のため、以下で検証:
+#### [MODIFY] [actions.ts](file:///f:/Antigravity/stock-pwa/lib/actions.ts)
 
-1. **マニュアル内容の正確性**: 実際のコード（`product-dialog.tsx`、`product-list.tsx`、`actions.ts`）と照合し、記述が正確か確認
-2. **マニュアルページでの表示確認**: ブラウザで `/admin/manual` にアクセスし、マニュアルが正しくレンダリングされるか確認（ユーザーへの依頼）
-3. **既存テスト**: コード変更なしのため、テスト実行は不要
+**新規追加:**
+- `reportStockDiscrepancy(productId, vendorId, vendorUserId, reportedStock, note?)` — 業者が不一致を申告
+- `getStockDiscrepancies(status?)` — 未解決の申告一覧取得
+- `createSpotInventory(productIds: number[], note?)` — スポット棚卸開始（選択商品のみ）
+- `resolveDiscrepancy(id)` — 棚卸確定時に自動解決
+
+**変更:**
+- `createInventoryCount` → `type: 'FULL'` を設定
+- `checkActiveInventory` → SPOT/FULL両方チェック
+
+---
+
+### 3. Kiosk UI（業者の申告画面）
+
+#### [MODIFY] チェックアウト完了後 or 在庫確認画面
+
+持出し時の在庫チェック画面（`requireStockCheck=true` の商品）に「在庫が合わない」ボタンを追加。
+タップ → 実際の数を入力 → 申告送信。
+
+---
+
+### 4. Admin UI（管理画面）
+
+#### [MODIFY] [inventory/page.tsx](file:///f:/Antigravity/stock-pwa/app/(admin)/admin/inventory/page.tsx)
+- 「スポット棚卸」ボタン追加
+- 商品選択ダイアログ: **未解決の申告がある商品** を自動チェック + 手動追加
+- 棚卸一覧に type バッジ表示
+
+#### [MODIFY] ダッシュボード or InventoryページHEAD
+- 未解決の不一致申告数をバッジ表示（⚠ 3件の在庫不一致報告）
+
+---
+
+### 5. テスト
+
+#### [MODIFY] [stock.test.ts](file:///f:/Antigravity/stock-pwa/__tests__/actions/stock.test.ts)
+- `createSpotInventory` テスト
+- `reportStockDiscrepancy` テスト
+- 棚卸確定時に申告が自動解決されるテスト
+
+---
+
+## Verification Plan
+
+### Automated Tests
+```bash
+npx vitest run __tests__/actions/stock.test.ts
+npx vitest run
+```
+
+### Manual
+- Kiosk画面から在庫不一致を申告
+- 管理画面で申告情報を確認→スポット棚卸に含めて確定
+- ダッシュボードに申告バッジが表示されること

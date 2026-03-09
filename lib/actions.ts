@@ -2050,6 +2050,7 @@ export async function createInventoryCount(note?: string) {
     const inventory = await prisma.inventoryCount.create({
         data: {
             status: 'IN_PROGRESS',
+            type: 'FULL',
             note,
             items: {
                 create: products.map(p => ({
@@ -2062,10 +2063,122 @@ export async function createInventoryCount(note?: string) {
         }
     });
 
-    await logOperation("INVENTORY_START", `棚卸 #${inventory.id}`, `棚卸を開始`);
+    await logOperation("INVENTORY_START", `棚卸 #${inventory.id}`, `一斉棚卸を開始 (${products.length}商品)`);
     revalidatePath('/admin/inventory');
     return inventory;
 }
+
+// スポット棚卸: 選択した商品のみで棚卸セッションを開始
+export async function createSpotInventory(productIds: number[], note?: string) {
+    if (!productIds || productIds.length === 0) {
+        throw new Error('棚卸対象の商品を選択してください。');
+    }
+
+    // 重複開始ガード: 進行中の棚卸しがあれば開始不可
+    const activeCount = await prisma.inventoryCount.findFirst({
+        where: { status: 'IN_PROGRESS' },
+    });
+    if (activeCount) {
+        throw new Error(`棚卸し #${activeCount.id} が進行中です。完了またはキャンセルしてから新規開始してください。`);
+    }
+
+    // 選択された商品のみ取得
+    const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+    });
+
+    if (products.length === 0) {
+        throw new Error('有効な商品が見つかりませんでした。');
+    }
+
+    // Create session (SPOT)
+    const inventory = await prisma.inventoryCount.create({
+        data: {
+            status: 'IN_PROGRESS',
+            type: 'SPOT',
+            note: note || `スポット棚卸 (${products.length}商品)`,
+            items: {
+                create: products.map(p => ({
+                    productId: p.id,
+                    expectedStock: p.stock,
+                    actualStock: p.stock,
+                    adjustment: 0,
+                }))
+            }
+        }
+    });
+
+    await logOperation("INVENTORY_START", `スポット棚卸 #${inventory.id}`, `スポット棚卸を開始 (${products.length}商品: ${products.map(p => p.name).join(', ')})`);
+    revalidatePath('/admin/inventory');
+    return inventory;
+}
+
+// =========================================
+// 在庫不一致申告
+// =========================================
+
+// 業者から在庫不一致を申告
+export async function reportStockDiscrepancy(
+    productId: number,
+    vendorId: number,
+    vendorUserId: number | null,
+    reportedStock: number,
+    note?: string
+) {
+    // 商品の現在庫を取得
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new Error('商品が見つかりません');
+
+    const discrepancy = await prisma.stockDiscrepancy.create({
+        data: {
+            productId,
+            vendorId,
+            vendorUserId,
+            reportedStock,
+            systemStock: product.stock,
+            note,
+            status: 'PENDING',
+        },
+    });
+
+    await logOperation(
+        "STOCK_DISCREPANCY",
+        `${product.name}`,
+        `在庫不一致申告: システム=${product.stock}, 実際=${reportedStock} (差異: ${reportedStock - product.stock})`
+    );
+
+    revalidatePath('/admin/inventory');
+    revalidatePath('/admin');
+    return discrepancy;
+}
+
+// 未解決の在庫不一致申告を取得
+export async function getStockDiscrepancies(status?: string) {
+    return prisma.stockDiscrepancy.findMany({
+        where: status ? { status } : undefined,
+        include: {
+            product: { select: { id: true, code: true, name: true, stock: true, unit: true } },
+            vendor: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+}
+
+// 棚卸確定時に関連する申告を解決済みにする
+export async function resolveDiscrepancies(productIds: number[]) {
+    const result = await prisma.stockDiscrepancy.updateMany({
+        where: {
+            productId: { in: productIds },
+            status: 'PENDING',
+        },
+        data: {
+            status: 'RESOLVED',
+            resolvedAt: new Date(),
+        },
+    });
+    return result.count;
+}
+
 
 export async function getInventoryCount(id: number) {
     const inventory = await prisma.inventoryCount.findUnique({
@@ -2257,6 +2370,17 @@ export async function finalizeInventory(id: number) {
         }
 
         await logOperation("INVENTORY_FINALIZE", `棚卸 #${id}`, `棚卸を確定`);
+
+        // 棚卸対象商品の未解決申告を自動解決
+        const inventory = await prisma.inventoryCount.findUnique({
+            where: { id },
+            include: { items: { select: { productId: true } } }
+        });
+        if (inventory) {
+            const productIds = inventory.items.map(i => i.productId);
+            await resolveDiscrepancies(productIds);
+        }
+
         revalidatePath('/admin/inventory');
         revalidatePath(`/admin/inventory/${id}`);
         revalidatePath('/admin/products');

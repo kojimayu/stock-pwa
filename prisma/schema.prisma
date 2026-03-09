@@ -23,6 +23,7 @@ model Vendor {
   airConditionerLogs AirConditionerLog[]
   transactions       Transaction[]
   deliveryLocation   DeliveryLocation?   @relation(fields: [deliveryLocationId], references: [id])
+  discrepancies      StockDiscrepancy[]
 }
 
 model VendorUser {
@@ -69,6 +70,7 @@ model Product {
   countItems     InventoryCountItem[]
   inventoryLogs  InventoryLog[]
   orderItems     OrderItem[]
+  discrepancies  StockDiscrepancy[]
 }
 
 model InventoryLog {
@@ -84,6 +86,7 @@ model InventoryLog {
 model InventoryCount {
   id        Int                  @id @default(autoincrement())
   status    String               @default("IN_PROGRESS")
+  type      String               @default("FULL") // FULL=一斉棚卸, SPOT=スポット棚卸
   startedAt DateTime             @default(now())
   endedAt   DateTime?
   note      String?
@@ -305,4 +308,20 @@ model SystemConfig {
   key       String   @id
   value     String   @default("")
   updatedAt DateTime @updatedAt
+}
+
+// 業者からの在庫不一致申告
+model StockDiscrepancy {
+  id            Int       @id @default(autoincrement())
+  productId     Int
+  vendorId      Int
+  vendorUserId  Int?
+  reportedStock Int       // 業者が確認した実際の数
+  systemStock   Int       // 申告時のシステム在庫
+  note          String?   // メモ（任意）
+  status        String    @default("PENDING") // PENDING / RESOLVED
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  product       Product   @relation(fields: [productId], references: [id])
+  vendor        Vendor    @relation(fields: [vendorId], references: [id])
 }
