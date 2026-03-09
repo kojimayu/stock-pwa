@@ -331,7 +331,7 @@ export default function AirconOrdersPage() {
                 body: JSON.stringify({
                     orderId: emailTargetOrder.id,
                     pdfBase64,
-                    orderedBy: "system", // TODO: 実際の管理者メールを取得
+                    orderedBy: adminEmail,
                 }),
             });
 

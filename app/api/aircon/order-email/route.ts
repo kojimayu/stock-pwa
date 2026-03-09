@@ -127,7 +127,8 @@ export async function POST(request: NextRequest) {
             下記の通り注文させて頂きますので、ご確認をお願いいたします。</p>
             
             <p><strong>発注番号:</strong> ${order.orderNumber || "-"}<br>
-            <strong>納品先:</strong> ${locationName}</p>
+            <strong>納品先:</strong> ${locationName}<br>
+            <strong>担当:</strong> ${orderedBy || "未指定"}</p>
             
             <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
                 <thead>
@@ -143,7 +144,8 @@ export async function POST(request: NextRequest) {
             
             ${order.note ? `<p><strong>備考:</strong> ${order.note}</p>` : ""}
             <p style="margin-top: 24px; font-size: 0.9em; color: #666;">
-            ※このメールは在庫管理システムから自動送信されています。
+            ※このメールは在庫管理システムから自動送信されています。<br>
+            ご不明点がございましたら担当（${orderedBy || fromCompany}）までご連絡ください。
             </p>
         </div>`;
 
