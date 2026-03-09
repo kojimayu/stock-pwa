@@ -175,7 +175,7 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
                             </TableRow>
                         ) : (
                             orders.map((order) => (
-                                <TableRow key={order.id} className="cursor-pointer hover:bg-slate-50 transition-colors">
+                                <TableRow key={order.id} className="cursor-pointer hover:bg-slate-50 transition-colors" onClick={() => router.push(`/admin/orders/${order.id}`)}>
                                     <TableCell className="font-medium">
                                         {order.orderNumber ? `#${order.orderNumber}` : <Badge variant="outline" className="text-xs">下書き</Badge>}
                                     </TableCell>
