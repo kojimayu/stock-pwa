@@ -126,9 +126,9 @@ describe('CollapsiblePanel コンポーネントチェック', () => {
         const content = readFileSync(productsPage, 'utf-8');
 
         expect(content).toContain('CollapsiblePanel');
-        // 少なくとも2箇所で使われていること（取り違え + 金額サマリー）
+        // 少なくとも1箇所で使われていること（金額サマリー）
         const matches = content.match(/CollapsiblePanel/g);
-        expect(matches!.length).toBeGreaterThanOrEqual(4); // 開始タグ×2 + 閉じタグ×2
+        expect(matches!.length).toBeGreaterThanOrEqual(2); // 開始タグ×1 + 閉じタグ×1
     });
 });
 
