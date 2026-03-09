@@ -1,42 +1,26 @@
 # タスク一覧（2026-03-09 更新）
 
-## スポット棚卸 + 在庫不一致申告
+## 1. 価格B一括修正（ワンタイムスクリプト）
+- [x] DBバックアップ取得（prisma/ + Desktop 2箇所）
+- [x] エアコン以外の全AUTO商品のpriceBを掛率から再計算（158件更新）
+- [x] 修正結果の確認（価格Bズレ 0件）
 
-### スキーマ変更
-- [x] `InventoryCount.type` フィールド追加（FULL/SPOT）
-- [x] `StockDiscrepancy` モデル追加
-- [x] `prisma db push` 実行・データ件数確認
-- [x] テストDB同期
-- [x] `setup.ts` クリーンアップ追加
+## 2. ダッシュボードに在庫不一致申告バナー追加
+- [x] `page.tsx`: getPendingDiscrepancies()追加、PENDING状態の不一致申告を取得・表示
+- [x] 「すべて正常」条件に申告を追加
+- [x] 動作確認（ブラウザで表示確認済み）
 
-### サーバーアクション
-- [/] `createSpotInventory(productIds, note?)` — スポット棚卸開始
-- [ ] `reportStockDiscrepancy(...)` — 業者から不一致申告
-- [ ] `getStockDiscrepancies(status?)` — 申告一覧取得
-- [ ] `resolveDiscrepancy(id)` — 申告を解決済みに
-
-### Admin UI
-- [ ] 棚卸一覧ページ: スポット棚卸ボタン + 商品選択ダイアログ
-- [ ] 棚卸一覧: type バッジ表示
-- [ ] ダッシュボード: 未解決申告バッジ
-
-### Kiosk UI
-- [ ] 在庫チェック画面に「在庫が合わない」ボタン
-- [ ] 実数入力→申告送信
-
-### テスト
-- [ ] `createSpotInventory` テスト
-- [ ] `reportStockDiscrepancy` テスト
-- [ ] 全テストリグレッション確認
-
-### コミット・デプロイ
-- [ ] CHANGELOG更新
-- [ ] コミット＆push
+## 3. ドキュメント更新・コミット
+- [x] CHANGELOG.md 更新
+- [x] task.md 更新
+- [ ] Git コミット
 
 ---
 
-## 前回完了
-- [x] MANUAL価格テスト修正
-- [x] CollapsiblePanelテスト修正
-- [x] 発注一覧の行クリック修正
-- [x] 送料チェック機能（UI統合済み）
+## 完了済み
+### スポット棚卸 + 在庫不一致申告
+- [x] `InventoryCount.type` フィールド追加（FULL/SPOT）
+- [x] `StockDiscrepancy` モデル追加
+- [x] サーバーアクション実装
+- [x] Kioskでの不一致申告送信
+- [x] 全テスト合格（205/205）

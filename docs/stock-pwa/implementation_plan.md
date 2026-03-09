@@ -1,105 +1,72 @@
-# スポット棚卸 + 業者在庫不一致申告 実装計画
+# 価格B一括修正 + 在庫不一致ダッシュボード表示
 
-## 背景
+## 調査結果
 
-現在の棚卸機能は「一斉棚卸」のみ（全商品対象）。
-特定の商品だけを素早くカウントする「スポット棚卸」+ 業者がKiosk画面から「在庫が合わない」と申告できる機能を追加。
+### 価格Bの手動表示問題 — 根本原因の特定
 
-## 設計方針
+**「手動設定中」は DB の `priceMode` フィールドではなく、UIのリアルタイム計算で判定されている。**
 
-### フロー概要
+- `ProductDialog` L178-179: `isManualPriceB = cost > 0 && currentPriceB !== ceil(cost * markupRateB)`
+- `getPricingReport` L850-851: `isPriceBManual: expectedB !== null && priceB !== expectedB`
 
-```
-業者(Kiosk) → 持出し時「在庫が合わない」申告 → DBに記録
-                                                    ↓
-管理者(Admin) → 「スポット棚卸」開始 → 申告済み商品が自動提案 + 手動選択
-                                        ↓
-                                    実数入力 → 確定 → 在庫修正
-```
+つまり **`priceMode=AUTO` でも priceB が掛率計算値と合わなければ手動表示** になる。
 
-### DB設計
-- `InventoryCount.type`: `FULL` / `SPOT` を追加
-- **新規テーブル `StockDiscrepancy`**: 業者からの在庫不一致申告を記録
+#### データ実態
+
+| 項目 | 件数 |
+|------|------|
+| priceB 掛率不一致（UIで手動表示） | **162件** |
+| うち `priceMode=AUTO` | **158件** |
+| うち `priceMode=MANUAL`（エアコン） | **4件** |
+| priceA 掛率不一致 | **4件**（エアコンのみ） |
+| priceB 正常一致 | 21件 |
+
+| カテゴリ | priceB不一致 | 掛率B |
+|---------|-------------|-------|
+| 化粧カバー | 111件 | ×1.1 |
+| 配管資材 | 34件 | ×1.1 |
+| 架台・ブロック | 11件 | ×1.1 |
+| 電線・コンセント | 2件 | ×1.1 |
+| エアコン | 4件 | ×1.3 |
+
+> [!IMPORTANT]
+> **原因**: 掛率システム導入時に「一括適用」を priceA のみに実行し、priceB は再計算されなかった。既存の `recalculateCategoryPrices` 関数は priceA/B **両方** を更新するので、全カテゴリで実行すれば修正できる。
+
+### 価格設定画面の問題点
+
+1. **価格設定(PricingDashboard)に手動バッジがない**
+   - 商品管理では「手動設定中」バッジが表示されるが、価格設定テーブルの「モード」列は DB の `priceMode` のみ表示
+   - priceB が掛率不一致でも AUTO と表示される → 矛盾
+
+2. **価格変更が2箇所からできる問題**
+   - 商品管理: ProductDialog で個別に priceA/B を編集
+   - 価格設定: PricingDashboard でインライン編集
+   - → 整合性リスクあり。ただし今回は修正範囲外とする（大きな設計変更が必要）
 
 ---
 
 ## Proposed Changes
 
-### 1. スキーマ変更
+### 1. priceB 一括修正
 
-#### [MODIFY] [schema.prisma](file:///f:/Antigravity/stock-pwa/prisma/schema.prisma)
+「一括適用」ボタン（`recalculateCategoryPrices`）をエアコン以外の全カテゴリで実行する。
 
-```prisma
-// InventoryCount に type 追加
-model InventoryCount {
-  // ... 既存フィールド
-  type      String    @default("FULL")  // FULL / SPOT
-}
+- **対象**: `priceMode=AUTO` かつ `cost > 0` の商品（エアコンはMANUALなので除外される）
+- **影響**: 158件の priceB が掛率計算値に修正される
+- **安全性**: priceTier=B の業者は0件なので、実際の取引に影響なし
 
-// 新規: 業者からの在庫不一致申告
-model StockDiscrepancy {
-  id            Int       @id @default(autoincrement())
-  productId     Int
-  vendorId      Int
-  vendorUserId  Int?
-  reportedStock Int       // 業者が確認した実際の数
-  systemStock   Int       // 申告時のシステム在庫
-  note          String?   // メモ（任意）
-  status        String    @default("PENDING") // PENDING / RESOLVED
-  resolvedAt    DateTime?
-  createdAt     DateTime  @default(now())
-  product       Product   @relation(fields: [productId], references: [id])
-  vendor        Vendor    @relation(fields: [vendorId], references: [id])
-}
-```
-
-→ マイグレーション実行
+> [!WARNING]
+> 実行前にDBバックアップを取得する（`/save_and_backup` ワークフロー）
 
 ---
 
-### 2. サーバーアクション
+### 2. ダッシュボードに在庫不一致申告バナー追加
 
-#### [MODIFY] [actions.ts](file:///f:/Antigravity/stock-pwa/lib/actions.ts)
+#### [MODIFY] [page.tsx](file:///f:/Antigravity/stock-pwa/app/(admin)/admin/page.tsx)
 
-**新規追加:**
-- `reportStockDiscrepancy(productId, vendorId, vendorUserId, reportedStock, note?)` — 業者が不一致を申告
-- `getStockDiscrepancies(status?)` — 未解決の申告一覧取得
-- `createSpotInventory(productIds: number[], note?)` — スポット棚卸開始（選択商品のみ）
-- `resolveDiscrepancy(id)` — 棚卸確定時に自動解決
-
-**変更:**
-- `createInventoryCount` → `type: 'FULL'` を設定
-- `checkActiveInventory` → SPOT/FULL両方チェック
-
----
-
-### 3. Kiosk UI（業者の申告画面）
-
-#### [MODIFY] チェックアウト完了後 or 在庫確認画面
-
-持出し時の在庫チェック画面（`requireStockCheck=true` の商品）に「在庫が合わない」ボタンを追加。
-タップ → 実際の数を入力 → 申告送信。
-
----
-
-### 4. Admin UI（管理画面）
-
-#### [MODIFY] [inventory/page.tsx](file:///f:/Antigravity/stock-pwa/app/(admin)/admin/inventory/page.tsx)
-- 「スポット棚卸」ボタン追加
-- 商品選択ダイアログ: **未解決の申告がある商品** を自動チェック + 手動追加
-- 棚卸一覧に type バッジ表示
-
-#### [MODIFY] ダッシュボード or InventoryページHEAD
-- 未解決の不一致申告数をバッジ表示（⚠ 3件の在庫不一致報告）
-
----
-
-### 5. テスト
-
-#### [MODIFY] [stock.test.ts](file:///f:/Antigravity/stock-pwa/__tests__/actions/stock.test.ts)
-- `createSpotInventory` テスト
-- `reportStockDiscrepancy` テスト
-- 棚卸確定時に申告が自動解決されるテスト
+1. `getPendingDiscrepancies()` データ取得関数を追加
+2. PENDING状態の不一致申告数をアラートバナーで表示（オレンジ系）
+3. 「すべて正常」判定条件に不一致申告を追加
 
 ---
 
@@ -107,11 +74,11 @@ model StockDiscrepancy {
 
 ### Automated Tests
 ```bash
-npx vitest run __tests__/actions/stock.test.ts
 npx vitest run
 ```
 
 ### Manual
-- Kiosk画面から在庫不一致を申告
-- 管理画面で申告情報を確認→スポット棚卸に含めて確定
-- ダッシュボードに申告バッジが表示されること
+- 一括修正前後で priceB の値を比較確認
+- 価格設定画面の「価格Bズレ」フィルターが 0 件になることを確認
+- 商品管理で priceB の「手動設定中」バッジが消えることを確認
+- ダッシュボードにアクセスし、不一致申告のバナー表示を確認

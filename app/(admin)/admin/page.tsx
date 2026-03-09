@@ -7,7 +7,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, TrendingDown, CheckCircle2, ClipboardList, Package, Fan, Calendar, MapPin, Calculator } from "lucide-react";
+import { AlertTriangle, TrendingDown, CheckCircle2, ClipboardList, Package, Fan, Calendar, MapPin, Calculator, PackageSearch } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -90,6 +90,19 @@ async function getDeliveryAlerts() {
         orderBy: { orderedAt: "asc" },
     });
     return { todayOrders, overdueOrders, noResponseOrders };
+}
+
+// 在庫不一致申告（PENDING）を取得
+async function getPendingDiscrepancies() {
+    const discrepancies = await prisma.stockDiscrepancy.findMany({
+        where: { status: 'PENDING' },
+        include: {
+            product: { select: { code: true, name: true } },
+            vendor: { select: { name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+    });
+    return discrepancies;
 }
 
 // 価格アラート取得
@@ -217,7 +230,7 @@ function groupLogs(logs: any[]) {
 }
 
 export default async function AdminDashboardPage() {
-    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts, priceAlerts] =
+    const [lowStockMaterials, airconInventory, pendingOrders, recentAirconLogs, deliveryAlerts, priceAlerts, pendingDiscrepancies] =
         await Promise.all([
             getLowStockMaterials(),
             getAirconStockWithVendorBreakdown(),
@@ -225,6 +238,7 @@ export default async function AdminDashboardPage() {
             getRecentAirconLogs(),
             getDeliveryAlerts(),
             getPriceAlerts(),
+            getPendingDiscrepancies(),
         ]);
 
     const criticalMaterials = lowStockMaterials.filter((p) => p.stock === 0);
@@ -422,13 +436,38 @@ export default async function AdminDashboardPage() {
                     </div>
                 )}
 
+                {/* 在庫不一致申告 */}
+                {pendingDiscrepancies.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-50 border border-orange-200">
+                        <PackageSearch className="w-4 h-4 text-orange-600 shrink-0" />
+                        <span className="text-sm text-orange-800 font-medium">
+                            在庫不一致申告 {pendingDiscrepancies.length}件
+                        </span>
+                        <span className="text-xs text-orange-600 truncate">
+                            （{pendingDiscrepancies
+                                .slice(0, 3)
+                                .map((d: any) => `${d.product.name}[${d.vendor.name}]`)
+                                .join('、')}
+                            {pendingDiscrepancies.length > 3 &&
+                                ` 他${pendingDiscrepancies.length - 3}件`}）
+                        </span>
+                        <Link
+                            href="/admin/inventory"
+                            className="ml-auto text-xs text-orange-700 hover:underline whitespace-nowrap font-medium"
+                        >
+                            棚卸管理へ →
+                        </Link>
+                    </div>
+                )}
+
                 {/* すべて正常 */}
                 {criticalMaterials.length === 0 &&
                     warningMaterials.length === 0 &&
                     deliveryAlerts.overdueOrders.length === 0 &&
                     deliveryAlerts.noResponseOrders.length === 0 &&
                     deliveryAlerts.todayOrders.length === 0 &&
-                    priceAlerts.violations.length === 0 && (
+                    priceAlerts.violations.length === 0 &&
+                    pendingDiscrepancies.length === 0 && (
                         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-50 border border-green-200">
                             <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                             <span className="text-sm text-green-700">
