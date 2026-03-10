@@ -100,12 +100,12 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
 
     return (
         <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setShowOddWarning(false); }}>
-            <DialogContent className="max-w-[95vw] sm:max-w-2xl border-none shadow-2xl overflow-y-auto max-h-[90vh]">
-                <DialogHeader className="pb-2 border-b border-slate-100">
-                    <DialogTitle className="text-2xl font-bold text-center text-slate-800">{product.name}</DialogTitle>
+            <DialogContent className="max-w-[95vw] sm:max-w-2xl border-none shadow-2xl overflow-y-auto max-h-[95vh] p-4 gap-2">
+                <DialogHeader className="pb-0 border-b border-slate-100">
+                    <DialogTitle className="text-xl font-bold text-center text-slate-800">{product.name}</DialogTitle>
                 </DialogHeader>
 
-                <div className="py-8 flex flex-col items-center justify-center space-y-8">
+                <div className="py-1 flex flex-col items-center justify-center space-y-3">
                     {/* Warning Message for Odd Quantity */}
                     {showOddWarning && (
                         <div className="w-full max-w-md bg-amber-50 border-2 border-amber-200 rounded-xl p-4 text-center animate-in fade-in slide-in-from-top-2">
@@ -140,7 +140,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                         <>
                             {/* Unit Toggle Switch */}
                             {canBuyBox && (
-                                <div className="flex bg-slate-100 p-1.5 rounded-xl w-full max-w-sm shadow-inner">
+                                <div className="flex gap-1 bg-slate-100 p-1.5 rounded-xl w-full max-w-sm shadow-inner">
                                     <button
                                         className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all duration-200 ${!isBox ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
                                         onClick={() => handleToggleBox(false)}
@@ -160,7 +160,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                             {/* Quantity Control Area */}
                             <div className="flex items-center justify-center gap-2 sm:gap-6 w-full px-1 sm:px-2">
                                 {/* Decrease Buttons */}
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 items-center">
                                     <Button
                                         variant="outline"
                                         className="h-12 w-12 sm:h-16 sm:w-16 p-0 rounded-2xl border-slate-200 bg-white text-slate-600 font-bold text-base sm:text-lg hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 active:scale-95 transition-all shadow-sm"
@@ -183,7 +183,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                 </div>
 
                                 {/* Quantity Display */}
-                                <div className="flex flex-col items-center justify-center w-32 sm:w-72 h-24 sm:h-32 bg-slate-50 rounded-2xl mx-1 shadow-inner ring-1 ring-slate-100 px-2 sm:px-4">
+                                <div className="flex flex-col items-center justify-center w-32 sm:w-72 h-16 sm:h-24 bg-slate-50 rounded-2xl mx-1 shadow-inner ring-1 ring-slate-100 px-2 sm:px-4">
                                     <div className="flex items-baseline gap-1">
                                         <span className="text-4xl sm:text-7xl font-black text-slate-800 tracking-tighter tabular-nums leading-none">
                                             {quantity}
@@ -200,7 +200,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                 </div>
 
                                 {/* Increase Buttons */}
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 items-center">
                                     <Button
                                         variant="outline"
                                         className="h-12 w-12 sm:h-16 sm:w-16 p-0 rounded-2xl border-blue-100 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all shadow-sm"
@@ -213,7 +213,6 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                                         variant="outline"
                                         className="h-12 w-12 sm:h-16 sm:w-16 p-0 rounded-2xl border-blue-100 bg-blue-50 text-blue-600 font-bold text-base sm:text-lg hover:bg-blue-100 hover:border-blue-200 hover:text-blue-700 active:scale-95 transition-all shadow-sm"
                                         onClick={() => {
-                                            // If quantity is 1 (default), set to 10. Otherwise add 10.
                                             const newQty = quantity === 1 ? 10 : Math.min(quantity + 10, maxQuantity);
                                             setQuantity(newQty);
                                             if (newQty === maxQuantity && quantity !== maxQuantity) toast.error("在庫上限です");
@@ -226,7 +225,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                             </div>
 
                             {/* Stock Info & Reset */}
-                            <div className="flex flex-col items-center gap-4 w-full px-8">
+                            <div className="flex flex-col items-center gap-1 w-full px-8">
                                 <div className="text-center space-y-1">
                                     <div className="text-sm font-bold text-slate-500">
                                         在庫: <span className="text-lg text-slate-700">{product.stock}</span> {unitLabel}
@@ -235,7 +234,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
 
                                 <Button
                                     variant="ghost"
-                                    className="h-12 w-full max-w-xs border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl"
+                                    className="h-10 w-full max-w-xs border border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl"
                                     onClick={() => setQuantity(1)}
                                     disabled={quantity === 1}
                                 >
@@ -256,7 +255,7 @@ export function QuantitySelectorDialog({ open, onOpenChange, product, onConfirm 
                             )}
                             <Button
                                 size="lg"
-                                className="w-full max-w-sm h-14 text-lg font-bold shadow-lg"
+                                className="w-full max-w-sm h-12 text-lg font-bold shadow-lg"
                                 onClick={handleConfirm}
                             >
                                 <ShoppingCart className="w-5 h-5 mr-2" />

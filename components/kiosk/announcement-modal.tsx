@@ -69,12 +69,12 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
         if (fullyApi && typeof fullyApi.textToSpeech === "function") {
             const timer = setTimeout(() => {
                 try {
+                    markPlayedToday(vendorUserId); // TTS開始前にマーク（早期dismiss対策）
                     fullyApi.textToSpeech(announcement, "ja_JP");
                     setIsSpeaking(true);
                     const estimatedMs = Math.max(announcement.length * 150, 3000);
                     setTimeout(() => {
                         setIsSpeaking(false);
-                        markPlayedToday(vendorUserId);
                     }, estimatedMs);
                 } catch (e) {
                     console.error("Fully Kiosk TTS error:", e);
@@ -103,10 +103,12 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
                 utterance.voice = preferredVoice;
             }
 
-            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onstart = () => {
+                setIsSpeaking(true);
+                markPlayedToday(vendorUserId); // TTS開始時にマーク（早期dismiss対策）
+            };
             utterance.onend = () => {
                 setIsSpeaking(false);
-                markPlayedToday(vendorUserId);
             };
             utterance.onerror = () => {
                 setIsSpeaking(false);
