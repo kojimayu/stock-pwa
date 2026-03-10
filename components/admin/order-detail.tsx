@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { DeliveryReceiptSection } from "@/components/admin/delivery-receipt-section";
 import { PhotoDropzone } from "@/components/admin/photo-dropzone";
 import { checkShippingFee, getShippingInfo, isShippingCheckTarget, FREE_SHIPPING_THRESHOLD } from "@/lib/shipping-utils";
+import { getJSTDateString } from "@/lib/date-utils";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -45,7 +46,7 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
     const [adminEmail, setAdminEmail] = useState('管理者');
 
     const [receivePhotos, setReceivePhotos] = useState<File[]>([]);
-    const [receiveDeliveryDate, setReceiveDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
+    const [receiveDeliveryDate, setReceiveDeliveryDate] = useState(getJSTDateString());
     const [receiveNote, setReceiveNote] = useState("");
 
     // 送料チェック関連

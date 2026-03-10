@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Search, Check, Trash2 } from "lucide-react";
 import { checkManagementNoDuplicates, getAirconStockLevels } from "@/lib/aircon-actions";
+import { getJSTDateString } from "@/lib/date-utils";
 
 interface Vendor {
     id: number;
@@ -36,7 +37,7 @@ interface ProxyAirconFormProps {
 export function ProxyAirconForm({ vendor, onComplete }: ProxyAirconFormProps) {
     // 引取日（代理入力用：過去日付を指定可能）
     const [transactionDate, setTransactionDate] = useState(
-        new Date().toISOString().split("T")[0] // デフォルトは今日
+        getJSTDateString() // デフォルトは今日（JST）
     );
 
     const [managementNo, setManagementNo] = useState("");

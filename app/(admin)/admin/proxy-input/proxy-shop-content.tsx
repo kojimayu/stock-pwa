@@ -10,6 +10,7 @@ import { CheckoutButton } from "@/components/kiosk/checkout-button";
 import { Search, X, Plus, Minus, Trash2, ShoppingCart, ChevronDown } from "lucide-react";
 import { useCartStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
+import { getJSTDateString } from "@/lib/date-utils";
 
 import { Product } from "@/lib/types";
 
@@ -28,7 +29,7 @@ export function ProxyShopContent({ products, vendor }: ProxyShopContentProps) {
     const [selectedSubCategory, setSelectedSubCategory] = useState("すべて");
     const [searchQuery, setSearchQuery] = useState("");
     const [pickupDate, setPickupDate] = useState<string>(
-        new Date().toISOString().split('T')[0]
+        getJSTDateString()
     );
     const [mobileTab, setMobileTab] = useState<"products" | "cart">("products");
     const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
@@ -232,7 +233,7 @@ export function ProxyShopContent({ products, vendor }: ProxyShopContentProps) {
                                 type="date"
                                 value={pickupDate}
                                 onChange={(e) => setPickupDate(e.target.value)}
-                                max={new Date().toISOString().split('T')[0]}
+                                max={getJSTDateString()}
                                 className="w-full h-9 px-3 rounded border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
@@ -354,7 +355,7 @@ export function ProxyShopContent({ products, vendor }: ProxyShopContentProps) {
                             type="date"
                             value={pickupDate}
                             onChange={(e) => setPickupDate(e.target.value)}
-                            max={new Date().toISOString().split('T')[0]}
+                            max={getJSTDateString()}
                             className="w-full h-9 px-3 rounded border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                     </div>

@@ -49,6 +49,7 @@ import {
     updateAirconOrderDeliveryDate,
 } from "@/lib/aircon-actions";
 import { formatDate } from "@/lib/utils";
+import { getJSTDateString } from "@/lib/date-utils";
 import { DeliveryReceiptSection } from "@/components/admin/delivery-receipt-section";
 import { PhotoDropzone } from "@/components/admin/photo-dropzone";
 
@@ -280,7 +281,7 @@ export default function AirconOrdersPage() {
         setSelectedOrder(order);
         setReceiveQuantities({});
         setReceivePhotos([]);
-        setReceiveDeliveryDate(new Date().toISOString().split('T')[0]);
+        setReceiveDeliveryDate(getJSTDateString());
         setReceiveNote("");
         setReceiveDialogOpen(true);
     };

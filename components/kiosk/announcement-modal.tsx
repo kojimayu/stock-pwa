@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Megaphone, CheckCircle, Volume2 } from "lucide-react";
+import { getJSTDateString } from "@/lib/date-utils";
 
 interface AnnouncementModalProps {
     onDismiss: () => void;
@@ -15,14 +16,14 @@ interface AnnouncementModalProps {
  */
 function hasPlayedToday(vendorUserId: number | null | undefined): boolean {
     if (!vendorUserId) return false;
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const today = getJSTDateString();
     const key = `announcement_voice_${vendorUserId}_${today}`;
     return localStorage.getItem(key) === "done";
 }
 
 function markPlayedToday(vendorUserId: number | null | undefined): void {
     if (!vendorUserId) return;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getJSTDateString();
     const key = `announcement_voice_${vendorUserId}_${today}`;
     localStorage.setItem(key, "done");
 
