@@ -48,6 +48,8 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     const [loading, setLoading] = useState(true);
     const [isSpeaking, setIsSpeaking] = useState(false);
     const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
+    const scrollAnimationRef = useRef<number | null>(null);
 
     useEffect(() => {
         fetch("/api/config/announcement")
@@ -58,6 +60,46 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
             .catch(() => setAnnouncement(""))
             .finally(() => setLoading(false));
     }, []);
+
+    // 読み上げ中の自動スクロール制御
+    useEffect(() => {
+        if (!isSpeaking || !contentRef.current) {
+            if (scrollAnimationRef.current) {
+                cancelAnimationFrame(scrollAnimationRef.current);
+            }
+            return;
+        }
+
+        const el = contentRef.current;
+        const maxScroll = el.scrollHeight - el.clientHeight;
+
+        if (maxScroll <= 0) return;
+
+        // 文字数から大まかな読み上げ時間（ミリ秒）を推測
+        const duration = Math.max((announcement?.length || 0) * 150, 3000);
+        // 読み上げ開始から1秒待ってスクロール開始
+        const startDelay = 1000;
+        const startTime = performance.now() + startDelay;
+
+        const animateScroll = (time: number) => {
+            if (time > startTime) {
+                const elapsed = time - startTime;
+                const progress = Math.min(elapsed / Math.max(duration - startDelay, 1000), 1);
+                el.scrollTop = progress * maxScroll;
+            }
+            if (isSpeaking) {
+                scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+            }
+        };
+
+        scrollAnimationRef.current = requestAnimationFrame(animateScroll);
+
+        return () => {
+            if (scrollAnimationRef.current) {
+                cancelAnimationFrame(scrollAnimationRef.current);
+            }
+        };
+    }, [isSpeaking, announcement]);
 
     // 音声読み上げ開始（お知らせ取得完了後）
     useEffect(() => {
@@ -140,23 +182,28 @@ export function AnnouncementModal({ onDismiss, vendorUserId }: AnnouncementModal
     return (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-6">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-300">
-                {/* ヘッダー */}
-                <div className="p-6 text-center border-b">
-                    <div className="bg-blue-100 p-4 rounded-full inline-block mb-3">
-                        <Megaphone className="w-10 h-10 text-blue-600" />
+                {/* ヘッダー: コンパクト化して1行に */}
+                <div className="px-5 py-4 flex items-center justify-between border-b bg-blue-50/50 rounded-t-3xl shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-100 p-2.5 rounded-full">
+                            <Megaphone className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-900">お知らせ</h2>
                     </div>
-                    <h2 className="text-2xl font-bold text-slate-900">📋 お知らせ</h2>
                     {/* 音声再生中インジケーター */}
                     {isSpeaking && (
-                        <div className="flex items-center justify-center gap-2 mt-2 text-blue-600">
+                        <div className="flex items-center gap-2 text-blue-600 bg-blue-100/50 px-3 py-1.5 rounded-full border border-blue-100">
                             <Volume2 className="w-4 h-4 animate-pulse" />
-                            <span className="text-sm font-medium">音声案内中...</span>
+                            <span className="text-sm font-bold">音声案内中</span>
                         </div>
                     )}
                 </div>
 
-                {/* 本文 */}
-                <div className="flex-1 overflow-y-auto p-6">
+                {/* 本文エリア */}
+                <div
+                    ref={contentRef}
+                    className="flex-1 overflow-y-auto p-6 scroll-smooth"
+                >
                     <div className="text-lg leading-relaxed whitespace-pre-wrap text-slate-700">
                         {announcement}
                     </div>
