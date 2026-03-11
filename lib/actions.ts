@@ -57,10 +57,22 @@ export async function updateTransaction(transactionId: number, newItems: Transac
                     data: { stock: { increment: adjustment } }
                 });
 
+                // エアコン在庫も連動
+                const prodWithAircon = await tx.product.findUnique({
+                    where: { id: newItem.productId },
+                    select: { airconProductId: true }
+                });
+                if (prodWithAircon?.airconProductId) {
+                    await tx.airconProduct.update({
+                        where: { id: prodWithAircon.airconProductId },
+                        data: { stock: { increment: adjustment } }
+                    });
+                }
+
                 await tx.inventoryLog.create({
                     data: {
                         productId: newItem.productId,
-                        type: adjustment > 0 ? 'RETURN' : 'OUT', // Simplified types
+                        type: adjustment > 0 ? 'RETURN' : 'OUT',
                         quantity: Math.abs(adjustment),
                         reason: `Correction #${transactionId}: ${adjustment > 0 ? 'Returned' : 'Taken'}`,
                     }
@@ -81,6 +93,18 @@ export async function updateTransaction(transactionId: number, newItems: Transac
                 where: { id: oldItem.productId },
                 data: { stock: { increment: oldTotalUnits } }
             });
+
+            // エアコン在庫も連動（airconProductIdがある場合）
+            const productWithAircon = await tx.product.findUnique({
+                where: { id: oldItem.productId },
+                select: { airconProductId: true }
+            });
+            if (productWithAircon?.airconProductId) {
+                await tx.airconProduct.update({
+                    where: { id: productWithAircon.airconProductId },
+                    data: { stock: { increment: oldTotalUnits } }
+                });
+            }
 
             await tx.inventoryLog.create({
                 data: {
@@ -112,7 +136,7 @@ export async function updateTransaction(transactionId: number, newItems: Transac
         const changes: string[] = [];
         // Added items
         for (const newItem of newItems) {
-            const oldItem = oldItems.find(i => i.productId === newItem.productId && !i.isManual && i.isManual === newItem.isManual);
+            const oldItem = oldItems.find(i => i.productId === newItem.productId && !!i.isManual === !!newItem.isManual);
             if (!oldItem) {
                 changes.push(`[追加] ${newItem.name} x${newItem.quantity}`);
             } else {
@@ -125,7 +149,7 @@ export async function updateTransaction(transactionId: number, newItems: Transac
         }
         // Removed items
         for (const oldItem of oldItems) {
-            const newItem = newItems.find(i => i.productId === oldItem.productId && !i.isManual === oldItem.isManual);
+            const newItem = newItems.find(i => i.productId === oldItem.productId && !!i.isManual === !!oldItem.isManual);
             if (!newItem) {
                 changes.push(`[削除] ${oldItem.name} x${oldItem.quantity}`);
             }
