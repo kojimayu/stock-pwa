@@ -280,8 +280,10 @@ export async function returnAircon(logId: number) {
             }
         });
 
-        // 在庫を戻す（紐付けがあれば）
-        if (log.airconProductId) {
+        // 在庫を戻す（PURCHASEタイプ以外のみ）
+        // PURCHASE: 在庫減算はTransaction出庫で行われるため、ここでは触らない
+        // SET/INDOOR/OUTDOOR: AirconLogの作成=在庫-1 なので、戻し時に+1
+        if (log.airconProductId && log.type !== 'PURCHASE') {
             await tx.airconProduct.update({
                 where: { id: log.airconProductId },
                 data: { stock: { increment: 1 } }
