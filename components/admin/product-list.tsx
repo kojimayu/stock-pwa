@@ -19,9 +19,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Edit, Plus, Trash2, PackagePlus, Search, X, Package, ChevronDown, ChevronUp, ClipboardCheck, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Edit, Plus, Trash2, ClipboardCheck, Search, X, Package, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { ProductDialog } from "./product-dialog";
-import { StockAdjustmentDialog } from "./stock-adjustment-dialog";
 import { deleteProduct } from "@/lib/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -62,9 +61,7 @@ type SortDir = "asc" | "desc";
 
 export function ProductList({ products, pricingRules }: ProductListProps) {
     const [productDialogOpen, setProductDialogOpen] = useState(false);
-    const [stockDialogOpen, setStockDialogOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-    const [adjustingProduct, setAdjustingProduct] = useState<Product | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string>("all");
     const [selectedSubCategory, setSelectedSubCategory] = useState<string>("all");
@@ -104,9 +101,8 @@ export function ProductList({ products, pricingRules }: ProductListProps) {
         setProductDialogOpen(true);
     };
 
-    const handleAdjustStock = (product: Product) => {
-        setAdjustingProduct(product);
-        setStockDialogOpen(true);
+    const handleSpotInventory = () => {
+        router.push('/admin/inventory');
     };
 
     const handleDelete = async (id: number) => {
@@ -443,10 +439,10 @@ export function ProductList({ products, pricingRules }: ProductListProps) {
                                             variant="ghost"
                                             size="sm"
                                             className="h-6 text-xs"
-                                            onClick={() => handleAdjustStock(product)}
+                                            onClick={handleSpotInventory}
                                         >
-                                            <PackagePlus className="w-3 h-3 mr-1" />
-                                            調整
+                                            <ClipboardCheck className="w-3 h-3 mr-1" />
+                                            棚卸
                                         </Button>
                                     </TableCell>
                                     <TableCell className="text-right">
@@ -547,10 +543,10 @@ export function ProductList({ products, pricingRules }: ProductListProps) {
                                         variant="outline"
                                         size="sm"
                                         className="flex-1"
-                                        onClick={() => handleAdjustStock(product)}
+                                        onClick={handleSpotInventory}
                                     >
-                                        <PackagePlus className="w-4 h-4 mr-1" />
-                                        在庫調整
+                                        <ClipboardCheck className="w-4 h-4 mr-1" />
+                                        スポット棚卸
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -582,14 +578,7 @@ export function ProductList({ products, pricingRules }: ProductListProps) {
                 onSuccess={handleSuccess}
             />
 
-            {adjustingProduct && (
-                <StockAdjustmentDialog
-                    open={stockDialogOpen}
-                    onOpenChange={setStockDialogOpen}
-                    product={adjustingProduct}
-                    onSuccess={handleSuccess}
-                />
-            )}
+
         </div>
     );
 }

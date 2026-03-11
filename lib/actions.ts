@@ -1291,6 +1291,10 @@ export async function deleteProduct(id: number) {
     revalidatePath('/admin/products');
 }
 
+/**
+ * @deprecated スポット棚卸（createSpotInventory）に置き換えられました。
+ * UIからの呼び出しは削除済み。テスト互換性のため関数は残しています。
+ */
 export async function adjustStock(productId: number, type: string, quantity: number, reason: string) {
     // Transactional update
     await prisma.$transaction(async (tx) => {
@@ -2121,6 +2125,130 @@ export async function createSpotInventory(productIds: number[], note?: string) {
     await logOperation("INVENTORY_START", `スポット棚卸 #${inventory.id}`, `スポット棚卸を開始 (${products.length}商品: ${products.map(p => p.name).join(', ')})`);
     revalidatePath('/admin/inventory');
     return inventory;
+}
+
+// =========================================
+// 在庫差異分析レポート
+// =========================================
+
+export async function getDiscrepancyReport(months: number = 3) {
+    const since = new Date();
+    since.setMonth(since.getMonth() - months);
+
+    // 確定済みの棚卸アイテム（差異あり）を取得
+    const items = await prisma.inventoryCountItem.findMany({
+        where: {
+            adjustment: { not: 0 },
+            inventory: {
+                status: 'COMPLETED',
+                endedAt: { gte: since },
+            },
+        },
+        include: {
+            product: true,
+            inventory: true,
+        },
+        orderBy: {
+            inventory: { endedAt: 'desc' },
+        },
+    });
+
+    // 1. 商品別差異ランキング（不足TOP / 過剰TOP）
+    const productMap = new Map<number, {
+        productId: number;
+        productName: string;
+        category: string;
+        cost: number;
+        totalShortage: number;   // マイナス差異の合計
+        totalExcess: number;     // プラス差異の合計
+        count: number;           // 差異発生回数
+        lossAmount: number;      // ロス金額（不足 × 仕入値）
+    }>();
+
+    for (const item of items) {
+        const existing = productMap.get(item.productId) || {
+            productId: item.productId,
+            productName: item.product.name,
+            category: item.product.category,
+            cost: item.product.cost,
+            totalShortage: 0,
+            totalExcess: 0,
+            count: 0,
+            lossAmount: 0,
+        };
+
+        if (item.adjustment < 0) {
+            existing.totalShortage += item.adjustment; // negative
+            existing.lossAmount += Math.abs(item.adjustment) * item.product.cost;
+        } else {
+            existing.totalExcess += item.adjustment;
+        }
+        existing.count += 1;
+        productMap.set(item.productId, existing);
+    }
+
+    const productRanking = Array.from(productMap.values());
+    const shortageTop = [...productRanking]
+        .filter(p => p.totalShortage < 0)
+        .sort((a, b) => a.totalShortage - b.totalShortage) // most negative first
+        .slice(0, 10);
+    const excessTop = [...productRanking]
+        .filter(p => p.totalExcess > 0)
+        .sort((a, b) => b.totalExcess - a.totalExcess)
+        .slice(0, 10);
+
+    // 2. 理由別集計
+    const reasonMap = new Map<string, { reason: string; count: number; totalAdjustment: number; lossAmount: number }>();
+    for (const item of items) {
+        const reason = item.reason || '理由未設定';
+        const existing = reasonMap.get(reason) || {
+            reason,
+            count: 0,
+            totalAdjustment: 0,
+            lossAmount: 0,
+        };
+        existing.count += 1;
+        existing.totalAdjustment += item.adjustment;
+        if (item.adjustment < 0) {
+            existing.lossAmount += Math.abs(item.adjustment) * item.product.cost;
+        }
+        reasonMap.set(reason, existing);
+    }
+    const reasonBreakdown = Array.from(reasonMap.values()).sort((a, b) => b.lossAmount - a.lossAmount);
+
+    // 3. カテゴリ別ロス金額
+    const categoryMap = new Map<string, { category: string; lossAmount: number; shortageCount: number }>();
+    for (const item of items) {
+        if (item.adjustment >= 0) continue; // 不足のみ
+        const cat = item.product.category;
+        const existing = categoryMap.get(cat) || { category: cat, lossAmount: 0, shortageCount: 0 };
+        existing.lossAmount += Math.abs(item.adjustment) * item.product.cost;
+        existing.shortageCount += Math.abs(item.adjustment);
+        categoryMap.set(cat, existing);
+    }
+    const categoryBreakdown = Array.from(categoryMap.values()).sort((a, b) => b.lossAmount - a.lossAmount);
+
+    // 4. サマリー
+    const totalLoss = items
+        .filter(i => i.adjustment < 0)
+        .reduce((sum, i) => sum + Math.abs(i.adjustment) * i.product.cost, 0);
+    const totalExcessAmount = items
+        .filter(i => i.adjustment > 0)
+        .reduce((sum, i) => sum + i.adjustment * i.product.cost, 0);
+
+    return {
+        period: { months, since: since.toISOString() },
+        summary: {
+            totalDiscrepancies: items.length,
+            totalLoss,
+            totalExcessAmount,
+            netLoss: totalLoss - totalExcessAmount,
+        },
+        shortageTop,
+        excessTop,
+        reasonBreakdown,
+        categoryBreakdown,
+    };
 }
 
 // =========================================
