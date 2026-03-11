@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { Plus, HelpCircle, ChevronRight, Search, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { Plus, HelpCircle, ChevronRight, Search, AlertTriangle, ClipboardCheck, BarChart3 } from "lucide-react";
 import { createInventoryCount, createSpotInventory, getInventoryCounts, getProducts, getStockDiscrepancies } from "@/lib/actions";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -162,6 +163,12 @@ export function InventoryList() {
                 <div className="p-4 flex justify-between items-center">
                     <div className="flex items-center gap-2">
                         <h1 className="text-xl font-bold">棚卸管理</h1>
+                        <Link href="/admin/reports/discrepancy">
+                            <Button variant="outline" size="sm" className="text-xs gap-1">
+                                <BarChart3 className="w-3.5 h-3.5" />
+                                差異分析
+                            </Button>
+                        </Link>
                         {discrepancies.length > 0 && (
                             <Badge variant="destructive" className="text-xs">
                                 <AlertTriangle className="h-3 w-3 mr-1" />
