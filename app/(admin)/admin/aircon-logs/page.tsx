@@ -110,7 +110,7 @@ export default function AirconLogsPage() {
         const matchDate = dateFilter === "" ||
             log.createdAt.startsWith(dateFilter);
         const matchManagementNo = managementNoFilter === "" ||
-            log.managementNo.includes(managementNoFilter);
+            (log.managementNo || "").includes(managementNoFilter);
         const matchReturned = !showReturnedOnly || log.isReturned;
         return matchVendor && matchDate && matchManagementNo && matchReturned;
     });
