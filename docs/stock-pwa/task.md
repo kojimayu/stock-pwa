@@ -6,7 +6,7 @@
 
 ## 2. バックエンド実装 (Server Actions)
 - [x] スポット棚卸登録用APIの実装 (`createSpotInventory`)
-- [x] `receiveOrderItem` の `$transaction` 化（入荷時の在庫不整合バグ修正）
+- [x] `receiveOrderItem` の `$transaction` 化
 - [x] `updateInventoryItem` に `reason` パラメータ追加
 - [x] 在庫差異分析レポート用データ取得APIの実装 (`getDiscrepancyReport`)
 - [x] 在庫調整API (`adjustStock`) の廃止・置換対応
@@ -15,7 +15,7 @@
 - [x] スポット棚卸ダイアログの実装 (`inventory-list.tsx` 内)
 - [x] 棚卸詳細画面に差異理由セレクトUIの追加 (`inventory-detail.tsx`)
 - [x] 在庫管理画面の改修（「在庫調整」→ スポット棚卸に一本化）
-- [ ] 在庫差異分析レポート画面 (`app/admin/reports/discrepancy/page.tsx`) の新規作成
+- [x] 在庫差異分析レポート画面 (`admin/reports/discrepancy`) ✅ 完成
 
 ## 4. 納品記録リファクタリング（完了）
 - [x] 材料発注: 入荷処理と納品書アップロードの分離
@@ -27,4 +27,4 @@
 - [x] テスト全224件パス (21ファイル)
 - [x] スポット棚卸 + 差異理由の結合テスト作成 (12テスト)
 - [x] 在庫差異分析レポートのテスト作成 (4テスト)
-- [ ] 実機での差異理由UI動作確認
+- [ ] 実機での差異理由UI + レポート画面の動作確認

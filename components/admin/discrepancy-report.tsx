@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, TrendingDown, TrendingUp, AlertTriangle, BarChart3, Loader2 } from "lucide-react";
+import { ChevronLeft, TrendingDown, BarChart3, Loader2, AlertTriangle, Percent } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 
@@ -74,20 +74,38 @@ export function DiscrepancyReportView() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <Card>
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">差異件数</CardTitle>
+                                <CardTitle className="text-sm font-medium text-muted-foreground">差異件数 / 棚卸総数</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold">{report.summary.totalDiscrepancies}件</div>
+                                <div className="text-2xl font-bold">
+                                    {report.summary.totalDiscrepancies}
+                                    <span className="text-sm font-normal text-muted-foreground"> / {report.summary.totalInventoryItems}</span>
+                                </div>
                             </CardContent>
                         </Card>
                         <Card className="border-red-200 bg-red-50/50">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium text-red-600">推定ロス金額</CardTitle>
+                                <CardTitle className="text-sm font-medium text-red-600">
+                                    実損（紛失・破損）
+                                </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="text-2xl font-bold text-red-700">
-                                    {formatCurrency(report.summary.totalLoss)}
+                                    {formatCurrency(report.summary.realLoss)}
                                 </div>
+                            </CardContent>
+                        </Card>
+                        <Card className="border-amber-200 bg-amber-50/50">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-medium text-amber-600">
+                                    原因判明分
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-bold text-amber-700">
+                                    {formatCurrency(report.summary.resolvedLoss)}
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">数え間違い・記録漏れ等</div>
                             </CardContent>
                         </Card>
                         <Card className="border-blue-200 bg-blue-50/50">
@@ -97,16 +115,6 @@ export function DiscrepancyReportView() {
                             <CardContent>
                                 <div className="text-2xl font-bold text-blue-700">
                                     {formatCurrency(report.summary.totalExcessAmount)}
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card className={`border-${report.summary.netLoss > 0 ? 'red' : 'green'}-200`}>
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-medium text-muted-foreground">純損失</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className={`text-2xl font-bold ${report.summary.netLoss > 0 ? 'text-red-700' : 'text-green-700'}`}>
-                                    {report.summary.netLoss > 0 ? '-' : '+'}{formatCurrency(Math.abs(report.summary.netLoss))}
                                 </div>
                             </CardContent>
                         </Card>
@@ -123,40 +131,40 @@ export function DiscrepancyReportView() {
                         </Card>
                     ) : (
                         <>
-                            {/* 不足TOP / 過剰TOP */}
+                            {/* 実損TOP / 差異発生率TOP */}
                             <div className="grid md:grid-cols-2 gap-6">
-                                {/* 不足TOP */}
+                                {/* 実損金額TOP */}
                                 <Card>
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2 text-red-700">
                                             <TrendingDown className="w-5 h-5" />
-                                            不足TOP{report.shortageTop.length}
+                                            実損金額TOP（紛失・破損のみ）
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        {report.shortageTop.length === 0 ? (
-                                            <p className="text-sm text-muted-foreground">不足データなし</p>
+                                        {report.lossTop.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">実損データなし（紛失・破損の理由がある差異のみ対象）</p>
                                         ) : (
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow>
                                                         <TableHead>商品</TableHead>
-                                                        <TableHead className="text-right">不足数</TableHead>
-                                                        <TableHead className="text-right">ロス金額</TableHead>
+                                                        <TableHead className="text-right">実損金額</TableHead>
+                                                        <TableHead className="text-right">差異率</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {report.shortageTop.map((item) => (
+                                                    {report.lossTop.map((item) => (
                                                         <TableRow key={item.productId}>
                                                             <TableCell>
                                                                 <div className="font-medium">{item.productName}</div>
                                                                 <div className="text-xs text-muted-foreground">{item.category}</div>
                                                             </TableCell>
                                                             <TableCell className="text-right text-red-600 font-bold">
-                                                                {item.totalShortage}
+                                                                {formatCurrency(item.realLossAmount)}
                                                             </TableCell>
-                                                            <TableCell className="text-right text-red-600">
-                                                                {formatCurrency(item.lossAmount)}
+                                                            <TableCell className="text-right text-muted-foreground text-sm">
+                                                                {item.discrepancyCount}/{item.totalInventoryCount}回
                                                             </TableCell>
                                                         </TableRow>
                                                     ))}
@@ -166,38 +174,43 @@ export function DiscrepancyReportView() {
                                     </CardContent>
                                 </Card>
 
-                                {/* 過剰TOP */}
+                                {/* 差異発生率TOP */}
                                 <Card>
                                     <CardHeader>
-                                        <CardTitle className="flex items-center gap-2 text-blue-700">
-                                            <TrendingUp className="w-5 h-5" />
-                                            過剰TOP{report.excessTop.length}
+                                        <CardTitle className="flex items-center gap-2 text-amber-700">
+                                            <Percent className="w-5 h-5" />
+                                            差異発生率TOP（2回以上棚卸）
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        {report.excessTop.length === 0 ? (
-                                            <p className="text-sm text-muted-foreground">過剰データなし</p>
+                                        {report.rateTop.length === 0 ? (
+                                            <p className="text-sm text-muted-foreground">2回以上棚卸された商品がまだありません</p>
                                         ) : (
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow>
                                                         <TableHead>商品</TableHead>
-                                                        <TableHead className="text-right">過剰数</TableHead>
-                                                        <TableHead className="text-right">回数</TableHead>
+                                                        <TableHead className="text-right">発生率</TableHead>
+                                                        <TableHead className="text-right">ネット差異</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {report.excessTop.map((item) => (
+                                                    {report.rateTop.map((item) => (
                                                         <TableRow key={item.productId}>
                                                             <TableCell>
                                                                 <div className="font-medium">{item.productName}</div>
                                                                 <div className="text-xs text-muted-foreground">{item.category}</div>
                                                             </TableCell>
-                                                            <TableCell className="text-right text-blue-600 font-bold">
-                                                                +{item.totalExcess}
-                                                            </TableCell>
                                                             <TableCell className="text-right">
-                                                                {item.count}回
+                                                                <span className="font-bold text-amber-600">
+                                                                    {(item.discrepancyRate * 100).toFixed(0)}%
+                                                                </span>
+                                                                <div className="text-xs text-muted-foreground">
+                                                                    {item.discrepancyCount}/{item.totalInventoryCount}回
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className={`text-right font-bold ${item.netAdjustment < 0 ? 'text-red-600' : item.netAdjustment > 0 ? 'text-blue-600' : ''}`}>
+                                                                {item.netAdjustment > 0 ? '+' : ''}{item.netAdjustment}
                                                             </TableCell>
                                                         </TableRow>
                                                     ))}
@@ -227,14 +240,19 @@ export function DiscrepancyReportView() {
                                                 return (
                                                     <div key={item.reason} className="space-y-1">
                                                         <div className="flex justify-between text-sm">
-                                                            <span className="font-medium">{item.reason}</span>
+                                                            <span className="font-medium">
+                                                                {item.reason}
+                                                                {item.isRealLoss && (
+                                                                    <span className="ml-2 text-xs text-red-500 font-bold">実損</span>
+                                                                )}
+                                                            </span>
                                                             <span className="text-muted-foreground">
                                                                 {item.count}件 / {formatCurrency(item.lossAmount)}
                                                             </span>
                                                         </div>
                                                         <div className="w-full bg-slate-100 rounded-full h-2.5">
                                                             <div
-                                                                className="bg-amber-500 h-2.5 rounded-full transition-all"
+                                                                className={`h-2.5 rounded-full transition-all ${item.isRealLoss ? 'bg-red-500' : 'bg-amber-400'}`}
                                                                 style={{ width: `${Math.max(percentage, 2)}%` }}
                                                             />
                                                         </div>
@@ -246,24 +264,22 @@ export function DiscrepancyReportView() {
                                 </CardContent>
                             </Card>
 
-                            {/* カテゴリ別ロス */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <BarChart3 className="w-5 h-5 text-slate-600" />
-                                        カテゴリ別ロス
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    {report.categoryBreakdown.length === 0 ? (
-                                        <p className="text-sm text-muted-foreground">カテゴリ別データなし</p>
-                                    ) : (
+                            {/* カテゴリ別ロス（実損のみ） */}
+                            {report.categoryBreakdown.length > 0 && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <BarChart3 className="w-5 h-5 text-slate-600" />
+                                            カテゴリ別実損（紛失・破損のみ）
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
                                         <Table>
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead>カテゴリ</TableHead>
                                                     <TableHead className="text-right">不足数量</TableHead>
-                                                    <TableHead className="text-right">ロス金額</TableHead>
+                                                    <TableHead className="text-right">実損金額</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -278,9 +294,9 @@ export function DiscrepancyReportView() {
                                                 ))}
                                             </TableBody>
                                         </Table>
-                                    )}
-                                </CardContent>
-                            </Card>
+                                    </CardContent>
+                                </Card>
+                            )}
                         </>
                     )}
                 </>

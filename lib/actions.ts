@@ -2135,10 +2135,12 @@ export async function getDiscrepancyReport(months: number = 3) {
     const since = new Date();
     since.setMonth(since.getMonth() - months);
 
-    // 確定済みの棚卸アイテム（差異あり）を取得
-    const items = await prisma.inventoryCountItem.findMany({
+    // 実損とみなす理由（紛失・破損のみ）
+    const REAL_LOSS_REASONS = ['紛失・原因不明', '紛失・不明', '破損・劣化による廃棄', '破損・劣化'];
+
+    // 確定済みの棚卸アイテム「全件」を取得（差異なしも含む → 棚卸回数の分母に）
+    const allItems = await prisma.inventoryCountItem.findMany({
         where: {
-            adjustment: { not: 0 },
             inventory: {
                 status: 'COMPLETED',
                 endedAt: { gte: since },
@@ -2153,59 +2155,86 @@ export async function getDiscrepancyReport(months: number = 3) {
         },
     });
 
-    // 1. 商品別差異ランキング（不足TOP / 過剰TOP）
+    // 差異ありのみ
+    const discrepancyItems = allItems.filter(i => i.adjustment !== 0);
+
+    // 1. 商品別集計（差異発生率 + ネット差異）
     const productMap = new Map<number, {
         productId: number;
         productName: string;
         category: string;
         cost: number;
-        totalShortage: number;   // マイナス差異の合計
-        totalExcess: number;     // プラス差異の合計
-        count: number;           // 差異発生回数
-        lossAmount: number;      // ロス金額（不足 × 仕入値）
+        totalInventoryCount: number; // この商品の棚卸回数（分母）
+        discrepancyCount: number;    // 差異があった回数
+        netAdjustment: number;       // ネット差異（+過剰/-不足）
+        realLossAmount: number;      // 実損金額（紛失・破損のみ）
+        totalLossAmount: number;     // 全差異金額
     }>();
 
-    for (const item of items) {
+    // まず全アイテムで棚卸回数をカウント
+    for (const item of allItems) {
         const existing = productMap.get(item.productId) || {
             productId: item.productId,
             productName: item.product.name,
             category: item.product.category,
             cost: item.product.cost,
-            totalShortage: 0,
-            totalExcess: 0,
-            count: 0,
-            lossAmount: 0,
+            totalInventoryCount: 0,
+            discrepancyCount: 0,
+            netAdjustment: 0,
+            realLossAmount: 0,
+            totalLossAmount: 0,
         };
+        existing.totalInventoryCount += 1;
 
-        if (item.adjustment < 0) {
-            existing.totalShortage += item.adjustment; // negative
-            existing.lossAmount += Math.abs(item.adjustment) * item.product.cost;
-        } else {
-            existing.totalExcess += item.adjustment;
+        if (item.adjustment !== 0) {
+            existing.discrepancyCount += 1;
+            existing.netAdjustment += item.adjustment;
+
+            if (item.adjustment < 0) {
+                existing.totalLossAmount += Math.abs(item.adjustment) * item.product.cost;
+                const reason = item.reason || '';
+                if (REAL_LOSS_REASONS.some(r => reason.includes(r) || r.includes(reason))) {
+                    existing.realLossAmount += Math.abs(item.adjustment) * item.product.cost;
+                }
+            }
         }
-        existing.count += 1;
         productMap.set(item.productId, existing);
     }
 
     const productRanking = Array.from(productMap.values());
-    const shortageTop = [...productRanking]
-        .filter(p => p.totalShortage < 0)
-        .sort((a, b) => a.totalShortage - b.totalShortage) // most negative first
+
+    // ロス金額順（実損のみ）でTOP10
+    const lossTop = [...productRanking]
+        .filter(p => p.realLossAmount > 0)
+        .sort((a, b) => b.realLossAmount - a.realLossAmount)
         .slice(0, 10);
-    const excessTop = [...productRanking]
-        .filter(p => p.totalExcess > 0)
-        .sort((a, b) => b.totalExcess - a.totalExcess)
+
+    // 差異発生率順（よくズレる商品）TOP10
+    const rateTop = [...productRanking]
+        .filter(p => p.totalInventoryCount >= 2) // 最低2回以上棚卸した商品のみ
+        .map(p => ({
+            ...p,
+            discrepancyRate: p.discrepancyCount / p.totalInventoryCount,
+        }))
+        .sort((a, b) => b.discrepancyRate - a.discrepancyRate)
         .slice(0, 10);
 
     // 2. 理由別集計
-    const reasonMap = new Map<string, { reason: string; count: number; totalAdjustment: number; lossAmount: number }>();
-    for (const item of items) {
+    const reasonMap = new Map<string, {
+        reason: string;
+        count: number;
+        totalAdjustment: number;
+        lossAmount: number;
+        isRealLoss: boolean;
+    }>();
+    for (const item of discrepancyItems) {
         const reason = item.reason || '理由未設定';
         const existing = reasonMap.get(reason) || {
             reason,
             count: 0,
             totalAdjustment: 0,
             lossAmount: 0,
+            isRealLoss: REAL_LOSS_REASONS.some(r => reason.includes(r) || r.includes(reason)),
         };
         existing.count += 1;
         existing.totalAdjustment += item.adjustment;
@@ -2216,10 +2245,12 @@ export async function getDiscrepancyReport(months: number = 3) {
     }
     const reasonBreakdown = Array.from(reasonMap.values()).sort((a, b) => b.lossAmount - a.lossAmount);
 
-    // 3. カテゴリ別ロス金額
+    // 3. カテゴリ別ロス（実損のみ）
     const categoryMap = new Map<string, { category: string; lossAmount: number; shortageCount: number }>();
-    for (const item of items) {
-        if (item.adjustment >= 0) continue; // 不足のみ
+    for (const item of discrepancyItems) {
+        if (item.adjustment >= 0) continue;
+        const reason = item.reason || '';
+        if (!REAL_LOSS_REASONS.some(r => reason.includes(r) || r.includes(reason))) continue;
         const cat = item.product.category;
         const existing = categoryMap.get(cat) || { category: cat, lossAmount: 0, shortageCount: 0 };
         existing.lossAmount += Math.abs(item.adjustment) * item.product.cost;
@@ -2229,23 +2260,27 @@ export async function getDiscrepancyReport(months: number = 3) {
     const categoryBreakdown = Array.from(categoryMap.values()).sort((a, b) => b.lossAmount - a.lossAmount);
 
     // 4. サマリー
-    const totalLoss = items
-        .filter(i => i.adjustment < 0)
+    const realLoss = discrepancyItems
+        .filter(i => i.adjustment < 0 && REAL_LOSS_REASONS.some(r => (i.reason || '').includes(r) || r.includes(i.reason || '')))
         .reduce((sum, i) => sum + Math.abs(i.adjustment) * i.product.cost, 0);
-    const totalExcessAmount = items
+    const resolvedLoss = discrepancyItems
+        .filter(i => i.adjustment < 0 && !REAL_LOSS_REASONS.some(r => (i.reason || '').includes(r) || r.includes(i.reason || '')))
+        .reduce((sum, i) => sum + Math.abs(i.adjustment) * i.product.cost, 0);
+    const totalExcessAmount = discrepancyItems
         .filter(i => i.adjustment > 0)
         .reduce((sum, i) => sum + i.adjustment * i.product.cost, 0);
 
     return {
         period: { months, since: since.toISOString() },
         summary: {
-            totalDiscrepancies: items.length,
-            totalLoss,
+            totalDiscrepancies: discrepancyItems.length,
+            totalInventoryItems: allItems.length,
+            realLoss,           // 実損（紛失・破損のみ）
+            resolvedLoss,       // 原因判明分（数え間違い・記録漏れ等）
             totalExcessAmount,
-            netLoss: totalLoss - totalExcessAmount,
         },
-        shortageTop,
-        excessTop,
+        lossTop,          // 実損金額TOP
+        rateTop,          // 差異発生率TOP
         reasonBreakdown,
         categoryBreakdown,
     };
