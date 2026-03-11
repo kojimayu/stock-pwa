@@ -2155,8 +2155,11 @@ export async function getDiscrepancyReport(months: number = 3) {
         },
     });
 
-    // 差異ありのみ
-    const discrepancyItems = allItems.filter(i => i.adjustment !== 0);
+    // 差異ありのみ（ベースライン設定を除外: システム在庫0→実在庫ありは初期登録のため）
+    const discrepancyItems = allItems.filter(i =>
+        i.adjustment !== 0 &&
+        !(i.expectedStock === 0 && i.actualStock > 0)
+    );
 
     // 1. 商品別集計（差異発生率 + ネット差異）
     const productMap = new Map<number, {
