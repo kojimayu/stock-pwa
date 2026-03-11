@@ -82,34 +82,41 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
             return;
         }
 
-        // 写真・メモを先にキャプチャしてからstateクリア（重複送信防止）
-        const photosToSend = [...receivePhotos];
-        const dateToSend = receiveDeliveryDate;
-        const noteToSend = receiveNote;
-        setReceivePhotos([]);
-
         setIsUpdating(true);
         try {
             await receiveOrderItem(item.id, qty);
-
-            // 納品記録を同時保存（写真がある場合のみ）
-            if (photosToSend.length > 0 || dateToSend || noteToSend) {
-                try {
-                    const formData = new FormData();
-                    formData.append("type", "MATERIAL");
-                    formData.append("orderId", String(order.id));
-                    formData.append("confirmedBy", adminEmail);
-                    if (dateToSend) formData.append("deliveryDate", dateToSend);
-                    if (noteToSend) formData.append("note", noteToSend);
-                    photosToSend.forEach(f => formData.append("photos", f));
-                    await fetch("/api/delivery-receipt", { method: "POST", body: formData });
-                } catch (e) {
-                    console.error("納品記録保存エラー:", e);
-                }
-            }
-
             toast.success(`${item.product.name}を入荷しました`);
             setReceiveQtys(prev => ({ ...prev, [item.id]: 0 }));
+            router.refresh();
+        } catch (e: any) {
+            toast.error(e.message || "エラーが発生しました");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleUploadReceipt = async () => {
+        if (receivePhotos.length === 0 && !receiveDeliveryDate && !receiveNote) {
+            toast.error("写真、納品日、メモのいずれかを入力してください");
+            return;
+        }
+
+        setIsUpdating(true);
+        try {
+            const formData = new FormData();
+            formData.append("type", "MATERIAL");
+            formData.append("orderId", String(order.id));
+            formData.append("confirmedBy", adminEmail);
+            if (receiveDeliveryDate) formData.append("deliveryDate", receiveDeliveryDate);
+            if (receiveNote) formData.append("note", receiveNote);
+            receivePhotos.forEach(f => formData.append("photos", f));
+
+            const res = await fetch("/api/delivery-receipt", { method: "POST", body: formData });
+            if (!res.ok) throw new Error("保存に失敗しました");
+
+            toast.success("納品記録を追加しました");
+            setReceivePhotos([]);
+            setReceiveNote("");
             router.refresh();
         } catch (e: any) {
             toast.error(e.message || "エラーが発生しました");
@@ -368,11 +375,11 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                 </div>
             )}
 
-            {/* 入荷時の納品記録フィールド */}
-            {(order.status === 'ORDERED' || order.status === 'PARTIAL') && (
+            {/* 納品記録の追加（発注済～入荷完了状態まで常に表示） */}
+            {['ORDERED', 'PARTIAL', 'RECEIVED'].includes(order.status) && (
                 <div className="bg-blue-50/50 border rounded-lg p-3 md:p-4 space-y-3">
                     <h4 className="text-sm font-semibold text-blue-800 flex items-center gap-2">
-                        📋 入荷時の納品記録（任意）
+                        📋 納品記録の追加（写真・メモ）
                     </h4>
                     <PhotoDropzone
                         photos={receivePhotos}
@@ -397,6 +404,15 @@ export function OrderDetail({ initialOrder: order }: OrderDetailProps) {
                                 className="h-9"
                             />
                         </div>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                        <Button
+                            onClick={handleUploadReceipt}
+                            disabled={isUpdating || (receivePhotos.length === 0 && !receiveDeliveryDate && !receiveNote)}
+                            className="bg-blue-600 hover:bg-blue-700"
+                        >
+                            納品記録を保存する
+                        </Button>
                     </div>
                 </div>
             )}

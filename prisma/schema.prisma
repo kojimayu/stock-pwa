@@ -100,6 +100,7 @@ model InventoryCountItem {
   expectedStock Int
   actualStock   Int
   adjustment    Int
+  reason        String?        // 差異理由（Spot棚卸用: 数え間違い, 記録漏れ, 破損, 不明など）
   checkedBy     String?        // 確認者名（OKボタン押下時に記録）
   checkedAt     DateTime?      // 確認日時
   updatedAt     DateTime       @updatedAt

@@ -106,13 +106,13 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
 
     const allChecked = progress.checked === progress.total && progress.total > 0;
 
-    const handleStockChange = async (itemId: number, newValue: string) => {
+    const handleStockChange = async (itemId: number, newValue: string, reason?: string) => {
         // 空文字（クリア）を許容
         if (newValue === "") {
             setInventory((prev: any) => ({
                 ...prev,
                 items: prev.items.map((item: any) =>
-                    item.id === itemId ? { ...item, actualStock: "" } : item
+                    item.id === itemId ? { ...item, actualStock: "", reason: null } : item
                 )
             }));
             return;
@@ -123,13 +123,27 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
         // Optimistic update
         setInventory((prev: any) => ({
             ...prev,
-            items: prev.items.map((item: any) =>
-                item.id === itemId ? { ...item, actualStock: num, adjustment: num - item.expectedStock } : item
-            )
+            items: prev.items.map((item: any) => {
+                if (item.id === itemId) {
+                    const adjustment = num - item.expectedStock;
+                    return {
+                        ...item,
+                        actualStock: num,
+                        adjustment,
+                        reason: adjustment !== 0 ? (reason || item.reason) : null
+                    };
+                }
+                return item;
+            })
         }));
 
         try {
-            await updateInventoryItem(itemId, num);
+            // Find the current item to get the latest reason if not provided
+            const currentItem = inventory.items.find((i: any) => i.id === itemId);
+            const adjustment = num - currentItem.expectedStock;
+            const finalReason = adjustment !== 0 ? (reason || currentItem.reason) : undefined;
+
+            await updateInventoryItem(itemId, num, finalReason);
         } catch (error) {
             console.error(error);
             toast.error("更新に失敗しました");
@@ -392,8 +406,10 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                                             "flex items-center gap-1 px-3 py-2 rounded-lg font-bold text-sm transition-all",
                                             isChecked
                                                 ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
-                                                : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200"
+                                                : "bg-slate-100 text-slate-400 hover:bg-slate-200 border border-slate-200",
+                                            item.adjustment !== 0 && !item.reason ? "opacity-50 cursor-not-allowed" : ""
                                         )}
+                                        disabled={item.adjustment !== 0 && !item.reason}
                                     >
                                         {isChecked ? (
                                             <CircleCheck className="h-5 w-5" />
@@ -404,6 +420,35 @@ export function InventoryDetail({ id }: InventoryDetailProps) {
                                     </button>
                                 )}
                             </div>
+
+                            {/* 差異がある場合の理由入力 */}
+                            {item.adjustment !== 0 && (
+                                <div className="mt-3 bg-red-50 p-3 rounded-md border border-red-100">
+                                    <label className="block text-xs font-bold text-red-800 mb-1">
+                                        ⚠️ 差異理由をご選択ください ({item.adjustment > 0 ? `+${item.adjustment}` : item.adjustment})
+                                    </label>
+                                    {isCompleted || isCancelled ? (
+                                        <div className="text-sm font-medium">{item.reason || "理由未設定"}</div>
+                                    ) : (
+                                        <select
+                                            className={cn(
+                                                "w-full text-sm border rounded-md p-2 bg-white",
+                                                !item.reason ? "border-red-400 focus:ring-red-400" : "border-slate-300"
+                                            )}
+                                            value={item.reason || ""}
+                                            onChange={(e) => handleStockChange(item.id, String(item.actualStock), e.target.value)}
+                                        >
+                                            <option value="" disabled>-- 理由を選択してください --</option>
+                                            <option value="数え間違い">入力・数え間違い（修正）</option>
+                                            <option value="記録漏れ">出庫/入庫の記録漏れ</option>
+                                            <option value="破損・劣化">破損・劣化による廃棄</option>
+                                            <option value="紛失・不明">紛失・原因不明</option>
+                                            {inventory?.type === 'SPOT' && <option value="他案件流用">他案件への流用</option>}
+                                            <option value="その他">その他</option>
+                                        </select>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Checked Info */}
                             {isChecked && (

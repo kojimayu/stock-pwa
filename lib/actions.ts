@@ -2209,7 +2209,7 @@ export async function getInventoryCount(id: number) {
     return inventory;
 }
 
-export async function updateInventoryItem(itemId: number, actualStock: number) {
+export async function updateInventoryItem(itemId: number, actualStock: number, reason?: string) {
     const item = await prisma.inventoryCountItem.findUnique({
         where: { id: itemId },
         include: { inventory: true }
@@ -2227,6 +2227,7 @@ export async function updateInventoryItem(itemId: number, actualStock: number) {
         data: {
             actualStock,
             adjustment,
+            reason: adjustment !== 0 ? reason : null, // 差異がない場合は理由をクリア
         }
     });
 
@@ -2564,44 +2565,47 @@ export async function receiveOrderItem(orderItemId: number, quantity: number) {
     if (!item) throw new Error("Order item not found");
     if (item.isReceived) throw new Error("Already received");
 
-    // 2. Update item
-    const newReceivedQty = item.receivedQuantity + quantity;
-    await prisma.orderItem.update({
-        where: { id: orderItemId },
-        data: {
-            receivedQuantity: newReceivedQty,
-            isReceived: newReceivedQty >= item.quantity
-        }
-    });
+    // Replace multiple queries with a single transaction
+    await prisma.$transaction(async (tx) => {
+        // 2. Update item
+        const newReceivedQty = item.receivedQuantity + quantity;
+        await tx.orderItem.update({
+            where: { id: orderItemId },
+            data: {
+                receivedQuantity: newReceivedQty,
+                isReceived: newReceivedQty >= item.quantity
+            }
+        });
 
-    // 3. Increase stock
-    await prisma.product.update({
-        where: { id: item.productId },
-        data: { stock: { increment: quantity } }
-    });
+        // 3. Increase stock
+        await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: quantity } }
+        });
 
-    // 4. Record Log
-    await prisma.inventoryLog.create({
-        data: {
-            productId: item.productId,
-            type: 'RESTOCK',
-            quantity: quantity,
-            reason: `Order #${item.orderId} Received`,
-        }
-    });
+        // 4. Record Log
+        await tx.inventoryLog.create({
+            data: {
+                productId: item.productId,
+                type: 'RESTOCK',
+                quantity: quantity,
+                reason: `Order #${item.orderId} Received`,
+            }
+        });
 
-    // 5. Check order status
-    const allItems = await prisma.orderItem.findMany({
-        where: { orderId: item.orderId }
-    });
-    const allDone = allItems.every(i => i.isReceived);
+        // 5. Check order status
+        const allItems = await tx.orderItem.findMany({
+            where: { orderId: item.orderId }
+        });
+        const allDone = allItems.every(i => i.isReceived);
 
-    await prisma.order.update({
-        where: { id: item.orderId },
-        data: {
-            status: allDone ? 'RECEIVED' : 'PARTIAL',
-            updatedAt: new Date()
-        }
+        await tx.order.update({
+            where: { id: item.orderId },
+            data: {
+                status: allDone ? 'RECEIVED' : 'PARTIAL',
+                updatedAt: new Date()
+            }
+        });
     });
 
     const orderLabel = item.order.orderNumber ? `発注No.${item.order.orderNumber}` : `下書き id:${item.orderId}`;

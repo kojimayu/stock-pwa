@@ -66,8 +66,8 @@ describe('一時貸出フラグ — getAirconStockWithVendorBreakdown', () => {
         const p = results.find((r: any) => r.id === product.id);
 
         expect(p).toBeDefined();
-        expect(p.vendorStock).toBe(1);
-        expect(p.typeBreakdown.set).toBe(1);
+        expect(p!.vendorStock).toBe(1);
+        expect(p!.typeBreakdown.set).toBe(1);
     });
 
     it('✅ 管理No付き+isTemporaryLoan=false → 業者持出しに含まない', async () => {
@@ -86,8 +86,8 @@ describe('一時貸出フラグ — getAirconStockWithVendorBreakdown', () => {
         const results = await getAirconStockWithVendorBreakdown();
         const p = results.find((r: any) => r.id === product.id);
 
-        expect(p.vendorStock).toBe(0);
-        expect(p.typeBreakdown.set).toBe(0);
+        expect(p!.vendorStock).toBe(0);
+        expect(p!.typeBreakdown.set).toBe(0);
     });
 
     it('✅ 管理No付き+isTemporaryLoan=true → 業者持出しにカウントされる', async () => {
@@ -106,8 +106,8 @@ describe('一時貸出フラグ — getAirconStockWithVendorBreakdown', () => {
         const results = await getAirconStockWithVendorBreakdown();
         const p = results.find((r: any) => r.id === product.id);
 
-        expect(p.vendorStock).toBe(1);
-        expect(p.typeBreakdown.set).toBe(1);
+        expect(p!.vendorStock).toBe(1);
+        expect(p!.typeBreakdown.set).toBe(1);
     });
 
     it('✅ 返却済みログは集計に含まれない', async () => {
@@ -124,7 +124,7 @@ describe('一時貸出フラグ — getAirconStockWithVendorBreakdown', () => {
         const results = await getAirconStockWithVendorBreakdown();
         const p = results.find((r: any) => r.id === product.id);
 
-        expect(p.vendorStock).toBe(0);
+        expect(p!.vendorStock).toBe(0);
     });
 });
 
@@ -146,9 +146,9 @@ describe('タイプ別在庫集計 — セット数 + 端数表示', () => {
         const results = await getAirconStockWithVendorBreakdown();
         const p = results.find((r: any) => r.id === product.id);
 
-        expect(p.typeBreakdown.set).toBe(1);
-        expect(p.typeBreakdown.indoor).toBe(0);
-        expect(p.typeBreakdown.outdoor).toBe(0);
+        expect(p!.typeBreakdown.set).toBe(1);
+        expect(p!.typeBreakdown.indoor).toBe(0);
+        expect(p!.typeBreakdown.outdoor).toBe(0);
     });
 
     it('✅ INDOOR持出し → indoor=1, 外機余りが発生', async () => {
@@ -165,18 +165,18 @@ describe('タイプ別在庫集計 — セット数 + 端数表示', () => {
         const results = await getAirconStockWithVendorBreakdown();
         const p = results.find((r: any) => r.id === product.id);
 
-        expect(p.typeBreakdown.indoor).toBe(1);
-        expect(p.typeBreakdown.outdoor).toBe(0);
+        expect(p!.typeBreakdown.indoor).toBe(1);
+        expect(p!.typeBreakdown.outdoor).toBe(0);
 
         // 在庫表示: totalStock=11, 内機1台多い→外機1台余り
         // セット数 = totalStock - extraOutdoor = 11 - 0 = 11?
         // No: extraOutdoor = indoor > outdoor ? indoor - outdoor : 0 = 1
         // セット数 = 11 - 1 = 10
-        const { indoor, outdoor } = p.typeBreakdown;
+        const { indoor, outdoor } = p!.typeBreakdown;
         const extraOutdoor = indoor > outdoor ? indoor - outdoor : 0;
-        const setCount = p.totalStock - extraOutdoor;
+        const setCount = p!.totalStock - extraOutdoor;
         expect(extraOutdoor).toBe(1);
-        expect(setCount).toBe(p.totalStock - 1);
+        expect(setCount).toBe(p!.totalStock - 1);
     });
 
     it('✅ INDOOR+OUTDOOR同数 → 端数なし', async () => {
@@ -199,7 +199,7 @@ describe('タイプ別在庫集計 — セット数 + 端数表示', () => {
         const results = await getAirconStockWithVendorBreakdown();
         const p = results.find((r: any) => r.id === product.id);
 
-        const { indoor, outdoor } = p.typeBreakdown;
+        const { indoor, outdoor } = p!.typeBreakdown;
         const extraOutdoor = indoor > outdoor ? indoor - outdoor : 0;
         const extraIndoor = outdoor > indoor ? outdoor - indoor : 0;
         expect(extraOutdoor).toBe(0);
@@ -380,11 +380,11 @@ describe('業者別集計 — vendorBreakdown', () => {
         const results = await getAirconStockWithVendorBreakdown();
         const p = results.find((r: any) => r.id === product.id);
 
-        expect(p.vendorStock).toBe(3); // 2 + 1
-        expect(p.vendorBreakdown.length).toBe(2);
+        expect(p!.vendorStock).toBe(3); // 2 + 1
+        expect(p!.vendorBreakdown.length).toBe(2);
 
-        const v1 = p.vendorBreakdown.find((v: any) => v.name === '業者A');
-        const v2 = p.vendorBreakdown.find((v: any) => v.name === '業者B');
+        const v1 = p!.vendorBreakdown.find((v: any) => v.name === '業者A');
+        const v2 = p!.vendorBreakdown.find((v: any) => v.name === '業者B');
 
         expect(v1?.count).toBe(2);
         expect(v1?.set).toBe(2);
