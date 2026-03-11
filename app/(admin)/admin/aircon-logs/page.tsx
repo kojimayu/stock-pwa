@@ -590,22 +590,28 @@ export default function AirconLogsPage() {
                                         <TableCell className="text-right">
                                             <div className="flex flex-col gap-1 items-end">
                                                 {!group.allReturned && group.items.some(i => i.notReturnedIds.length > 0) && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="h-7 text-xs"
-                                                        onClick={() => {
-                                                            const counts: Record<string, number> = {};
-                                                            group.items.forEach(i => {
-                                                                counts[`${i.model}-${i.type}`] = 0;
-                                                            });
-                                                            setReturnCounts(counts);
-                                                            setReturnGroup(group);
-                                                        }}
-                                                    >
-                                                        <RotateCcw className="w-3 h-3 mr-1" />
-                                                        戻す
-                                                    </Button>
+                                                    group.items.every(i => i.type === 'PURCHASE') ? (
+                                                        <span className="text-[10px] text-amber-600">
+                                                            ※取引履歴から戻し
+                                                        </span>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 text-xs"
+                                                            onClick={() => {
+                                                                const counts: Record<string, number> = {};
+                                                                group.items.forEach(i => {
+                                                                    counts[`${i.model}-${i.type}`] = 0;
+                                                                });
+                                                                setReturnCounts(counts);
+                                                                setReturnGroup(group);
+                                                            }}
+                                                        >
+                                                            <RotateCcw className="w-3 h-3 mr-1" />
+                                                            戻す
+                                                        </Button>
+                                                    )
                                                 )}
                                                 <Button
                                                     size="sm"
