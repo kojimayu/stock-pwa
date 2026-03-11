@@ -36,6 +36,7 @@ type LogEntry = {
     };
     type: string;
     isTemporaryLoan: boolean;
+    note: string | null;
 };
 
 // グループ化された表示用の型
@@ -59,6 +60,7 @@ type GroupedLog = {
     allReturned: boolean;
     someReturned: boolean;
     isTemporaryLoan: boolean;
+    note: string | null;
 };
 
 export default function AirconLogsPage() {
@@ -133,6 +135,7 @@ export default function AirconLogsPage() {
                     allReturned: true,
                     someReturned: false,
                     isTemporaryLoan: log.isTemporaryLoan,
+                    note: log.note,
                 });
             }
             const group = groups.get(key)!;
@@ -539,7 +542,12 @@ export default function AirconLogsPage() {
                                                 group.managementNo
                                             )}
                                         </TableCell>
-                                        <TableCell>{group.customerName || "-"}</TableCell>
+                                        <TableCell>
+                                            <div>{group.customerName || "-"}</div>
+                                            {group.note && (
+                                                <div className="text-xs text-amber-600 mt-0.5">📝 {group.note}</div>
+                                            )}
+                                        </TableCell>
                                         <TableCell>
                                             <div className="space-y-0.5">
                                                 {group.items.map(item => (
