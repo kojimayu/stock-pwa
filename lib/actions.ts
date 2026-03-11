@@ -1712,7 +1712,6 @@ export async function returnTransaction(transactionId: number) {
                 if (item.isManual) continue; // Skip manual items
 
                 // Calculate actual stock restoration (Units)
-                // Note: items here comes from JSON, so need to check if isBox exists
                 const quantityToRestore = (item.isBox && item.quantityPerBox)
                     ? item.quantity * item.quantityPerBox
                     : item.quantity;
@@ -1723,12 +1722,37 @@ export async function returnTransaction(transactionId: number) {
                     data: { stock: { increment: quantityToRestore } }
                 });
 
+                // エアコン在庫も連動（airconProductIdがある場合）
+                const productWithAircon = await tx.product.findUnique({
+                    where: { id: item.productId },
+                    select: { airconProductId: true }
+                });
+                if (productWithAircon?.airconProductId) {
+                    await tx.airconProduct.update({
+                        where: { id: productWithAircon.airconProductId },
+                        data: { stock: { increment: quantityToRestore } }
+                    });
+                    // リンクされたPURCHASEログも戻し済みにする
+                    const linkedLog = await tx.airConditionerLog.findFirst({
+                        where: {
+                            note: `材料買取 TX#${transaction.id}`,
+                            isReturned: false,
+                        }
+                    });
+                    if (linkedLog) {
+                        await tx.airConditionerLog.update({
+                            where: { id: linkedLog.id },
+                            data: { isReturned: true, returnedAt: new Date() }
+                        });
+                    }
+                }
+
                 // Create Inventory Log
                 await tx.inventoryLog.create({
                     data: {
                         productId: item.productId,
                         type: '返品',
-                        quantity: quantityToRestore, // Positive for inflow
+                        quantity: quantityToRestore,
                         reason: `Transaction #${transaction.id} Return${item.isBox ? ' (Box)' : ''}`,
                     }
                 });
