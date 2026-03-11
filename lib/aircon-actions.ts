@@ -260,6 +260,15 @@ export async function returnAircon(logId: number) {
         return { success: false, message: "既に戻し済みです" };
     }
 
+    // 買取タイプの場合、リンクされた材料取引も戻す
+    let linkedTxId: number | null = null;
+    if (log.note) {
+        const match = log.note.match(/TX#(\d+)/);
+        if (match) {
+            linkedTxId = parseInt(match[1], 10);
+        }
+    }
+
     // トランザクションで戻し処理
     await prisma.$transaction(async (tx) => {
         // ログを戻し済みに更新
@@ -278,12 +287,50 @@ export async function returnAircon(logId: number) {
                 data: { stock: { increment: 1 } }
             });
         }
+
+        // リンクされた材料取引を戻す
+        if (linkedTxId) {
+            const linkedTx = await tx.transaction.findUnique({
+                where: { id: linkedTxId },
+                include: { vendor: true }
+            });
+            if (linkedTx && !linkedTx.isReturned) {
+                // 材料在庫を復元
+                const items = JSON.parse(linkedTx.items) as { productId: number; quantity: number; isManual?: boolean; isBox?: boolean; quantityPerBox?: number }[];
+                for (const item of items) {
+                    if (item.isManual) continue;
+                    const quantityToRestore = (item.isBox && item.quantityPerBox)
+                        ? item.quantity * item.quantityPerBox
+                        : item.quantity;
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stock: { increment: quantityToRestore } }
+                    });
+                    await tx.inventoryLog.create({
+                        data: {
+                            productId: item.productId,
+                            type: '返品',
+                            quantity: quantityToRestore,
+                            reason: `エアコン戻しに連動 (TX#${linkedTxId})`,
+                        }
+                    });
+                }
+                // 取引を戻し済みに
+                await tx.transaction.update({
+                    where: { id: linkedTxId },
+                    data: { isReturned: true, returnedAt: new Date() }
+                });
+            }
+        }
     });
 
     revalidatePath("/admin/aircon-logs");
     revalidatePath("/admin/aircon-inventory");
-    logOperation("AIRCON_RETURN", `ログ #${logId}`, `${log.airconProduct?.code || log.modelNumber} を返却 (在庫+1)`);
-    return { success: true };
+    revalidatePath("/admin/transactions");
+    revalidatePath("/admin/products");
+    const txMsg = linkedTxId ? ` + 材料取引TX#${linkedTxId}も戻し` : '';
+    logOperation("AIRCON_RETURN", `ログ #${logId}`, `${log.airconProduct?.code || log.modelNumber} を返却 (在庫+1)${txMsg}`);
+    return { success: true, linkedTransactionReturned: !!linkedTxId };
 }
 
 // 年度サフィックス取得
