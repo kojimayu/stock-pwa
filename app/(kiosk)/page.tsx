@@ -5,6 +5,7 @@ import { PinPad } from "@/components/kiosk/pin-pad";
 import { verifyPin, getVendors, getVendorUsers, createVendorUser, logOperation } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
+import { PausedSessionBanner } from "@/components/kiosk/paused-session-banner";
 import { toast } from "sonner";
 import { Loader2, ChevronLeft, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -284,6 +285,13 @@ export default function KioskLoginPage() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-50">
+      {/* 一時保存カートバナー（ログイン画面にのみ表示） */}
+      {step === "SELECT_VENDOR" && (
+        <div className="w-full max-w-md mb-4">
+          <PausedSessionBanner />
+        </div>
+      )}
+
       {/* Step 1: Select Vendor */}
       {step === "SELECT_VENDOR" && (
         <div className="w-full max-w-md space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">

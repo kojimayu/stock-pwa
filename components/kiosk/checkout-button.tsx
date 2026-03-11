@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useCartStore } from "@/lib/store";
+import { useCartStore, savePickingItems, PickingItem } from "@/lib/store";
 import { createTransaction } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
@@ -27,6 +27,14 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
 
     // 在庫確認ダイアログの状態
     const [stockInfo, setStockInfo] = useState<StockItem[] | null>(null);
+    // ピッキング用に出庫商品を保持
+    const [checkoutItems, setCheckoutItems] = useState<PickingItem[]>([]);
+
+    // ピッキングリストへ遷移する共通処理
+    const navigateToPicking = (pickingItems: PickingItem[]) => {
+        savePickingItems(pickingItems);
+        router.push("/shop/picking");
+    };
 
     const handleCheckout = async () => {
         if (!isOnline) {
@@ -46,6 +54,18 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
 
         setLoading(true);
         try {
+            // 出庫確定前にピッキング用データを準備
+            const pickingItems: PickingItem[] = items.map(item => ({
+                productId: item.productId,
+                code: item.code,
+                name: item.name,
+                quantity: (item.isBox && item.quantityPerBox) ? item.quantity * item.quantityPerBox : item.quantity,
+                unit: item.unit,
+                category: item.category,
+                subCategory: item.subCategory,
+                picked: false,
+            }));
+
             // 代理入力モードの場合、isProxyInput=trueと引取日を渡す
             const res = await createTransaction(
                 vendor.id,
@@ -59,14 +79,15 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
             if (res.success) {
                 clearCart();
                 if (isProxyMode) {
-                    // 代理入力の場合はトースト表示して同じ画面に留まる
+                    // 代理入力の場合はトースト表示して同じ画面に留まる（ピッキング不要）
                     toast.success("出庫処理が完了しました");
                 } else if (res.stockInfo && res.stockInfo.length > 0) {
-                    // Kiosk: 在庫確認ダイアログを表示
+                    // Kiosk: 在庫確認ダイアログを表示（完了後にピッキングへ遷移）
+                    setCheckoutItems(pickingItems);
                     setStockInfo(res.stockInfo);
                 } else {
-                    // 在庫情報がない場合はそのまま（トースト表示済み）
-                    // router.push("/shop/complete");
+                    // 在庫確認不要 → 直接ピッキングリストへ
+                    navigateToPicking(pickingItems);
                 }
             } else {
                 toast.error(res.message || "出庫処理に失敗しました");
@@ -78,11 +99,10 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
         }
     };
 
-    // 在庫確認後に完了画面へ遷移せず、ダイアログを閉じるだけ
+    // 在庫確認後にピッキングリストへ遷移
     const handleStockVerified = () => {
         setStockInfo(null);
-        // router.push("/shop/complete");
-        toast.success("在庫確認を完了しました");
+        navigateToPicking(checkoutItems);
     };
 
     return (
