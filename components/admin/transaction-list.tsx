@@ -294,6 +294,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead className="w-[50px] text-center">#</TableHead>
                             <TableHead className="w-[180px]">日時</TableHead>
                             <TableHead className="w-[150px]">業者名</TableHead>
                             <TableHead className="w-[120px]">担当者</TableHead>
@@ -314,6 +315,9 @@ export function TransactionList({ transactions }: TransactionListProps) {
 
                             return (
                                 <TableRow key={tx.id} className={tx.hasUnregisteredItems ? "bg-yellow-50 hover:bg-yellow-100" : ""}>
+                                    <TableCell className="text-center">
+                                        <span className="font-mono text-xs text-slate-400">#{tx.id}</span>
+                                    </TableCell>
                                     <TableCell>
                                         {formatDate(tx.date)}
                                         {tx.isProxyInput && (
@@ -434,7 +438,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                         })}
                         {filteredTransactions.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                                <TableCell colSpan={7} className="text-center py-10 text-slate-500">
                                     {hasActiveFilters ? "検索条件に一致する取引がありません" : "取引データがありません"}
                                 </TableCell>
                             </TableRow>
