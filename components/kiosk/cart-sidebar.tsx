@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { useCartStore } from "@/lib/store";
+import { useCartStore, savePickingItems, PickingItem } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Plus, Minus, Trash2, ShoppingCart, CheckCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,6 +33,8 @@ export function CartSidebar({ className }: CartSidebarProps) {
     const [showInventoryCheckDialog, setShowInventoryCheckDialog] = useState(false);
     // チェックアウト後の在庫確認用
     const [stockVerificationItems, setStockVerificationItems] = useState<any[] | null>(null);
+    // ピッキング用に出庫商品を保持
+    const [checkoutPickingItems, setCheckoutPickingItems] = useState<PickingItem[]>([]);
     const router = useRouter();
 
     // const totalAmount = getTotalPrice();
@@ -48,6 +50,18 @@ export function CartSidebar({ className }: CartSidebarProps) {
         setShowConfirmDialog(false);
 
         try {
+            // 出庫確定前にピッキング用データを準備
+            const pickingItems: PickingItem[] = items.map(item => ({
+                productId: item.productId,
+                code: item.code,
+                name: item.name,
+                quantity: (item.isBox && item.quantityPerBox) ? item.quantity * item.quantityPerBox : item.quantity,
+                unit: item.unit,
+                category: item.category,
+                subCategory: item.subCategory,
+                picked: false,
+            }));
+
             const res = await createTransaction(
                 vendor.id,
                 vendorUser?.id ?? null,
@@ -59,15 +73,16 @@ export function CartSidebar({ className }: CartSidebarProps) {
 
             if (res.success) {
                 clearCart();
-                toast.success("注文を確定しました");
                 if (isProxyMode) {
-                    // router.push("/shop/complete");
                     toast.success("代理入力完了");
                 } else if (res.stockInfo && res.stockInfo.length > 0) {
-                    // 在庫確認ダイアログを表示（代理入力でない場合）
+                    // 在庫確認ダイアログを表示（完了後にピッキングへ遷移）
+                    setCheckoutPickingItems(pickingItems);
                     setStockVerificationItems(res.stockInfo);
                 } else {
-                    // router.push("/shop/complete");
+                    // 在庫確認不要 → 直接ピッキングリストへ
+                    savePickingItems(pickingItems);
+                    router.push("/shop/picking");
                 }
             } else {
                 toast.error(res.message || "注文処理に失敗しました");
@@ -243,13 +258,15 @@ export function CartSidebar({ className }: CartSidebarProps) {
                     mode="checkout"
                     onConfirm={() => {
                         setStockVerificationItems(null);
-                        // router.push("/shop/complete");
-                        toast.success("在庫確認を完了しました");
+                        // 在庫確認完了 → ピッキングリストへ遷移
+                        savePickingItems(checkoutPickingItems);
+                        router.push("/shop/picking");
                     }}
                     onMismatch={() => {
                         setStockVerificationItems(null);
-                        // router.push("/shop/complete");
-                        toast.success("在庫確認を完了しました");
+                        // 在庫不一致でもピッキングリストへ遷移
+                        savePickingItems(checkoutPickingItems);
+                        router.push("/shop/picking");
                     }}
                 />
             )}
