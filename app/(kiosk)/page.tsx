@@ -5,6 +5,7 @@ import { PinPad } from "@/components/kiosk/pin-pad";
 import { verifyPin, getVendors, getVendorUsers, createVendorUser, logOperation } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store";
+import { useAutoReload } from "@/hooks/use-auto-reload";
 import { PausedSessionBanner } from "@/components/kiosk/paused-session-banner";
 import { toast } from "sonner";
 import { Loader2, ChevronLeft, UserPlus } from "lucide-react";
@@ -40,6 +41,9 @@ export default function KioskLoginPage() {
   const router = useRouter();
   const setVendorStore = useCartStore((state) => state.setVendor);
   const setVendorUserStore = useCartStore((state) => state.setVendorUser);
+
+  // 新ビルド検出時に自動リロード（業者選択画面の待機中のみ）
+  useAutoReload(step === "SELECT_VENDOR");
 
   // Fetch vendors on mount & when page regains focus (Fully Kiosk対策)
   useEffect(() => {
