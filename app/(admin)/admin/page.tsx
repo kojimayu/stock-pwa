@@ -272,7 +272,7 @@ export default async function AdminDashboardPage() {
             <div className="space-y-2">
                 {/* 材料: 在庫切れ */}
                 {criticalMaterials.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
                         <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
                         <span className="text-sm text-red-800 font-medium">
                             材料 在庫切れ {criticalMaterials.length}件
@@ -298,7 +298,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 材料: 在庫注意 */}
                 {warningMaterials.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
                         <TrendingDown className="w-4 h-4 text-amber-600 shrink-0" />
                         <span className="text-sm text-amber-800 font-medium">
                             材料 在庫注意 {warningMaterials.length}件
@@ -324,7 +324,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 本日納品予定のお知らせ */}
                 {deliveryAlerts.todayOrders.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-200">
                         <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
                         <span className="text-sm text-blue-800 font-medium">
                             本日納品予定 {deliveryAlerts.todayOrders.length}件
@@ -350,7 +350,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 納期超過アラート（入荷日を過ぎたもののみ） */}
                 {deliveryAlerts.overdueOrders.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
                         <Calendar className="w-4 h-4 text-red-600 shrink-0" />
                         <span className="text-sm text-red-800 font-medium">
                             納期超過 {deliveryAlerts.overdueOrders.length}件
@@ -376,7 +376,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 納期未回答アラート */}
                 {deliveryAlerts.noResponseOrders.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
                         <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
                         <span className="text-sm text-amber-800 font-medium">
                             納期未回答 {deliveryAlerts.noResponseOrders.length}件
@@ -392,7 +392,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 価格: セーフガード違反 */}
                 {priceAlerts.violations.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200">
                         <Calculator className="w-4 h-4 text-red-600 shrink-0" />
                         <span className="text-sm text-red-800 font-medium">
                             価格セーフガード違反 {priceAlerts.violations.length}件
@@ -409,7 +409,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 価格: 掛率ズレ */}
                 {priceAlerts.markupDiffs.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
                         <Calculator className="w-4 h-4 text-amber-600 shrink-0" />
                         <span className="text-sm text-amber-800 font-medium">
                             掛率ズレ {priceAlerts.markupDiffs.length}件
@@ -425,7 +425,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 価格: 仕入値未設定 */}
                 {priceAlerts.noCost.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200">
                         <Calculator className="w-4 h-4 text-slate-500 shrink-0" />
                         <span className="text-sm text-slate-700 font-medium">
                             仕入値未設定 {priceAlerts.noCost.length}件
@@ -438,7 +438,7 @@ export default async function AdminDashboardPage() {
 
                 {/* 在庫不一致申告 */}
                 {pendingDiscrepancies.length > 0 && (
-                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-50 border border-orange-200">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-lg bg-orange-50 border border-orange-200">
                         <PackageSearch className="w-4 h-4 text-orange-600 shrink-0" />
                         <span className="text-sm text-orange-800 font-medium">
                             在庫不一致申告 {pendingDiscrepancies.length}件

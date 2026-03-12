@@ -183,8 +183,18 @@ export function VendorHistoryEditDialog({ transaction, onClose, onComplete }: Ve
                     </p>
                 </div>
 
+                {/* 💡 まとめて返品のアナウンス */}
+                <div className="mx-4 mt-4 p-3 bg-blue-50 border border-blue-300 rounded-xl">
+                    <p className="text-blue-800 text-sm font-medium">
+                        💡 複数の商品をまとめて返品できます
+                    </p>
+                    <p className="text-blue-600 text-xs mt-1">
+                        返品したい商品すべての数量を設定してから「返品を確定する」を押してください。
+                    </p>
+                </div>
+
                 {/* ⚠️ 返品不可警告 */}
-                <div className="mx-4 mt-4 p-3 bg-red-50 border-2 border-red-400 rounded-xl flex items-start gap-3">
+                <div className="mx-4 mt-3 p-3 bg-red-50 border-2 border-red-400 rounded-xl flex items-start gap-3">
                     <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
                     <div>
                         <p className="font-bold text-red-700 text-sm">返品できないもの</p>

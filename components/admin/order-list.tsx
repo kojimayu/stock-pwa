@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import {
     Table,
@@ -11,6 +11,7 @@ import {
     TableRow
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
     Plus,
@@ -106,8 +107,191 @@ export function OrderList({ initialOrders: orders }: OrderListProps) {
         }
     };
 
+    // --- 在庫着地見込みサマリー ---
+    const [summaryOpen, setSummaryOpen] = useState(true);
+
+    // 未入荷の注文アイテムを商品別に集計
+    const stockProjection = useMemo(() => {
+        // DRAFT / ORDERED / PARTIAL のみ対象
+        const activeOrders = orders.filter(o =>
+            ['DRAFT', 'ORDERED', 'PARTIAL'].includes(o.status)
+        );
+        if (activeOrders.length === 0) return null;
+
+        // 仕入先 → 商品ID → { name, code, stock, unit, entries: [{orderNum, qty}], totalPending, cost }
+        const bySupplier: Record<string, Record<number, {
+            name: string;
+            code: string;
+            stock: number;
+            unit: string;
+            cost: number;
+            entries: { orderLabel: string; qty: number }[];
+            totalPending: number;
+        }>> = {};
+
+        // 仕入先ごとの合計金額
+        const supplierTotals: Record<string, number> = {};
+
+        for (const order of activeOrders) {
+            const supplier = order.supplier || '不明';
+            if (!bySupplier[supplier]) {
+                bySupplier[supplier] = {};
+                supplierTotals[supplier] = 0;
+            }
+
+            const orderLabel = order.orderNumber ? `#${order.orderNumber}` : '下書き';
+
+            for (const item of (order.items || [])) {
+                const pending = item.quantity - (item.receivedQuantity || 0);
+                if (pending <= 0) continue;
+
+                const pid = item.productId;
+                if (!bySupplier[supplier][pid]) {
+                    bySupplier[supplier][pid] = {
+                        name: item.product?.name || `商品ID:${pid}`,
+                        code: item.product?.code || '',
+                        stock: item.product?.stock ?? 0,
+                        unit: item.product?.unit || '個',
+                        cost: item.cost || 0,
+                        entries: [],
+                        totalPending: 0,
+                    };
+                }
+                bySupplier[supplier][pid].entries.push({ orderLabel, qty: pending });
+                bySupplier[supplier][pid].totalPending += pending;
+                supplierTotals[supplier] += pending * (item.cost || 0);
+            }
+        }
+
+        // 空のサプライヤーを除外
+        const suppliers = Object.keys(bySupplier).filter(s =>
+            Object.keys(bySupplier[s]).length > 0
+        );
+        if (suppliers.length === 0) return null;
+
+        return { bySupplier, supplierTotals, suppliers };
+    }, [orders]);
+
     return (
         <div className="space-y-4">
+            {/* 📦 在庫着地見込みサマリー */}
+            {stockProjection && (
+                <Card>
+                    <CardHeader className="pb-2 cursor-pointer" onClick={() => setSummaryOpen(!summaryOpen)}>
+                        <CardTitle className="text-lg flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Package className="w-5 h-5 text-blue-600" />
+                                在庫着地見込み（未入荷分）
+                            </div>
+                            <ChevronRight className={`w-5 h-5 text-slate-400 transition-transform ${summaryOpen ? 'rotate-90' : ''}`} />
+                        </CardTitle>
+                    </CardHeader>
+                    {summaryOpen && (
+                        <CardContent className="pt-0">
+                            {stockProjection.suppliers.map((supplier) => {
+                                const products = stockProjection.bySupplier[supplier];
+                                const totalCost = stockProjection.supplierTotals[supplier];
+                                const isTarget = isShippingCheckTarget(supplier);
+                                const shipping = isTarget ? checkShippingFee(totalCost) : null;
+
+                                return (
+                                    <div key={supplier} className="mb-4 last:mb-0">
+                                        <div className="flex flex-wrap items-center justify-between mb-2 pb-1 border-b">
+                                            <h4 className="font-bold text-sm text-slate-800">{supplier}</h4>
+                                            <div className="flex items-center gap-3 text-xs">
+                                                <span className="text-slate-600">
+                                                    合計: <span className="font-bold">¥{totalCost.toLocaleString()}</span>
+                                                </span>
+                                                {shipping && (
+                                                    shipping.isFreeShipping
+                                                        ? <span className="text-green-600 font-bold">✅ 送料無料</span>
+                                                        : <span className="text-amber-600 font-bold">⚠ 送料無料まで あと¥{shipping.shortage.toLocaleString()}</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* PC: テーブル表示 */}
+                                        <div className="hidden md:block">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="text-xs text-slate-500 border-b">
+                                                        <th className="text-left py-1 font-medium">商品名</th>
+                                                        <th className="text-right py-1 font-medium w-[80px]">現在庫</th>
+                                                        <th className="text-center py-1 font-medium">発注中（内訳）</th>
+                                                        <th className="text-right py-1 font-medium w-[100px]">入荷後見込み</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {Object.values(products).map((p) => (
+                                                        <tr key={p.code || p.name} className="border-b border-slate-100 last:border-0">
+                                                            <td className="py-1.5">
+                                                                {p.code && <span className="font-mono text-xs text-slate-400 mr-1">[{p.code}]</span>}
+                                                                {p.name}
+                                                            </td>
+                                                            <td className="text-right py-1.5 text-slate-600">
+                                                                {p.stock}{p.unit}
+                                                            </td>
+                                                            <td className="text-center py-1.5">
+                                                                <span className="text-blue-600">
+                                                                    {p.entries.map((e, i) => (
+                                                                        <span key={i}>
+                                                                            {i > 0 && ' + '}
+                                                                            <span className="text-slate-400 text-xs">{e.orderLabel}:</span>{e.qty}
+                                                                        </span>
+                                                                    ))}
+                                                                    {p.entries.length > 1 && (
+                                                                        <span className="font-bold ml-1">= {p.totalPending}{p.unit}</span>
+                                                                    )}
+                                                                </span>
+                                                            </td>
+                                                            <td className="text-right py-1.5">
+                                                                <span className="font-bold text-green-700">
+                                                                    {p.stock + p.totalPending}{p.unit}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* モバイル: カード表示 */}
+                                        <div className="md:hidden space-y-2">
+                                            {Object.values(products).map((p) => (
+                                                <div key={p.code || p.name} className="bg-slate-50 rounded-lg p-2.5 text-sm">
+                                                    <div className="font-medium text-slate-900 mb-1">
+                                                        {p.code && <span className="font-mono text-xs text-slate-400 mr-1">[{p.code}]</span>}
+                                                        {p.name}
+                                                    </div>
+                                                    <div className="grid grid-cols-3 gap-1 text-xs">
+                                                        <div>
+                                                            <span className="text-slate-500">現在庫</span>
+                                                            <div className="font-bold">{p.stock}{p.unit}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-slate-500">発注中</span>
+                                                            <div className="font-bold text-blue-600">+{p.totalPending}{p.unit}</div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-slate-500">見込み</span>
+                                                            <div className="font-bold text-green-700">{p.stock + p.totalPending}{p.unit}</div>
+                                                        </div>
+                                                    </div>
+                                                    {p.entries.length > 1 && (
+                                                        <div className="text-xs text-slate-400 mt-1">
+                                                            内訳: {p.entries.map(e => `${e.orderLabel}:${e.qty}`).join(' + ')}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </CardContent>
+                    )}
+                </Card>
+            )}
             {/* アクションボタン - モバイル対応 */}
             <div className="flex flex-col sm:flex-row justify-end gap-2">
                 <Button onClick={handleGenerate} disabled={isGenerating} className="w-full sm:w-auto">

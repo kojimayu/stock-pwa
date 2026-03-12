@@ -160,8 +160,8 @@ export function InventoryList() {
         <div className="min-h-screen bg-slate-50">
             {/* Header */}
             <div className="bg-white border-b sticky top-0 z-10">
-                <div className="p-4 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
+                <div className="p-4 flex flex-wrap gap-2 justify-between items-center">
+                    <div className="flex flex-wrap items-center gap-2">
                         <h1 className="text-xl font-bold">棚卸管理</h1>
                         <Link href="/admin/reports/discrepancy">
                             <Button variant="outline" size="sm" className="text-xs gap-1">
