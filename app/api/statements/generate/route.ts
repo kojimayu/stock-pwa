@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMonthlyStatements, closeMonth, isMonthClosed } from "@/lib/actions";
+import { getMonthlyStatements, closeMonth, isMonthClosed, getMonthlyCloseInfo } from "@/lib/actions";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
@@ -8,6 +8,7 @@ const PDFDocument = pdfkit.default || pdfkit;
 import path from "path";
 import fs from "fs";
 import { Readable } from "stream";
+import archiver from "archiver";
 
 const FONT_PATH = path.join(process.cwd(), "fonts", "NotoSansJP-Regular.ttf");
 
@@ -56,6 +57,7 @@ function drawStatementPDF(
     rows: StatementRow[],
     subtotalAmount: number,
     columns: { header: string; width: number; align: string }[],
+    closedAtLabel?: string,
 ): Promise<Buffer> {
     const doc = new PDFDocument({
         size: "A4",
@@ -66,9 +68,19 @@ function drawStatementPDF(
     const promise = generatePDF(doc, chunks);
 
     const pageWidth = 595.28;
+    const pageHeight = 841.89;
     const leftMargin = 35;
     const rightMargin = pageWidth - 35;
     const contentWidth = rightMargin - leftMargin;
+
+    // フッター描画関数（各ページで呼び出し）
+    const drawFooter = () => {
+        if (closedAtLabel) {
+            doc.fontSize(7).fillColor("#94a3b8")
+                .text(`締め: ${closedAtLabel}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "right" });
+            doc.fillColor("#000000");
+        }
+    };
 
     // タイトル
     doc.fontSize(16).text(title, leftMargin, 35, { width: contentWidth, align: "center" });
@@ -102,6 +114,7 @@ function drawStatementPDF(
     doc.fillColor("#000000");
     for (const row of rows) {
         if (y > 750) {
+            drawFooter();
             doc.addPage();
             y = 40;
         }
@@ -134,6 +147,9 @@ function drawStatementPDF(
     doc.moveTo(summaryX, y - 2).lineTo(rightMargin, y - 2).stroke();
     doc.fontSize(11).text("合計（税込）", summaryX, y, { width: 100, align: "right" });
     doc.text(formatPrice(total), summaryX + 105, y, { width: 90, align: "right" });
+
+    // フッター（最終ページ）
+    drawFooter();
 
     doc.end();
     return promise;
@@ -174,6 +190,12 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: `${year}年${month}月の取引データがありません` }, { status: 404 });
         }
 
+        // 締め日時を取得（仮締め/本締めの日時）
+        const closeInfo = await getMonthlyCloseInfo(year, month);
+        const closedAt = closeInfo?.closedAt ?? new Date();
+        const closedAtJST = new Date(closedAt.getTime() + 9 * 60 * 60 * 1000);
+        const closedAtLabel = `${closedAtJST.getUTCFullYear()}/${String(closedAtJST.getUTCMonth() + 1).padStart(2, '0')}/${String(closedAtJST.getUTCDate()).padStart(2, '0')} ${String(closedAtJST.getUTCHours()).padStart(2, '0')}:${String(closedAtJST.getUTCMinutes()).padStart(2, '0')}`;
+
         // 出力ディレクトリ
         const outDir = path.join(process.cwd(), "public", "statements", `${year}-${String(month).padStart(2, "0")}`);
         fs.mkdirSync(outDir, { recursive: true });
@@ -208,7 +230,7 @@ export async function POST(request: NextRequest) {
                     quantity: i.quantity, unit: i.unit,
                     unitPrice: i.unitPrice, subtotal: i.subtotal,
                 }));
-                const buf = await drawStatementPDF("材料明細書", vendor.vendorName, year, month, rows, vendor.materialTotal, materialCols);
+                const buf = await drawStatementPDF("材料明細書", vendor.vendorName, year, month, rows, vendor.materialTotal, materialCols, closedAtLabel);
                 const fileName = `材料_${safeName}.pdf`;
                 fs.writeFileSync(path.join(outDir, fileName), buf);
                 const tax = Math.round(vendor.materialTotal * 0.1);
@@ -222,7 +244,7 @@ export async function POST(request: NextRequest) {
                     unitPrice: i.unitPrice, subtotal: i.unitPrice,
                     note: i.managementNo, unit: i.capacity, code: i.type === "SET" ? "セット" : i.type === "INDOOR" ? "内機" : "外機",
                 }));
-                const buf = await drawStatementPDF("エアコン明細書", vendor.vendorName, year, month, rows, vendor.airconTotal, airconCols);
+                const buf = await drawStatementPDF("エアコン明細書", vendor.vendorName, year, month, rows, vendor.airconTotal, airconCols, closedAtLabel);
                 const fileName = `エアコン_${safeName}.pdf`;
                 fs.writeFileSync(path.join(outDir, fileName), buf);
                 const tax = Math.round(vendor.airconTotal * 0.1);
@@ -248,15 +270,35 @@ export async function POST(request: NextRequest) {
             await closeMonth(year, month, session.user?.name || session.user?.email || undefined);
         }
 
+        // ZIP生成（全PDF＋CSVをまとめて）
+        const zipFileName = `明細書_${year}年${String(month).padStart(2, "0")}月.zip`;
+        const zipPath = path.join(outDir, zipFileName);
+        await new Promise<void>((resolve, reject) => {
+            const output = fs.createWriteStream(zipPath);
+            const archive = archiver("zip", { zlib: { level: 9 } });
+            output.on("close", () => resolve());
+            archive.on("error", reject);
+            archive.pipe(output);
+            // PDFファイルを追加
+            for (const f of fileList) {
+                archive.file(path.join(outDir, f.file), { name: f.file });
+            }
+            // CSVファイルを追加
+            archive.file(path.join(outDir, csvFileName), { name: csvFileName });
+            archive.finalize();
+        });
+
         return NextResponse.json({
             success: true,
             year,
             month,
             files: fileList.map(f => ({ ...f, url: `/statements/${year}-${String(month).padStart(2, "0")}/${f.file}` })),
             csvUrl: `/statements/${year}-${String(month).padStart(2, "0")}/${csvFileName}`,
+            zipUrl: `/statements/${year}-${String(month).padStart(2, "0")}/${encodeURIComponent(zipFileName)}`,
             vendorCount: statements.length,
             grandTotal,
             closed: true,
+            closedAt: closedAtLabel,
         });
     } catch (error) {
         console.error("明細生成エラー:", error);

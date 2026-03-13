@@ -12,9 +12,11 @@ type GenerateResult = {
     success: boolean;
     files: { vendor: string; type: string; file: string; url: string; subtotal: number; tax: number; total: number }[];
     csvUrl: string;
+    zipUrl?: string;
     vendorCount: number;
     grandTotal: number;
     closed: boolean;
+    closedAt?: string;
 };
 
 type CloseInfo = { status: string; closedAt: Date; closedBy: string | null } | null;
@@ -143,7 +145,8 @@ export default function StatementsPage() {
                                 <ShieldCheck className="w-4 h-4" />
                                 本締め済
                                 <span className="text-xs text-emerald-500 ml-1">
-                                    {new Date(closeInfo!.closedAt).toLocaleDateString("ja-JP")}
+                                {new Date(closeInfo!.closedAt).toLocaleDateString("ja-JP")}
+                                {' '}{new Date(closeInfo!.closedAt).toLocaleTimeString("ja-JP", { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             </div>
                         ) : isDraft ? (
@@ -151,7 +154,8 @@ export default function StatementsPage() {
                                 <Lock className="w-4 h-4" />
                                 仮締め
                                 <span className="text-xs text-amber-500 ml-1">
-                                    {new Date(closeInfo!.closedAt).toLocaleDateString("ja-JP")}
+                                {new Date(closeInfo!.closedAt).toLocaleDateString("ja-JP")}
+                                {' '}{new Date(closeInfo!.closedAt).toLocaleTimeString("ja-JP", { hour: '2-digit', minute: '2-digit' })}
                                 </span>
                             </div>
                         ) : (
@@ -216,6 +220,9 @@ export default function StatementsPage() {
                             <CheckCircle className="w-5 h-5 text-emerald-600" />
                             出力完了 — {result.vendorCount}社
                         </CardTitle>
+                        {result.closedAt && (
+                            <p className="text-sm text-slate-500 mt-1">締め日時: <strong>{result.closedAt}</strong></p>
+                        )}
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="overflow-x-auto">
@@ -252,13 +259,24 @@ export default function StatementsPage() {
                             </table>
                         </div>
 
-                        <a
-                            href={result.csvUrl}
-                            target="_blank"
-                            className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                        >
-                            📊 チェックリスト（CSV）をダウンロード
-                        </a>
+                        <div className="flex gap-3 flex-wrap">
+                            {result.zipUrl && (
+                                <a
+                                    href={result.zipUrl}
+                                    download
+                                    className="inline-flex items-center gap-2 text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    📦 ZIP一括ダウンロード
+                                </a>
+                            )}
+                            <a
+                                href={result.csvUrl}
+                                target="_blank"
+                                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                            >
+                                📊 チェックリスト（CSV）
+                            </a>
+                        </div>
                     </CardContent>
                 </Card>
             )}
