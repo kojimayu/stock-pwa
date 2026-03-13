@@ -3270,3 +3270,143 @@ export async function setSystemConfig(key: string, value: string): Promise<void>
     });
     revalidatePath('/admin/settings');
 }
+
+// ===== 月次明細書 =====
+
+export type StatementItem = {
+    date: string;
+    txId: number;
+    code: string;
+    name: string;
+    quantity: number;
+    unit: string;
+    unitPrice: number;
+    subtotal: number;
+    isReturn: boolean;
+};
+
+export type AirconStatementItem = {
+    date: string;
+    logId: number;
+    managementNo: string;
+    modelNumber: string;
+    capacity: string;
+    type: string;
+    unitPrice: number;
+    isReturn: boolean;
+};
+
+export type VendorStatement = {
+    vendorId: number;
+    vendorName: string;
+    priceTier: string;
+    materialItems: StatementItem[];
+    materialTotal: number;
+    airconItems: AirconStatementItem[];
+    airconTotal: number;
+};
+
+export async function getMonthlyStatements(year: number, month: number): Promise<VendorStatement[]> {
+    // 月の開始・終了日（UTC）
+    const startDate = new Date(Date.UTC(year, month - 1, 1));
+    const endDate = new Date(Date.UTC(year, month, 1));
+
+    // 1. 全取引を取得
+    const transactions = await prisma.transaction.findMany({
+        where: {
+            date: { gte: startDate, lt: endDate },
+        },
+        include: { vendor: true, vendorUser: true },
+        orderBy: { date: 'asc' },
+    });
+
+    // 2. 全エアコンログを取得（買取分のみ：貸出・返品は除外）
+    const airconLogs = await prisma.airConditionerLog.findMany({
+        where: {
+            createdAt: { gte: startDate, lt: endDate },
+            isTemporaryLoan: false,
+            managementNo: null, // 管理No付き＝貸出品は除外、買取のみ
+        },
+        include: {
+            vendor: true,
+            vendorUser: true,
+            airconProduct: true,
+        },
+        orderBy: { createdAt: 'asc' },
+    });
+
+    // 3. 業者別に集計
+    const vendorMap = new Map<number, VendorStatement>();
+
+    const getOrCreateVendor = (vendorId: number, vendorName: string, priceTier: string) => {
+        if (!vendorMap.has(vendorId)) {
+            vendorMap.set(vendorId, {
+                vendorId,
+                vendorName,
+                priceTier,
+                materialItems: [],
+                materialTotal: 0,
+                airconItems: [],
+                airconTotal: 0,
+            });
+        }
+        return vendorMap.get(vendorId)!;
+    };
+
+    // 材料取引を集計
+    for (const tx of transactions) {
+        const vendor = getOrCreateVendor(tx.vendorId, tx.vendor.name, tx.vendor.priceTier);
+        let items: any[] = [];
+        try { items = JSON.parse(tx.items); } catch { continue; }
+
+        for (const item of items) {
+            const effectiveQty = (item.isBox && item.quantityPerBox)
+                ? item.quantity * item.quantityPerBox
+                : item.quantity;
+            const subtotal = item.price * item.quantity;
+
+            vendor.materialItems.push({
+                date: tx.date.toISOString().slice(0, 10),
+                txId: tx.id,
+                code: item.code || '-',
+                name: item.name || '不明',
+                quantity: effectiveQty,
+                unit: item.unit || '個',
+                unitPrice: (item.isBox && item.quantityPerBox)
+                    ? Math.round(subtotal / effectiveQty)
+                    : item.price,
+                subtotal,
+                isReturn: effectiveQty < 0,
+            });
+            vendor.materialTotal += subtotal;
+        }
+    }
+
+    // エアコンログを集計
+    for (const log of airconLogs) {
+        const vendor = getOrCreateVendor(log.vendorId, log.vendor.name, log.vendor.priceTier);
+        const price = log.airconProduct
+            ? (vendor.priceTier === 'B' ? log.airconProduct.priceB : log.airconProduct.priceA)
+            : 0;
+
+        // 返品はマイナス
+        const effectivePrice = log.isReturned ? 0 : price;
+
+        vendor.airconItems.push({
+            date: log.createdAt.toISOString().slice(0, 10),
+            logId: log.id,
+            managementNo: log.managementNo || '-',
+            modelNumber: log.modelNumber,
+            capacity: log.airconProduct?.capacity || '-',
+            type: log.type,
+            unitPrice: effectivePrice,
+            isReturn: log.isReturned,
+        });
+        vendor.airconTotal += effectivePrice;
+    }
+
+    // 取引のある業者のみ返す（業者名順）
+    return Array.from(vendorMap.values())
+        .filter(v => v.materialItems.length > 0 || v.airconItems.length > 0)
+        .sort((a, b) => a.vendorName.localeCompare(b.vendorName, 'ja'));
+}
