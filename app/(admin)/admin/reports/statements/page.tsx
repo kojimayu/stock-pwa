@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Printer, Download, CheckCircle, Loader2, Lock, Eye } from "lucide-react";
-import { isMonthClosed, getMonthlyCloseInfo } from "@/lib/actions";
+import { FileText, Download, CheckCircle, Loader2, Lock, Eye, LockOpen, ShieldCheck } from "lucide-react";
+import { getMonthlyCloseInfo, finalizeMonth, reopenMonth } from "@/lib/actions";
 
 type GenerateResult = {
     success: boolean;
@@ -17,6 +17,8 @@ type GenerateResult = {
     closed: boolean;
 };
 
+type CloseInfo = { status: string; closedAt: Date; closedBy: string | null } | null;
+
 export default function StatementsPage() {
     const router = useRouter();
     const now = new Date();
@@ -25,28 +27,26 @@ export default function StatementsPage() {
 
     const [year, setYear] = useState(String(defaultYear));
     const [month, setMonth] = useState(String(defaultMonth));
-    const [closed, setClosed] = useState<{ closedAt: Date; closedBy: string | null } | null>(null);
+    const [closeInfo, setCloseInfo] = useState<CloseInfo>(null);
     const [loading, setLoading] = useState(false);
     const [generating, setGenerating] = useState(false);
     const [result, setResult] = useState<GenerateResult | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    // 締め状態チェック
-    useEffect(() => {
-        async function check() {
-            setLoading(true);
-            setResult(null);
-            setError(null);
-            try {
-                const info = await getMonthlyCloseInfo(Number(year), Number(month));
-                setClosed(info ? { closedAt: info.closedAt, closedBy: info.closedBy } : null);
-            } catch {
-                setClosed(null);
-            }
-            setLoading(false);
+    const refreshCloseInfo = async () => {
+        setLoading(true);
+        setResult(null);
+        setError(null);
+        try {
+            const info = await getMonthlyCloseInfo(Number(year), Number(month));
+            setCloseInfo(info ? { status: info.status, closedAt: info.closedAt, closedBy: info.closedBy } : null);
+        } catch {
+            setCloseInfo(null);
         }
-        check();
-    }, [year, month]);
+        setLoading(false);
+    };
+
+    useEffect(() => { refreshCloseInfo(); }, [year, month]);
 
     const handlePreview = () => {
         router.push(`/admin/reports/statements/print?year=${year}&month=${month}`);
@@ -65,15 +65,38 @@ export default function StatementsPage() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "生成に失敗しました");
             setResult(data);
-            setClosed({ closedAt: new Date(), closedBy: null });
+            await refreshCloseInfo();
         } catch (e) {
             setError(e instanceof Error ? e.message : "エラーが発生しました");
         }
         setGenerating(false);
     };
 
+    const handleFinalize = async () => {
+        if (!confirm(`${year}年${month}月を本締めしますか？\n本締め後は取引の編集・返品ができなくなります。`)) return;
+        try {
+            await finalizeMonth(Number(year), Number(month));
+            await refreshCloseInfo();
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "本締めに失敗しました");
+        }
+    };
+
+    const handleReopen = async () => {
+        if (!confirm(`${year}年${month}月の仮締めを解除しますか？\n解除後、取引の編集が可能になります。`)) return;
+        try {
+            await reopenMonth(Number(year), Number(month));
+            await refreshCloseInfo();
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "解除に失敗しました");
+        }
+    };
+
     const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i);
     const months = Array.from({ length: 12 }, (_, i) => i + 1);
+    const isDraft = closeInfo?.status === "DRAFT";
+    const isFinal = closeInfo?.status === "FINAL";
+    const isClosed = !!closeInfo;
 
     return (
         <div className="space-y-6">
@@ -94,9 +117,7 @@ export default function StatementsPage() {
                         <div>
                             <label className="text-sm font-medium mb-1 block">年</label>
                             <Select value={year} onValueChange={setYear}>
-                                <SelectTrigger className="w-28">
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     {years.map((y) => (
                                         <SelectItem key={y} value={String(y)}>{y}年</SelectItem>
@@ -107,9 +128,7 @@ export default function StatementsPage() {
                         <div>
                             <label className="text-sm font-medium mb-1 block">月</label>
                             <Select value={month} onValueChange={setMonth}>
-                                <SelectTrigger className="w-24">
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     {months.map((m) => (
                                         <SelectItem key={m} value={String(m)}>{m}月</SelectItem>
@@ -119,38 +138,66 @@ export default function StatementsPage() {
                         </div>
                         {loading ? (
                             <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-                        ) : closed ? (
-                            <div className="flex items-center gap-1.5 text-emerald-600 text-sm font-medium bg-emerald-50 px-3 py-1.5 rounded-full">
-                                <Lock className="w-4 h-4" />
-                                締め済み
+                        ) : isFinal ? (
+                            <div className="flex items-center gap-1.5 text-emerald-700 text-sm font-semibold bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full">
+                                <ShieldCheck className="w-4 h-4" />
+                                本締め済
                                 <span className="text-xs text-emerald-500 ml-1">
-                                    {new Date(closed.closedAt).toLocaleDateString("ja-JP")}
+                                    {new Date(closeInfo!.closedAt).toLocaleDateString("ja-JP")}
+                                </span>
+                            </div>
+                        ) : isDraft ? (
+                            <div className="flex items-center gap-1.5 text-amber-700 text-sm font-semibold bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
+                                <Lock className="w-4 h-4" />
+                                仮締め
+                                <span className="text-xs text-amber-500 ml-1">
+                                    {new Date(closeInfo!.closedAt).toLocaleDateString("ja-JP")}
                                 </span>
                             </div>
                         ) : (
-                            <div className="text-sm text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full font-medium">
+                            <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full font-medium">
                                 未締め
                             </div>
                         )}
                     </div>
 
-                    <div className="flex gap-3 pt-2">
+                    {/* 業務フロー説明 */}
+                    <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3 space-y-1">
+                        <p><strong>業務フロー:</strong></p>
+                        <p>① <strong>仮締め</strong>（5日頃）→ PDF出力・業者へ送付。取引ロック開始</p>
+                        <p>② 業者確認 → 問題あれば仮締め解除→修正→再仮締め</p>
+                        <p>③ <strong>本締め</strong>（10日頃）→ 確定。解除不可</p>
+                    </div>
+
+                    <div className="flex gap-3 pt-2 flex-wrap">
                         <Button variant="outline" onClick={handlePreview} className="gap-2">
                             <Eye className="w-4 h-4" />
                             プレビュー
                         </Button>
-                        <Button
-                            onClick={handleGenerate}
-                            disabled={generating}
-                            className="gap-2"
-                        >
-                            {generating ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Download className="w-4 h-4" />
-                            )}
-                            {closed ? "再出力（上書き）" : "PDF出力＋月次締め"}
-                        </Button>
+
+                        {!isFinal && (
+                            <Button onClick={handleGenerate} disabled={generating} className="gap-2">
+                                {generating ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Download className="w-4 h-4" />
+                                )}
+                                {isClosed ? "再出力（上書き）" : "PDF出力＋仮締め"}
+                            </Button>
+                        )}
+
+                        {isDraft && (
+                            <>
+                                <Button variant="default" onClick={handleFinalize} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+                                    <ShieldCheck className="w-4 h-4" />
+                                    本締め
+                                </Button>
+                                <Button variant="outline" onClick={handleReopen} className="gap-2 text-amber-600 border-amber-300 hover:bg-amber-50">
+                                    <LockOpen className="w-4 h-4" />
+                                    仮締め解除
+                                </Button>
+                            </>
+                        )}
                     </div>
 
                     {error && (

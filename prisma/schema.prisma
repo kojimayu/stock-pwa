@@ -332,6 +332,7 @@ model MonthlyClose {
   id       Int      @id @default(autoincrement())
   year     Int
   month    Int
+  status   String   @default("DRAFT") // DRAFT=仮締め, FINAL=本締め
   closedAt DateTime @default(now())
   closedBy String?  // 締めた管理者名
 

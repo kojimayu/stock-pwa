@@ -1648,6 +1648,10 @@ export async function reconcileTransactionItem(transactionId: number, manualItem
             });
             if (!transaction) throw new Error("取引データが見つかりません");
 
+            // 月次締めチェック
+            const closed = await checkTransactionMonthClosed(transaction.date);
+            if (closed) throw new Error("この取引の月は締め済みのため編集できません");
+
             const items = JSON.parse(transaction.items) as any[];
             let updated = false;
             let quantityToDeduct = 0;
@@ -1734,6 +1738,10 @@ export async function returnTransaction(transactionId: number) {
             });
 
             if (!transaction) throw new Error("取引が見つかりません");
+
+            // 月次締めチェック
+            const closed = await checkTransactionMonthClosed(transaction.date);
+            if (closed) throw new Error("この取引の月は締め済みのため返品できません");
             if (transaction.isReturned) throw new Error("既に戻し処理済みです");
 
             // 元の明細を保存（ログ用）
@@ -1843,6 +1851,11 @@ export async function returnPartialTransaction(transactionId: number, returnItem
             });
 
             if (!transaction) throw new Error("取引が見つかりません");
+
+            // 月次締めチェック
+            const closed = await checkTransactionMonthClosed(transaction.date);
+            if (closed) throw new Error("この取引の月は締め済みのため返品できません");
+
             if (transaction.isReturned) throw new Error("既に戻し処理済みです");
 
             // 元の明細を保存（ログ用）
@@ -1987,6 +2000,13 @@ export async function createReturnFromHistory(
     }
 
     try {
+        // 月次締めチェック（元取引の月）
+        const origTx = await prisma.transaction.findUnique({ where: { id: originalTransactionId } });
+        if (origTx) {
+            const closed = await checkTransactionMonthClosed(origTx.date);
+            if (closed) return { success: false, message: 'この取引の月は締め済みのため返品できません' };
+        }
+
         // 過去の返品数を集計
         const returnedQuantities = await getReturnedQuantities(originalTransactionId);
 
@@ -3292,9 +3312,22 @@ export async function getMonthlyCloseInfo(year: number, month: number) {
     });
 }
 
-export async function closeMonth(year: number, month: number, closedBy?: string) {
+export async function closeMonth(year: number, month: number, closedBy?: string, status: string = 'DRAFT') {
     return prisma.monthlyClose.create({
-        data: { year, month, closedBy },
+        data: { year, month, closedBy, status },
+    });
+}
+
+export async function finalizeMonth(year: number, month: number, closedBy?: string) {
+    return prisma.monthlyClose.update({
+        where: { year_month: { year, month } },
+        data: { status: 'FINAL', closedBy, closedAt: new Date() },
+    });
+}
+
+export async function reopenMonth(year: number, month: number) {
+    return prisma.monthlyClose.delete({
+        where: { year_month: { year, month } },
     });
 }
 
