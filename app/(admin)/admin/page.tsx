@@ -619,17 +619,17 @@ export default async function AdminDashboardPage() {
                                             <TableCell className="text-center">
                                                 <div>
                                                     <span className="font-bold text-lg text-slate-900">
-                                                        {setCount}
+                                                        {ac.totalStock}
                                                     </span>
-                                                    <span className="text-xs text-slate-500 ml-0.5">セット</span>
+                                                    <span className="text-xs text-slate-500 ml-0.5">台</span>
                                                     {extraOutdoor > 0 && (
                                                         <div className="text-xs text-amber-600">
-                                                            + 外機のみ {extraOutdoor}台
+                                                            内 外機のみ {extraOutdoor}台
                                                         </div>
                                                     )}
                                                     {extraIndoor > 0 && (
                                                         <div className="text-xs text-amber-600">
-                                                            + 内機のみ {extraIndoor}台
+                                                            内 内機のみ {extraIndoor}台
                                                         </div>
                                                     )}
                                                 </div>
