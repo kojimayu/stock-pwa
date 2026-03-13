@@ -145,7 +145,36 @@ export function CartSidebar({ className }: CartSidebarProps) {
                                             >
                                                 <Minus className="w-4 h-4 text-slate-600" />
                                             </Button>
-                                            <div className="w-20 text-center flex flex-col justify-center leading-none px-1 py-1 bg-white h-10 border-x border-slate-200">
+                                            <div
+                                                className="w-20 text-center flex flex-col justify-center leading-none px-1 py-1 bg-white h-10 border-x border-slate-200 cursor-text"
+                                                onClick={(e) => {
+                                                    // divの中にinputを表示
+                                                    const div = e.currentTarget;
+                                                    const currentVal = item.isBox ? item.quantity : item.quantity;
+                                                    const input = document.createElement('input');
+                                                    input.type = 'number';
+                                                    input.inputMode = 'numeric';
+                                                    input.value = String(currentVal);
+                                                    input.className = 'w-full h-full text-center font-bold text-base border-0 outline-none bg-blue-50';
+                                                    input.style.cssText = '-moz-appearance: textfield;';
+                                                    div.innerHTML = '';
+                                                    div.appendChild(input);
+                                                    input.focus();
+                                                    input.select();
+
+                                                    const commit = () => {
+                                                        const val = parseInt(input.value, 10);
+                                                        if (!isNaN(val) && val >= 0) {
+                                                            updateQuantity(item.productId, val, item.isBox);
+                                                        }
+                                                    };
+                                                    input.addEventListener('blur', commit);
+                                                    input.addEventListener('keydown', (ke) => {
+                                                        if (ke.key === 'Enter') { input.blur(); }
+                                                        if (ke.key === 'Escape') { input.value = String(currentVal); input.blur(); }
+                                                    });
+                                                }}
+                                            >
                                                 <span className="font-bold text-base text-slate-900">
                                                     {item.isBox
                                                         ? ((item.quantity) * (item.quantityPerBox || 1)).toLocaleString()

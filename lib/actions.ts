@@ -1365,8 +1365,37 @@ export async function adjustStock(productId: number, type: string, quantity: num
 }
 
 // Dashboard Actions
-export async function getTransactions(limit = 100) {
+export async function getTransactions(limit = 100, filters?: {
+    vendorName?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    textSearch?: string;
+}) {
+    const where: any = {};
+
+    if (filters?.vendorName) {
+        where.vendor = { name: { contains: filters.vendorName } };
+    }
+
+    if (filters?.dateFrom || filters?.dateTo) {
+        where.date = {};
+        if (filters?.dateFrom) {
+            where.date.gte = new Date(filters.dateFrom);
+        }
+        if (filters?.dateTo) {
+            const to = new Date(filters.dateTo);
+            to.setHours(23, 59, 59, 999);
+            where.date.lte = to;
+        }
+    }
+
+    if (filters?.textSearch) {
+        // items JSONに商品名が含まれるかサーバーサイドで検索
+        where.items = { contains: filters.textSearch };
+    }
+
     const transactions = await prisma.transaction.findMany({
+        where,
         take: limit,
         orderBy: { date: 'desc' },
         include: {

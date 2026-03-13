@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { normalizeForSearch } from "@/lib/utils";
+import { getTransactions } from "@/lib/actions";
 import { ProductDialog } from "./product-dialog";
 import { ProductSearchDialog } from "./product-search-dialog";
 import { TransactionReturnDialog } from "./transaction-return-dialog";
@@ -82,44 +83,53 @@ export function TransactionList({ transactions }: TransactionListProps) {
 
     const router = useRouter();
 
-    // フィルタリング
-    const filteredTransactions = useMemo(() => {
-        return transactions.filter((tx) => {
-            // 業者名フィルター
-            if (vendorFilter && !normalizeForSearch(tx.vendor.name).includes(normalizeForSearch(vendorFilter))) {
-                return false;
-            }
+    // サーバーサイド検索
+    const [displayTransactions, setDisplayTransactions] = useState<Transaction[]>(transactions);
+    const [isSearching, setIsSearching] = useState(false);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-            // 日付フィルター (From)
-            if (dateFromFilter) {
-                const from = new Date(dateFromFilter);
-                if (new Date(tx.date) < from) return false;
-            }
+    const hasActiveFilters = vendorFilter || dateFromFilter || dateToFilter || textFilter;
 
-            // 日付フィルター (To)
-            if (dateToFilter) {
-                const to = new Date(dateToFilter);
-                to.setHours(23, 59, 59, 999);
-                if (new Date(tx.date) > to) return false;
-            }
+    // フィルタ変更時にサーバーサイド検索を実行
+    const executeSearch = useCallback(async (vendor: string, dateFrom: string, dateTo: string, text: string) => {
+        const hasFilters = vendor || dateFrom || dateTo || text;
+        if (!hasFilters) {
+            // フィルタなしの場合はpropsのデータを使用
+            setDisplayTransactions(transactions);
+            return;
+        }
 
-            // テキスト検索（商品名）
-            if (textFilter) {
-                let items: any[] = [];
-                try {
-                    items = JSON.parse(tx.items);
-                } catch { }
-                const hasMatch = items.some((item: any) =>
-                    item.name ? normalizeForSearch(item.name).includes(normalizeForSearch(textFilter)) : false
-                );
-                if (!hasMatch && !normalizeForSearch(tx.vendor.name).includes(normalizeForSearch(textFilter))) {
-                    return false;
-                }
-            }
+        setIsSearching(true);
+        try {
+            const results = await getTransactions(100, {
+                vendorName: vendor || undefined,
+                dateFrom: dateFrom || undefined,
+                dateTo: dateTo || undefined,
+                textSearch: text || undefined,
+            });
+            setDisplayTransactions(results as Transaction[]);
+        } catch (error) {
+            console.error('検索エラー:', error);
+        } finally {
+            setIsSearching(false);
+        }
+    }, [transactions]);
 
-            return true;
-        });
-    }, [transactions, vendorFilter, dateFromFilter, dateToFilter, textFilter]);
+    // デバウンス付きフィルタ実行
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            executeSearch(vendorFilter, dateFromFilter, dateToFilter, textFilter);
+        }, 400);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [vendorFilter, dateFromFilter, dateToFilter, textFilter, executeSearch]);
+
+    // propsが変わったら表示も更新
+    useEffect(() => {
+        if (!hasActiveFilters) {
+            setDisplayTransactions(transactions);
+        }
+    }, [transactions, hasActiveFilters]);
 
     const clearFilters = () => {
         setVendorFilter("");
@@ -128,14 +138,13 @@ export function TransactionList({ transactions }: TransactionListProps) {
         setTextFilter("");
     };
 
-    const hasActiveFilters = vendorFilter || dateFromFilter || dateToFilter || textFilter;
 
     // CSVエクスポート
     const exportCsv = () => {
         const headers = ["取引ID", "日時", "業者コード", "業者名", "担当者", "商品コード", "商品名", "数量", "単価", "小計", "取引合計", "ステータス", "代理入力"];
         const rows: string[][] = [];
 
-        filteredTransactions.forEach((tx) => {
+        displayTransactions.forEach((tx) => {
             let items: any[] = [];
             try {
                 items = JSON.parse(tx.items);
@@ -276,9 +285,9 @@ export function TransactionList({ transactions }: TransactionListProps) {
                             </Button>
                         </div>
                     </div>
-                    {hasActiveFilters && (
+                    {(hasActiveFilters || isSearching) && (
                         <p className="text-sm text-muted-foreground mt-2">
-                            {filteredTransactions.length}件 / 全{transactions.length}件
+                            {isSearching ? "検索中..." : `${displayTransactions.length}件の検索結果`}
                         </p>
                     )}
                 </CardContent>
@@ -304,7 +313,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredTransactions.map((tx) => {
+                        {displayTransactions.map((tx) => {
                             let parsedItems: any[] = [];
                             try {
                                 const raw = JSON.parse(tx.items);
@@ -436,7 +445,7 @@ export function TransactionList({ transactions }: TransactionListProps) {
                                 </TableRow>
                             );
                         })}
-                        {filteredTransactions.length === 0 && (
+                        {displayTransactions.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={7} className="text-center py-10 text-slate-500">
                                     {hasActiveFilters ? "検索条件に一致する取引がありません" : "取引データがありません"}

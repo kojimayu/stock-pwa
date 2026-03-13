@@ -8,7 +8,7 @@ export default async function TransactionsPage() {
         <div className="space-y-6">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">取引履歴</h2>
-                <p className="text-muted-foreground">過去の出庫取引の記録 (直近100件)</p>
+                <p className="text-muted-foreground">過去の出庫取引の記録（検索条件に一致する最新100件を表示）</p>
             </div>
 
             <TransactionList transactions={transactions} />

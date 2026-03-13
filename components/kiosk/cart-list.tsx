@@ -51,7 +51,35 @@ export function CartList() {
                             >
                                 <Minus className="h-4 w-4" />
                             </Button>
-                            <span className="w-8 text-center font-bold text-lg">{item.quantity}</span>
+                            <div
+                                className="w-12 text-center font-bold text-lg cursor-text bg-slate-50 rounded py-1"
+                                onClick={(e) => {
+                                    const div = e.currentTarget;
+                                    const input = document.createElement('input');
+                                    input.type = 'number';
+                                    input.inputMode = 'numeric';
+                                    input.value = String(item.quantity);
+                                    input.className = 'w-full text-center font-bold text-lg border-0 outline-none bg-blue-50 rounded';
+                                    input.style.cssText = '-moz-appearance: textfield;';
+                                    div.innerHTML = '';
+                                    div.appendChild(input);
+                                    input.focus();
+                                    input.select();
+                                    const commit = () => {
+                                        const val = parseInt(input.value, 10);
+                                        if (!isNaN(val) && val >= 0) {
+                                            updateQuantity(item.productId, val, item.isBox);
+                                        }
+                                    };
+                                    input.addEventListener('blur', commit);
+                                    input.addEventListener('keydown', (ke) => {
+                                        if (ke.key === 'Enter') input.blur();
+                                        if (ke.key === 'Escape') { input.value = String(item.quantity); input.blur(); }
+                                    });
+                                }}
+                            >
+                                {item.quantity}
+                            </div>
                             <Button
                                 variant="outline"
                                 size="icon"
