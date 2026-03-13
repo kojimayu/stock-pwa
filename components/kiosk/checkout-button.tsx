@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, CheckCircle, WifiOff } from "lucide-react";
-import { StockVerificationDialog } from "@/components/kiosk/stock-verification-dialog";
 
 import { useOnlineStatus } from "@/hooks/use-online-status";
 
@@ -24,11 +23,6 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
     const { items, vendor, vendorUser, isProxyMode, transactionDate, clearCart } = useCartStore();
     const router = useRouter();
     const isOnline = useOnlineStatus();
-
-    // 在庫確認ダイアログの状態
-    const [stockInfo, setStockInfo] = useState<StockItem[] | null>(null);
-    // ピッキング用に出庫商品を保持
-    const [checkoutItems, setCheckoutItems] = useState<PickingItem[]>([]);
 
     // ピッキングリストへ遷移する共通処理
     const navigateToPicking = (pickingItems: PickingItem[]) => {
@@ -81,12 +75,16 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
                 if (isProxyMode) {
                     // 代理入力の場合はトースト表示して同じ画面に留まる（ピッキング不要）
                     toast.success("出庫処理が完了しました");
-                } else if (res.stockInfo && res.stockInfo.length > 0) {
-                    // Kiosk: 在庫確認ダイアログを表示（完了後にピッキングへ遷移）
-                    setCheckoutItems(pickingItems);
-                    setStockInfo(res.stockInfo);
                 } else {
-                    // 在庫確認不要 → 直接ピッキングリストへ
+                    // stockInfoがあればpickingItemsにexpectedStockをマージ
+                    if (res.stockInfo && res.stockInfo.length > 0) {
+                        const stockMap = new Map(res.stockInfo.map((s: any) => [s.productId, s.expectedStock]));
+                        for (const item of pickingItems) {
+                            if (stockMap.has(item.productId)) {
+                                item.expectedStock = stockMap.get(item.productId);
+                            }
+                        }
+                    }
                     navigateToPicking(pickingItems);
                 }
             } else {
@@ -99,11 +97,6 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
         }
     };
 
-    // 在庫確認後にピッキングリストへ遷移
-    const handleStockVerified = () => {
-        setStockInfo(null);
-        navigateToPicking(checkoutItems);
-    };
 
     return (
         <>
@@ -120,16 +113,6 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
                 )}
                 {!isOnline ? "オフライン (送信不可)" : !stockCheckReady ? "残数を確認してください" : "出庫を確定する"}
             </Button>
-
-            {/* 在庫確認ダイアログ */}
-            {stockInfo && (
-                <StockVerificationDialog
-                    items={stockInfo}
-                    mode="checkout"
-                    onConfirm={handleStockVerified}
-                    onMismatch={handleStockVerified}
-                />
-            )}
         </>
     );
 }

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { loadPickingItems, clearPickingItems, PickingItem } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Package, Volume2 } from "lucide-react";
+import { CheckCircle, Package, Volume2, AlertTriangle } from "lucide-react";
 
 // Fully Kiosk Browser API型
 declare global {
@@ -19,6 +19,8 @@ export default function PickingPage() {
     const router = useRouter();
     const [items, setItems] = useState<PickingItem[]>([]);
     const [loaded, setLoaded] = useState(false);
+    const [showStockVerification, setShowStockVerification] = useState(false);
+    const [showMismatchMessage, setShowMismatchMessage] = useState(false);
     const lastActivityRef = useRef<number>(Date.now());
     const reminderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const hasSpokenRef = useRef(false);
@@ -41,6 +43,9 @@ export default function PickingPage() {
     const allPicked = totalCount > 0 && pickedCount === totalCount;
     const progressPercent = totalCount > 0 ? (pickedCount / totalCount) * 100 : 0;
 
+    // 在庫確認対象の商品があるか
+    const hasStockCheckItems = items.some(i => i.expectedStock !== undefined);
+
     // アイテムのチェック切り替え
     const togglePicked = useCallback((productId: number) => {
         setItems(prev => prev.map(item =>
@@ -52,8 +57,30 @@ export default function PickingPage() {
         hasSpokenRef.current = false; // リマインドリセット
     }, []);
 
-    // 確認完了 → 完了画面へ
-    const handleComplete = useCallback(() => {
+    // 全品取得完了後の処理
+    const handleAllPickedComplete = useCallback(() => {
+        if (hasStockCheckItems) {
+            // 在庫確認対象あり → 在庫確認ステップを表示
+            setShowStockVerification(true);
+        } else {
+            // 在庫確認対象なし → 直接完了画面
+            clearPickingItems();
+            router.push("/shop/complete");
+        }
+    }, [hasStockCheckItems, router]);
+
+    // 在庫確認OK → 完了画面
+    const handleStockConfirmed = useCallback(() => {
+        clearPickingItems();
+        router.push("/shop/complete");
+    }, [router]);
+
+    // 在庫不一致 → メッセージ表示後に完了画面
+    const handleStockMismatch = useCallback(() => {
+        setShowMismatchMessage(true);
+    }, []);
+
+    const handleMismatchAcknowledged = useCallback(() => {
         clearPickingItems();
         router.push("/shop/complete");
     }, [router]);
@@ -122,6 +149,101 @@ export default function PickingPage() {
         );
     }
 
+    // --- 在庫確認オーバーレイ ---
+    if (showStockVerification) {
+        const stockCheckItems = items.filter(i => i.expectedStock !== undefined);
+
+        return (
+            <div className="min-h-screen bg-blue-50 flex flex-col items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+                    {/* ヘッダー */}
+                    <div className="p-4 border-b text-center">
+                        <div className="flex justify-center mb-2">
+                            <div className="p-3 rounded-full bg-blue-100">
+                                <Package className="w-8 h-8 text-blue-600" />
+                            </div>
+                        </div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                            持出し後の在庫確認
+                        </h2>
+                        <p className="text-sm text-slate-500 mt-1">
+                            棚の在庫を確認してください
+                        </p>
+                    </div>
+
+                    {/* 在庫一覧 */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                        {stockCheckItems.map((item) => (
+                            <div
+                                key={item.productId}
+                                className="flex items-center justify-between bg-slate-50 rounded-xl p-3"
+                            >
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-slate-900 text-sm truncate">
+                                        {item.name}
+                                    </p>
+                                    {item.code && (
+                                        <p className="text-xs text-slate-400">{item.code}</p>
+                                    )}
+                                </div>
+                                <div className="text-right ml-3">
+                                    <span className="text-2xl font-bold text-slate-900">
+                                        {item.expectedStock}
+                                    </span>
+                                    <span className="text-sm text-slate-500 ml-1">
+                                        {item.unit || "個"}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* 確認ボタンエリア */}
+                    <div className="p-4 border-t space-y-3">
+                        {!showMismatchMessage ? (
+                            <>
+                                <Button
+                                    className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={handleStockConfirmed}
+                                >
+                                    <CheckCircle className="w-5 h-5 mr-2" />
+                                    在庫が合っている
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    className="w-full h-12 text-red-600 border-red-300 hover:bg-red-50"
+                                    onClick={handleStockMismatch}
+                                >
+                                    <AlertTriangle className="w-5 h-5 mr-2" />
+                                    在庫が合っていない
+                                </Button>
+                            </>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="p-4 bg-red-50 border-2 border-red-400 rounded-xl text-center">
+                                    <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
+                                    <p className="font-bold text-red-700">
+                                        事務所に報告してください
+                                    </p>
+                                    <p className="text-sm text-red-600 mt-1">
+                                        在庫の差異を事務所スタッフに<br />
+                                        お伝えください。
+                                    </p>
+                                </div>
+                                <Button
+                                    className="w-full h-12 bg-slate-800 hover:bg-slate-900 text-white"
+                                    onClick={handleMismatchAcknowledged}
+                                >
+                                    確認しました
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-blue-50 flex flex-col">
             {/* ヘッダー */}
@@ -167,15 +289,15 @@ export default function PickingPage() {
                             key={item.productId}
                             onClick={() => togglePicked(item.productId)}
                             className={`w-full text-left rounded-2xl p-4 shadow-sm border-2 transition-all duration-200 ${item.picked
-                                    ? "bg-green-50 border-green-400 scale-[0.98]"
-                                    : "bg-white border-slate-200 hover:border-blue-300 active:scale-[0.97]"
+                                ? "bg-green-50 border-green-400 scale-[0.98]"
+                                : "bg-white border-slate-200 hover:border-blue-300 active:scale-[0.97]"
                                 }`}
                         >
                             <div className="flex items-center gap-4">
                                 {/* チェックアイコン */}
                                 <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all ${item.picked
-                                        ? "bg-green-500 text-white"
-                                        : "bg-slate-100 text-slate-400"
+                                    ? "bg-green-500 text-white"
+                                    : "bg-slate-100 text-slate-400"
                                     }`}>
                                     <CheckCircle className={`w-7 h-7 ${item.picked ? "" : "opacity-30"}`} />
                                 </div>
@@ -199,15 +321,22 @@ export default function PickingPage() {
                                     </div>
                                 </div>
 
-                                {/* 数量 */}
+                                {/* 数量 + 在庫 */}
                                 <div className={`text-right flex-shrink-0 ${item.picked ? "text-green-600" : "text-slate-900"
                                     }`}>
-                                    <span className="text-2xl font-bold">
-                                        {item.quantity}
-                                    </span>
-                                    <span className="text-sm ml-1">
-                                        {item.unit || "個"}
-                                    </span>
+                                    <div>
+                                        <span className="text-2xl font-bold">
+                                            {item.quantity}
+                                        </span>
+                                        <span className="text-sm ml-1">
+                                            {item.unit || "個"}
+                                        </span>
+                                    </div>
+                                    {item.expectedStock !== undefined && (
+                                        <div className="text-xs text-slate-400 mt-0.5">
+                                            残 {item.expectedStock}{item.unit || "個"}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -228,10 +357,10 @@ export default function PickingPage() {
                     <Button
                         size="lg"
                         className={`w-full h-16 text-xl font-bold shadow-lg transition-all ${allPicked
-                                ? "bg-green-600 hover:bg-green-700 text-white"
-                                : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                            ? "bg-green-600 hover:bg-green-700 text-white"
+                            : "bg-slate-300 text-slate-500 cursor-not-allowed"
                             }`}
-                        onClick={handleComplete}
+                        onClick={handleAllPickedComplete}
                         disabled={!allPicked}
                     >
                         <CheckCircle className="w-6 h-6 mr-2" />

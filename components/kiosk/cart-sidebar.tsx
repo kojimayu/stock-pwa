@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 
 import { InventoryCheckDialog } from "./inventory-check-dialog";
-import { StockVerificationDialog } from "@/components/kiosk/stock-verification-dialog";
 
 interface CartSidebarProps {
     className?: string;
@@ -31,10 +30,6 @@ export function CartSidebar({ className }: CartSidebarProps) {
     const [isCheckingOut, setIsCheckingOut] = useState(false);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [showInventoryCheckDialog, setShowInventoryCheckDialog] = useState(false);
-    // チェックアウト後の在庫確認用
-    const [stockVerificationItems, setStockVerificationItems] = useState<any[] | null>(null);
-    // ピッキング用に出庫商品を保持
-    const [checkoutPickingItems, setCheckoutPickingItems] = useState<PickingItem[]>([]);
     const router = useRouter();
 
     // const totalAmount = getTotalPrice();
@@ -75,12 +70,16 @@ export function CartSidebar({ className }: CartSidebarProps) {
                 clearCart();
                 if (isProxyMode) {
                     toast.success("代理入力完了");
-                } else if (res.stockInfo && res.stockInfo.length > 0) {
-                    // 在庫確認ダイアログを表示（完了後にピッキングへ遷移）
-                    setCheckoutPickingItems(pickingItems);
-                    setStockVerificationItems(res.stockInfo);
                 } else {
-                    // 在庫確認不要 → 直接ピッキングリストへ
+                    // stockInfoがあればpickingItemsにexpectedStockをマージ
+                    if (res.stockInfo && res.stockInfo.length > 0) {
+                        const stockMap = new Map(res.stockInfo.map((s: any) => [s.productId, s.expectedStock]));
+                        for (const item of pickingItems) {
+                            if (stockMap.has(item.productId)) {
+                                item.expectedStock = stockMap.get(item.productId);
+                            }
+                        }
+                    }
                     savePickingItems(pickingItems);
                     router.push("/shop/picking");
                 }
@@ -250,26 +249,6 @@ export function CartSidebar({ className }: CartSidebarProps) {
                 vendorId={vendor?.id || 0}
                 vendorUserId={vendorUser?.id || null}
             />
-
-            {/* Stock Verification Dialog (After checkout) */}
-            {stockVerificationItems && (
-                <StockVerificationDialog
-                    items={stockVerificationItems}
-                    mode="checkout"
-                    onConfirm={() => {
-                        setStockVerificationItems(null);
-                        // 在庫確認完了 → ピッキングリストへ遷移
-                        savePickingItems(checkoutPickingItems);
-                        router.push("/shop/picking");
-                    }}
-                    onMismatch={() => {
-                        setStockVerificationItems(null);
-                        // 在庫不一致でもピッキングリストへ遷移
-                        savePickingItems(checkoutPickingItems);
-                        router.push("/shop/picking");
-                    }}
-                />
-            )}
         </div>
     );
 }

@@ -12,7 +12,17 @@ export default function ModeSelectPage() {
     const router = useRouter();
     const setReturnMode = useCartStore((state) => state.setReturnMode);
     const vendorUser = useCartStore((state) => state.vendorUser);
-    const [showAnnouncement, setShowAnnouncement] = useState(true);
+
+    // お知らせは1セッション（ログイン～ログアウト）で1回のみ表示
+    const [showAnnouncement, setShowAnnouncement] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return !sessionStorage.getItem('announcement-shown');
+    });
+
+    const handleDismissAnnouncement = () => {
+        setShowAnnouncement(false);
+        sessionStorage.setItem('announcement-shown', 'true');
+    };
 
     const handleMaterialTakeout = () => {
         setReturnMode(false);
@@ -28,7 +38,7 @@ export default function ModeSelectPage() {
         <div className="min-h-screen bg-slate-50 flex flex-col">
             {/* お知らせモーダル（ログイン直後に表示） */}
             {showAnnouncement && (
-                <AnnouncementModal onDismiss={() => setShowAnnouncement(false)} vendorUserId={vendorUser?.id} />
+                <AnnouncementModal onDismiss={handleDismissAnnouncement} vendorUserId={vendorUser?.id} />
             )}
 
             <header className="bg-slate-900 text-white p-4 flex justify-between items-center shadow-md">

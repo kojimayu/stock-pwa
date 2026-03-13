@@ -20,6 +20,7 @@ export function LogoutButton() {
                 logLogout(vendor.id, vendor.name, 'MANUAL', vendorUser?.name, vendorUser?.id, sessionId).catch(console.error);
             }
             clearCart();
+            sessionStorage.removeItem('announcement-shown');
             router.push("/");
         }
     };

@@ -2,38 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, LogOut, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/lib/store";
 
 export default function CompletePage() {
     const router = useRouter();
     const clearSession = useCartStore((state) => state.clearSession);
-    const [countdown, setCountdown] = useState(5);
+    const vendor = useCartStore((state) => state.vendor);
+    const vendorUser = useCartStore((state) => state.vendorUser);
 
-    // Clear vendor session on mount (log out user)
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            clearSession();
-        }, 500); // Small delay to ensure smooth transition
-        return () => clearTimeout(timer);
-    }, [clearSession]);
+    const handleLogout = () => {
+        clearSession();
+        sessionStorage.removeItem('announcement-shown');
+        router.push("/");
+    };
 
-    // Auto redirect to home
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCountdown((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timer);
-                    router.push("/");
-                    return 0;
-                }
-                return prev - 1;
-            });
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [router]);
+    const handleContinue = () => {
+        // ログアウトせずモード選択画面に戻る（エアコン持出し等の続行用）
+        router.push("/mode-select");
+    };
 
     return (
         <div className="min-h-screen bg-green-50 flex flex-col items-center justify-center p-4 text-center">
@@ -47,19 +35,33 @@ export default function CompletePage() {
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 mb-2">出庫完了しました</h1>
                     <p className="text-slate-500">ご利用ありがとうございました。</p>
+                    {vendor && (
+                        <p className="text-sm text-blue-600 font-bold mt-2">
+                            {vendor.name} 様{vendorUser ? ` / ${vendorUser.name} 様` : ''}
+                        </p>
+                    )}
                 </div>
 
-                <div className="text-sm text-slate-400">
-                    {countdown}秒後にログイン画面に戻ります
-                </div>
+                <div className="space-y-3 pt-2">
+                    {/* 続けて作業する（エアコン持出し等） */}
+                    <Button
+                        className="w-full h-14 text-lg font-bold bg-blue-600 hover:bg-blue-700"
+                        onClick={handleContinue}
+                    >
+                        <ArrowRight className="w-5 h-5 mr-2" />
+                        続けて作業する
+                    </Button>
 
-                <Button
-                    className="w-full text-lg h-12"
-                    variant="outline"
-                    onClick={() => router.push("/")}
-                >
-                    すぐに戻る
-                </Button>
+                    {/* ログアウト */}
+                    <Button
+                        className="w-full h-12 text-lg"
+                        variant="outline"
+                        onClick={handleLogout}
+                    >
+                        <LogOut className="w-5 h-5 mr-2" />
+                        ログアウト
+                    </Button>
+                </div>
             </div>
         </div>
     );

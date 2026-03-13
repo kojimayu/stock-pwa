@@ -38,6 +38,7 @@ export type PickingItem = {
     category?: string;
     subCategory?: string;
     picked: boolean;
+    expectedStock?: number;  // 持出し後の期待在庫数（requireStockCheck商品のみ）
 };
 
 // 一時保存セッションの型
