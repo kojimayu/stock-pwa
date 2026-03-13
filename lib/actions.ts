@@ -31,6 +31,12 @@ export async function updateTransaction(transactionId: number, newItems: Transac
         const currentTx = await tx.transaction.findUnique({ where: { id: transactionId } });
         if (!currentTx) throw new Error("Transaction not found");
 
+        // 月次締めチェック
+        const closed = await checkTransactionMonthClosed(currentTx.date);
+        if (closed) {
+            throw new Error("この取引の月は締め済みのため編集できません");
+        }
+
         const oldItems: TransactionItem[] = JSON.parse(currentTx.items);
         const processedProductIds = new Set<number>();
 
@@ -3269,6 +3275,35 @@ export async function setSystemConfig(key: string, value: string): Promise<void>
         update: { value },
     });
     revalidatePath('/admin/settings');
+}
+
+// ===== 月次締め =====
+
+export async function isMonthClosed(year: number, month: number): Promise<boolean> {
+    const record = await prisma.monthlyClose.findUnique({
+        where: { year_month: { year, month } },
+    });
+    return !!record;
+}
+
+export async function getMonthlyCloseInfo(year: number, month: number) {
+    return prisma.monthlyClose.findUnique({
+        where: { year_month: { year, month } },
+    });
+}
+
+export async function closeMonth(year: number, month: number, closedBy?: string) {
+    return prisma.monthlyClose.create({
+        data: { year, month, closedBy },
+    });
+}
+
+export async function checkTransactionMonthClosed(transactionDate: Date): Promise<boolean> {
+    // JSTで判定
+    const jstDate = new Date(transactionDate.getTime() + 9 * 60 * 60 * 1000);
+    const year = jstDate.getUTCFullYear();
+    const month = jstDate.getUTCMonth() + 1;
+    return isMonthClosed(year, month);
 }
 
 // ===== 月次明細書 =====

@@ -326,3 +326,14 @@ model StockDiscrepancy {
   product       Product   @relation(fields: [productId], references: [id])
   vendor        Vendor    @relation(fields: [vendorId], references: [id])
 }
+
+// 月次締め管理
+model MonthlyClose {
+  id       Int      @id @default(autoincrement())
+  year     Int
+  month    Int
+  closedAt DateTime @default(now())
+  closedBy String?  // 締めた管理者名
+
+  @@unique([year, month])
+}
