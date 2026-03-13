@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Save, Megaphone, Eye, Trash2 } from "lucide-react";
+import { Save, Megaphone, Eye, Trash2, Tablet } from "lucide-react";
 import { getSystemConfig, setSystemConfig } from "@/lib/actions";
 
 export default function SettingsPage() {
@@ -14,15 +15,30 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false);
     const [preview, setPreview] = useState(false);
 
+    // Kiosk端末設定
+    const [kioskIp, setKioskIp] = useState("");
+    const [originalKioskIp, setOriginalKioskIp] = useState("");
+    const [kioskPassword, setKioskPassword] = useState("");
+    const [originalKioskPassword, setOriginalKioskPassword] = useState("");
+    const [savingKiosk, setSavingKiosk] = useState(false);
+
     useEffect(() => {
         loadConfig();
     }, []);
 
     const loadConfig = async () => {
         try {
-            const value = await getSystemConfig("kiosk_announcement");
-            setAnnouncement(value);
-            setOriginalAnnouncement(value);
+            const [announcementVal, ipVal, pwVal] = await Promise.all([
+                getSystemConfig("kiosk_announcement"),
+                getSystemConfig("kiosk_tablet_ip"),
+                getSystemConfig("kiosk_tablet_password"),
+            ]);
+            setAnnouncement(announcementVal);
+            setOriginalAnnouncement(announcementVal);
+            setKioskIp(ipVal);
+            setOriginalKioskIp(ipVal);
+            setKioskPassword(pwVal);
+            setOriginalKioskPassword(pwVal);
         } catch (error) {
             console.error(error);
         } finally {
@@ -139,6 +155,60 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* Kiosk端末設定 */}
+            <div className="border rounded-lg p-6 bg-white space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <Tablet className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-lg font-bold">Kiosk端末設定</h3>
+                </div>
+                <p className="text-sm text-slate-500">
+                    Fully Kiosk BrowserのRemote Admin機能を使用して、PCからタブレット端末を管理します。
+                    タブレット側でRemote Adminを有効化し、パスワードを設定してください。
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">タブレットIPアドレス</label>
+                        <Input
+                            placeholder="例: 192.168.11.248"
+                            value={kioskIp}
+                            onChange={(e) => setKioskIp(e.target.value)}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Remote Adminパスワード</label>
+                        <Input
+                            type="password"
+                            placeholder="Fully Kioskで設定したパスワード"
+                            value={kioskPassword}
+                            onChange={(e) => setKioskPassword(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex justify-end">
+                    <Button
+                        onClick={async () => {
+                            setSavingKiosk(true);
+                            try {
+                                await setSystemConfig("kiosk_tablet_ip", kioskIp);
+                                await setSystemConfig("kiosk_tablet_password", kioskPassword);
+                                setOriginalKioskIp(kioskIp);
+                                setOriginalKioskPassword(kioskPassword);
+                                toast.success("Kiosk端末設定を保存しました");
+                            } catch {
+                                toast.error("保存に失敗しました");
+                            }
+                            setSavingKiosk(false);
+                        }}
+                        disabled={savingKiosk || (kioskIp === originalKioskIp && kioskPassword === originalKioskPassword)}
+                    >
+                        <Save className="w-4 h-4 mr-2" />
+                        {savingKiosk ? "保存中..." : "保存"}
+                    </Button>
+                </div>
             </div>
         </div>
     );

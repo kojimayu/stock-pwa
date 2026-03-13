@@ -220,7 +220,7 @@ export default function StatementsPage() {
                     <CardContent className="space-y-3">
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead>
+                                <thead className="sticky top-0 z-10 bg-white">
                                     <tr className="border-b text-left">
                                         <th className="py-2 font-medium">業者名</th>
                                         <th className="py-2 font-medium">種別</th>

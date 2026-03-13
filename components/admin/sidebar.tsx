@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Package, FileText, Users, History, Menu,
-  ClipboardList, Fan, Boxes, Settings, ChevronRight, ChevronDown, User, LogOut, BookOpen, Calculator, Receipt
+  ClipboardList, Fan, Boxes, Settings, ChevronRight, ChevronDown, User, LogOut, BookOpen, Calculator, Receipt, Tablet
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ const navigationGroups = [
     collapsible: true,
     items: [
       { name: "業者管理", href: "/admin/vendors", icon: Users },
+      { name: "Kiosk管理", href: "/admin/kiosk", icon: Tablet },
       { name: "設定", href: "/admin/settings", icon: Settings },
       { name: "操作ログ", href: "/admin/logs", icon: History },
       { name: "マニュアル", href: "/admin/manual", icon: BookOpen },

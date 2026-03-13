@@ -62,6 +62,8 @@ describe('テーブルヘッダー固定チェック', () => {
             const content = readFileSync(file, 'utf-8');
             // HTMLテンプレート文字列内の<thead>は対象外（manual等）
             if (file.includes('manual')) continue;
+            // 印刷ページは sticky ではなく CSS table-header-group でヘッダー繰り返し
+            if (file.includes('print')) continue;
             // ネイティブ <thead> を含むファイルを検出
             const theadMatches = content.match(/<thead[\s>]/g);
             if (!theadMatches) continue;
