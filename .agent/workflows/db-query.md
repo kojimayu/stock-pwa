@@ -126,6 +126,62 @@ cat scripts/query_result.txt
 Remove-Item scripts/db_query.js, scripts/query_result.txt -Force -ErrorAction SilentlyContinue
 ```
 
+### 5. 在庫整合性チェック（InventoryLog vs DB在庫）
+
+3/29の棚卸し時に一括補正予定。以下のスクリプトで現状確認可能。
+
+#### 全商品の乖離チェック
+```javascript
+const products = await prisma.product.findMany({ select: { id: true, name: true, stock: true, code: true, unit: true } });
+let mismatchCount = 0;
+for (const prod of products) {
+    const logs = await prisma.inventoryLog.findMany({ where: { productId: prod.id } });
+    const logSum = logs.reduce((s, l) => s + l.quantity, 0);
+    if (logSum !== prod.stock) {
+        mismatchCount++;
+        const diff = prod.stock - logSum;
+        lines.push(`⚠ #${prod.id} ${prod.code} ${prod.name}: DB=${prod.stock} Log=${logSum} diff=${diff > 0 ? '+' : ''}${diff}`);
+    }
+}
+lines.push(`不一致: ${mismatchCount}件 / ${products.length}件`);
+```
+
+#### 特定商品のInventoryLog全件 + running total
+```javascript
+const productId = 62; // 調べたい商品ID
+const prod = await prisma.product.findUnique({ where: { id: productId } });
+const logs = await prisma.inventoryLog.findMany({ where: { productId }, orderBy: { createdAt: 'asc' } });
+let running = 0;
+lines.push(`${prod.code} ${prod.name} | DB在庫: ${prod.stock}`);
+for (const l of logs) {
+    running += l.quantity;
+    const ts = l.createdAt.toISOString().slice(5, 16).replace('T', ' ');
+    lines.push(`id=${l.id} | ${l.quantity > 0 ? '+' : ''}${l.quantity} | sum=${running} | ${(l.reason || l.type).slice(0, 50)} | ${ts}`);
+}
+lines.push(`InventoryLog合計: ${running} | DB: ${prod.stock} | diff: ${prod.stock - running}`);
+```
+
+#### 一括補正（DB在庫を正として、InventoryLogに調整ログ追加）
+```javascript
+// ⚠ 棚卸し確認後のみ実行すること
+for (const prod of products) {
+    const logs = await prisma.inventoryLog.findMany({ where: { productId: prod.id } });
+    const logSum = logs.reduce((s, l) => s + l.quantity, 0);
+    if (logSum !== prod.stock) {
+        const diff = prod.stock - logSum;
+        await prisma.inventoryLog.create({
+            data: {
+                productId: prod.id,
+                type: '在庫調整',
+                quantity: diff,
+                reason: `棚卸し補正 (DB=${prod.stock}, Log=${logSum}, diff=${diff > 0 ? '+' : ''}${diff})`
+            }
+        });
+        lines.push(`✅ #${prod.id} ${prod.name}: 補正 ${diff > 0 ? '+' : ''}${diff}`);
+    }
+}
+```
+
 ## 注意事項
 
 - **Product.stock と InventoryLog は独立管理**。棚卸完了時に `stock = actualStock` で直接上書きされるため、InventoryLogの累計とProduct.stockは一致しないことがある。
