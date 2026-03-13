@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { loadPickingItems, clearPickingItems, PickingItem } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Package, Volume2, AlertTriangle } from "lucide-react";
+import { CheckCircle, Package, Volume2, AlertTriangle, HelpCircle, X } from "lucide-react";
 
 // Fully Kiosk Browser API型
 declare global {
@@ -21,6 +21,10 @@ export default function PickingPage() {
     const [loaded, setLoaded] = useState(false);
     const [showStockVerification, setShowStockVerification] = useState(false);
     const [showMismatchMessage, setShowMismatchMessage] = useState(false);
+    const [showGuide, setShowGuide] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return !sessionStorage.getItem('picking-guide-shown');
+    });
     const lastActivityRef = useRef<number>(Date.now());
     const reminderTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const hasSpokenRef = useRef(false);
@@ -246,6 +250,41 @@ export default function PickingPage() {
 
     return (
         <div className="min-h-screen bg-blue-50 flex flex-col">
+            {/* ガイドモーダル */}
+            {showGuide && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setShowGuide(false); sessionStorage.setItem('picking-guide-shown', 'true'); }}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 rounded-full bg-blue-100">
+                                    <Package className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <h2 className="text-lg font-bold text-slate-900">ピッキングリストの使い方</h2>
+                            </div>
+                        </div>
+                        <div className="space-y-4 mb-6">
+                            <div className="flex gap-3 items-start">
+                                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold">①</span>
+                                <p className="text-sm text-slate-700 pt-1">棚から商品を<strong>取り出して</strong>ください</p>
+                            </div>
+                            <div className="flex gap-3 items-start">
+                                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold">②</span>
+                                <p className="text-sm text-slate-700 pt-1">取った商品を<strong>タップ</strong>すると ✅ になります</p>
+                            </div>
+                            <div className="flex gap-3 items-start">
+                                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold">③</span>
+                                <p className="text-sm text-slate-700 pt-1">すべてチェックしたら<strong>完了ボタン</strong>を押してください</p>
+                            </div>
+                        </div>
+                        <Button
+                            className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white text-base"
+                            onClick={() => { setShowGuide(false); sessionStorage.setItem('picking-guide-shown', 'true'); }}
+                        >
+                            わかりました
+                        </Button>
+                    </div>
+                </div>
+            )}
             {/* ヘッダー */}
             <header className="bg-white border-b border-blue-200 p-4 shadow-sm sticky top-0 z-10">
                 <div className="max-w-2xl mx-auto">
