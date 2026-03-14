@@ -63,6 +63,7 @@ function drawStatementPDF(
         size: "A4",
         margins: { top: 30, bottom: 30, left: 35, right: 35 },
         font: FONT_PATH,
+        bufferPages: true,
     });
     const chunks: Buffer[] = [];
     const promise = generatePDF(doc, chunks);
@@ -72,51 +73,43 @@ function drawStatementPDF(
     const leftMargin = 35;
     const rightMargin = pageWidth - 35;
     const contentWidth = rightMargin - leftMargin;
-
-    // フッター描画関数（各ページで呼び出し）
-    const drawFooter = () => {
-        if (closedAtLabel) {
-            doc.fontSize(7).fillColor("#94a3b8")
-                .text(`締め: ${closedAtLabel}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "right" });
-            doc.fillColor("#000000");
-        }
-    };
-
-    // タイトル
-    doc.fontSize(16).text(title, leftMargin, 35, { width: contentWidth, align: "center" });
-
-    // 期間
-    doc.fontSize(10).text(`${year}年${month}月分`, leftMargin, 58, { width: contentWidth, align: "center" });
-
-    // 業者名（左）
-    doc.fontSize(12).text(`${normalizeText(vendorName)}　御中`, leftMargin, 82);
-    doc.moveTo(leftMargin, 98).lineTo(leftMargin + 250, 98).stroke();
-
-    // 発行元（右）
-    doc.fontSize(9).text("株式会社プラスカンパニー", rightMargin - 180, 82, { width: 180, align: "right" });
-
-    // テーブル
-    const tableY = 115;
     const rowH = 16;
     const colX: number[] = [leftMargin];
     columns.forEach((c) => colX.push(colX[colX.length - 1] + c.width));
 
-    // ヘッダー
-    doc.rect(leftMargin, tableY, contentWidth, rowH + 2).fill("#f1f5f9").stroke("#cbd5e1");
-    doc.fillColor("#334155").fontSize(8);
-    columns.forEach((c, i) => {
-        doc.text(c.header, colX[i] + 3, tableY + 4, { width: c.width - 6, align: c.align as any });
-        if (i > 0) doc.moveTo(colX[i], tableY).lineTo(colX[i], tableY + rowH + 2).stroke("#cbd5e1");
-    });
+    // テーブルヘッダー描画関数（各ページで呼び出し）
+    const drawTableHeader = (startY: number): number => {
+        doc.rect(leftMargin, startY, contentWidth, rowH + 2).fill("#f1f5f9").stroke("#cbd5e1");
+        doc.fillColor("#334155").fontSize(8);
+        columns.forEach((c, i) => {
+            doc.text(c.header, colX[i] + 3, startY + 4, { width: c.width - 6, align: c.align as any });
+            if (i > 0) doc.moveTo(colX[i], startY).lineTo(colX[i], startY + rowH + 2).stroke("#cbd5e1");
+        });
+        doc.fillColor("#000000");
+        return startY + rowH + 2;
+    };
+
+    // ページヘッダー描画（2ページ目以降用: タイトル+期間+業者名+テーブルヘッダー）
+    const drawPageHeader = (): number => {
+        doc.fontSize(16).text(title, leftMargin, 35, { width: contentWidth, align: "center" });
+        doc.fontSize(10).text(`${year}年${month}月分`, leftMargin, 58, { width: contentWidth, align: "center" });
+        doc.fontSize(12).text(`${normalizeText(vendorName)}　御中`, leftMargin, 82);
+        doc.moveTo(leftMargin, 98).lineTo(leftMargin + 250, 98).stroke();
+        doc.fontSize(9).text("株式会社プラスカンパニー", rightMargin - 180, 82, { width: 180, align: "right" });
+        return drawTableHeader(115);
+    };
+
+    // 最大Y（フッターエリアを確保: 締め日時+ページ番号分）
+    const maxY = 740;
+
+    // 1ページ目ヘッダー
+    let y = drawPageHeader();
 
     // データ行
-    let y = tableY + rowH + 2;
-    doc.fillColor("#000000");
     for (const row of rows) {
-        if (y > 750) {
-            drawFooter();
+        if (y > maxY) {
             doc.addPage();
-            y = 40;
+            y = drawPageHeader();
         }
         doc.rect(leftMargin, y, contentWidth, rowH).stroke("#e2e8f0");
         columns.forEach((c, i) => {
@@ -129,6 +122,12 @@ function drawStatementPDF(
             doc.text(val, colX[i] + 3, y + 4, { width: columns[i].width - 6, align: columns[i].align as any });
         });
         y += rowH;
+    }
+
+    // 合計が次ページに溢れる場合
+    if (y + 60 > maxY) {
+        doc.addPage();
+        y = drawPageHeader();
     }
 
     // 小計・消費税・合計
@@ -148,8 +147,20 @@ function drawStatementPDF(
     doc.fontSize(11).text("合計（税込）", summaryX, y, { width: 100, align: "right" });
     doc.text(formatPrice(total), summaryX + 105, y, { width: 90, align: "right" });
 
-    // フッター（最終ページ）
-    drawFooter();
+    // 全ページにフッター（ページ番号+締め日時）を追加
+    const totalPages = doc.bufferedPageRange().count;
+    for (let i = 0; i < totalPages; i++) {
+        doc.switchToPage(i);
+        // ページ番号
+        doc.fontSize(8).fillColor("#94a3b8")
+            .text(`${i + 1} / ${totalPages}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "center" });
+        // 締め日時
+        if (closedAtLabel) {
+            doc.fontSize(7)
+                .text(`締め: ${closedAtLabel}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "right" });
+        }
+        doc.fillColor("#000000");
+    }
 
     doc.end();
     return promise;
@@ -159,8 +170,8 @@ function getRowValues(row: StatementRow, columns: { header: string }[]): string[
     return columns.map((c) => {
         switch (c.header) {
             case "日付": return row.date.slice(5).replace("-", "/");
-            case "コード": return row.code || "";
-            case "品名": case "型番": return row.name;
+            case "コード": return normalizeText(row.code || "");
+            case "品名": case "型番": return normalizeText(row.name);
             case "数量": return row.quantity != null ? row.quantity.toLocaleString() : "";
             case "単位": return row.unit || "";
             case "単価": return formatPrice(row.unitPrice);
