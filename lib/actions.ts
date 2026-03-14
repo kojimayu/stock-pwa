@@ -989,11 +989,23 @@ export async function upsertProduct(data: {
                 data: updateData as any,
             });
 
-            const logDetail = `PriceA: ${finalPriceA}, PriceB: ${finalPriceB}, Cost: ${data.cost > 0 ? data.cost : '(unchanged)'}, Mode: ${priceMode}`;
-            return { product: updatedProduct, logDetail };
+            // 価格変更の詳細ログ
+            const changes: string[] = [];
+            if (currentProduct.priceA !== finalPriceA) changes.push(`A: ¥${currentProduct.priceA}→¥${finalPriceA}`);
+            if (currentProduct.priceB !== finalPriceB) changes.push(`B: ¥${currentProduct.priceB}→¥${finalPriceB}`);
+            if (data.cost > 0 && currentProduct.cost !== data.cost) changes.push(`仕入: ¥${currentProduct.cost}→¥${data.cost}`);
+            if (currentProduct.priceMode !== priceMode) changes.push(`Mode: ${currentProduct.priceMode}→${priceMode}`);
+            const logDetail = changes.length > 0
+                ? `変更: ${changes.join(', ')}`
+                : `PriceA: ${finalPriceA}, PriceB: ${finalPriceB}, Mode: ${priceMode} (変更なし)`;
+            return { product: updatedProduct, logDetail, priceChanged: changes.length > 0 };
         });
 
-        await logOperation("PRODUCT_UPDATE", `Product: ${normalizedCode}`, result.logDetail);
+        if (result.priceChanged) {
+            await logOperation("PRICE_CHANGE", `商品: ${normalizedCode}`, result.logDetail);
+        } else {
+            await logOperation("PRODUCT_UPDATE", `商品: ${normalizedCode}`, result.logDetail);
+        }
     } else {
         // Create
         const existing = await prisma.product.findUnique({ where: { code: normalizedCode } });
