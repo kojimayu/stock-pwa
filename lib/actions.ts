@@ -1495,7 +1495,14 @@ export async function createTransaction(
         throw new Error('現在棚卸中のため、決済処理は利用できません');
     }
 
-    // 1. Calculate total
+    // 1. 数量0のアイテムをフィルタ（数量0は無効データ）
+    const validItems = items.filter(item => item.quantity !== 0);
+    if (validItems.length === 0) {
+        throw new Error('有効な商品がありません（全て数量0）');
+    }
+    items = validItems;
+
+    // 2. Calculate total
     const totalAmount = totalAmountParam ?? items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const hasUnregisteredItems = items.some((item) => item.isManual);
 

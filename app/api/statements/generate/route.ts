@@ -176,6 +176,7 @@ function getRowValues(row: StatementRow, columns: { header: string }[]): string[
             case "単価": return formatPrice(row.unitPrice);
             case "金額": return formatPrice(row.subtotal);
             case "管理No": return row.note || "-";
+            case "取引No": return row.note || "-";
             case "容量": return row.unit || "-";
             case "種別": return row.code || "";
             default: return "";
@@ -211,12 +212,13 @@ export async function POST(request: NextRequest) {
 
         const materialCols = [
             { header: "日付", width: 50, align: "center" },
-            { header: "コード", width: 70, align: "left" },
-            { header: "品名", width: 185, align: "left" },
-            { header: "数量", width: 50, align: "right" },
+            { header: "取引No", width: 40, align: "center" },
+            { header: "コード", width: 65, align: "left" },
+            { header: "品名", width: 155, align: "left" },
+            { header: "数量", width: 40, align: "right" },
             { header: "単位", width: 30, align: "center" },
             { header: "単価", width: 65, align: "right" },
-            { header: "金額", width: 75, align: "right" },
+            { header: "金額", width: 80, align: "right" },
         ];
         const airconCols = [
             { header: "日付", width: 55, align: "center" },
@@ -238,6 +240,7 @@ export async function POST(request: NextRequest) {
                     date: i.date, code: i.code, name: i.name,
                     quantity: i.quantity, unit: i.unit,
                     unitPrice: i.unitPrice, subtotal: i.subtotal,
+                    note: `#${i.txId}`,
                 }));
                 const buf = await drawStatementPDF("材料明細書", vendor.vendorName, year, month, rows, vendor.materialTotal, materialCols, closedAtLabel);
                 const fileName = `材料_${safeName}.pdf`;
