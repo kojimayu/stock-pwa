@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { loadPickingItems, clearPickingItems, PickingItem } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Package, Volume2, AlertTriangle, HelpCircle, X } from "lucide-react";
+import { StockVerificationOverlay } from "@/components/kiosk/stock-verification-overlay";
 
 // Fully Kiosk Browser API型
 declare global {
@@ -20,7 +21,6 @@ export default function PickingPage() {
     const [items, setItems] = useState<PickingItem[]>([]);
     const [loaded, setLoaded] = useState(false);
     const [showStockVerification, setShowStockVerification] = useState(false);
-    const [showMismatchMessage, setShowMismatchMessage] = useState(false);
     const [showGuide, setShowGuide] = useState(() => {
         if (typeof window === 'undefined') return false;
         return !sessionStorage.getItem('picking-guide-shown');
@@ -73,21 +73,7 @@ export default function PickingPage() {
         }
     }, [hasStockCheckItems, router]);
 
-    // 在庫確認OK → 完了画面
-    const handleStockConfirmed = useCallback(() => {
-        clearPickingItems();
-        router.push("/shop/complete");
-    }, [router]);
 
-    // 在庫不一致 → メッセージ表示後に完了画面
-    const handleStockMismatch = useCallback(() => {
-        setShowMismatchMessage(true);
-    }, []);
-
-    const handleMismatchAcknowledged = useCallback(() => {
-        clearPickingItems();
-        router.push("/shop/complete");
-    }, [router]);
 
     // --- 音声リマインド（30秒無操作） ---
     const speakReminder = useCallback(() => {
@@ -158,93 +144,13 @@ export default function PickingPage() {
         const stockCheckItems = items.filter(i => i.expectedStock !== undefined);
 
         return (
-            <div className="min-h-screen bg-blue-50 flex flex-col items-center justify-center p-4">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
-                    {/* ヘッダー */}
-                    <div className="p-4 border-b text-center">
-                        <div className="flex justify-center mb-2">
-                            <div className="p-3 rounded-full bg-blue-100">
-                                <Package className="w-8 h-8 text-blue-600" />
-                            </div>
-                        </div>
-                        <h2 className="text-lg font-bold text-slate-900">
-                            持出し後の在庫確認
-                        </h2>
-                        <p className="text-sm text-slate-500 mt-1">
-                            棚の在庫を確認してください
-                        </p>
-                    </div>
-
-                    {/* 在庫一覧 */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                        {stockCheckItems.map((item) => (
-                            <div
-                                key={item.productId}
-                                className="flex items-center justify-between bg-slate-50 rounded-xl p-3"
-                            >
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-slate-900 text-sm truncate">
-                                        {item.name}
-                                    </p>
-                                    {item.code && (
-                                        <p className="text-xs text-slate-400">{item.code}</p>
-                                    )}
-                                </div>
-                                <div className="text-right ml-3">
-                                    <span className="text-2xl font-bold text-slate-900">
-                                        {item.expectedStock}
-                                    </span>
-                                    <span className="text-sm text-slate-500 ml-1">
-                                        {item.unit || "個"}
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* 確認ボタンエリア */}
-                    <div className="p-4 border-t space-y-3">
-                        {!showMismatchMessage ? (
-                            <>
-                                <Button
-                                    className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 text-white"
-                                    onClick={handleStockConfirmed}
-                                >
-                                    <CheckCircle className="w-5 h-5 mr-2" />
-                                    在庫が合っている
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    className="w-full h-12 text-red-600 border-red-300 hover:bg-red-50"
-                                    onClick={handleStockMismatch}
-                                >
-                                    <AlertTriangle className="w-5 h-5 mr-2" />
-                                    在庫が合っていない
-                                </Button>
-                            </>
-                        ) : (
-                            <div className="space-y-3">
-                                <div className="p-4 bg-red-50 border-2 border-red-400 rounded-xl text-center">
-                                    <AlertTriangle className="w-8 h-8 text-red-600 mx-auto mb-2" />
-                                    <p className="font-bold text-red-700">
-                                        事務所に報告してください
-                                    </p>
-                                    <p className="text-sm text-red-600 mt-1">
-                                        在庫の差異を事務所スタッフに<br />
-                                        お伝えください。
-                                    </p>
-                                </div>
-                                <Button
-                                    className="w-full h-12 bg-slate-800 hover:bg-slate-900 text-white"
-                                    onClick={handleMismatchAcknowledged}
-                                >
-                                    確認しました
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <StockVerificationOverlay
+                stockCheckItems={stockCheckItems}
+                onComplete={() => {
+                    clearPickingItems();
+                    router.push("/shop/complete");
+                }}
+            />
         );
     }
 

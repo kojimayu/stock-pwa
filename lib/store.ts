@@ -39,6 +39,8 @@ export type PickingItem = {
     subCategory?: string;
     picked: boolean;
     expectedStock?: number;  // 持出し後の期待在庫数（requireStockCheck商品のみ）
+    vendorId?: number;       // 在庫不一致自動申告用
+    vendorUserId?: number | null;  // 在庫不一致自動申告用
 };
 
 // 一時保存セッションの型

@@ -2,9 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useCartStore } from "@/lib/store";
-import { AlertTriangle, CheckCircle, Package, MessageSquareWarning } from "lucide-react";
-import { reportStockDiscrepancy } from "@/lib/actions";
-import { toast } from "sonner";
+import { AlertTriangle, CheckCircle, Package } from "lucide-react";
 
 interface ProductStockInfo {
     id: number;
@@ -19,17 +17,9 @@ interface StockCheckPanelProps {
 
 export function StockCheckPanel({ onReadyChange }: StockCheckPanelProps) {
     const items = useCartStore((state) => state.items);
-    const vendor = useCartStore((state) => state.vendor);
-    const vendorUser = useCartStore((state) => state.vendorUser);
     const [productInfo, setProductInfo] = useState<ProductStockInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
-    // 不一致申告
-    const [reportingId, setReportingId] = useState<number | null>(null);
-    const [reportedStock, setReportedStock] = useState("");
-    const [reportNote, setReportNote] = useState("");
-    const [submitting, setSubmitting] = useState(false);
-    const [reportedItems, setReportedItems] = useState<Set<number>>(new Set()); // 申告済み
 
     // カート内商品のstock情報をフェッチ
     useEffect(() => {
@@ -88,34 +78,6 @@ export function StockCheckPanel({ onReadyChange }: StockCheckPanelProps) {
         });
     };
 
-    const handleReport = async () => {
-        if (reportingId === null || !vendor) return;
-        const stock = parseInt(reportedStock, 10);
-        if (isNaN(stock) || stock < 0) {
-            toast.error("正しい在庫数を入力してください");
-            return;
-        }
-        setSubmitting(true);
-        try {
-            await reportStockDiscrepancy(
-                reportingId,
-                vendor.id,
-                vendorUser?.id || null,
-                stock,
-                reportNote || undefined
-            );
-            toast.success("在庫不一致を報告しました。事務所に通知されます。");
-            setReportedItems(prev => new Set(prev).add(reportingId));
-            setReportingId(null);
-            setReportedStock("");
-            setReportNote("");
-        } catch (error: any) {
-            toast.error(error?.message || "報告に失敗しました");
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
     // requireStockCheck商品がない → 何も表示しない
     if (!loading && stockCheckItems.length === 0) return null;
 
@@ -135,9 +97,8 @@ export function StockCheckPanel({ onReadyChange }: StockCheckPanelProps) {
             <div className="space-y-2">
                 {stockCheckItems.map((item) => {
                     const isChecked = checkedItems.has(item.productId);
-                    const isReported = reportedItems.has(item.productId);
                     return (
-                        <div key={item.productId} className="space-y-1">
+                        <div key={item.productId}>
                             <button
                                 onClick={() => toggleCheck(item.productId)}
                                 className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${isChecked
@@ -173,25 +134,9 @@ export function StockCheckPanel({ onReadyChange }: StockCheckPanelProps) {
                                     </div>
                                 </div>
                             </button>
-                            {/* 在庫が合わないボタン */}
-                            {!isReported ? (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setReportingId(item.productId);
-                                        setReportedStock("");
-                                        setReportNote("");
-                                    }}
-                                    className="w-full text-xs text-orange-600 hover:text-orange-800 hover:underline flex items-center justify-center gap-1 py-1"
-                                >
-                                    <MessageSquareWarning className="w-3 h-3" />
-                                    在庫が合わない場合はこちら
-                                </button>
-                            ) : (
-                                <div className="text-xs text-green-600 text-center py-1">
-                                    ✓ 不一致を報告済み
-                                </div>
-                            )}
+                            <p className="text-xs text-slate-400 text-center mt-1">
+                                ※ 在庫が合わない場合は、ピッキング完了後に報告できます
+                            </p>
                         </div>
                     );
                 })}
@@ -201,68 +146,6 @@ export function StockCheckPanel({ onReadyChange }: StockCheckPanelProps) {
                 <p className="text-xs text-amber-600 text-center">
                     ※ すべての商品を確認してから出庫を確定できます
                 </p>
-            )}
-
-            {/* 不一致申告ダイアログ */}
-            {reportingId !== null && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4">
-                        <h3 className="font-bold text-lg text-slate-900">在庫不一致の報告</h3>
-                        <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                            <div className="font-bold text-slate-900">
-                                {stockCheckItems.find(i => i.productId === reportingId)?.name}
-                            </div>
-                            <div className="text-sm text-slate-500">
-                                システム在庫: {stockCheckItems.find(i => i.productId === reportingId)?.currentStock}
-                                {stockCheckItems.find(i => i.productId === reportingId)?.unit}
-                            </div>
-                        </div>
-                        <p className="text-sm text-slate-600">
-                            棚にある実際の数を入力してください。事務所に通知されます。
-                        </p>
-                        <div>
-                            <label className="text-sm font-medium text-slate-700 block mb-1">
-                                実際の在庫数
-                            </label>
-                            <input
-                                type="number"
-                                min="0"
-                                inputMode="numeric"
-                                value={reportedStock}
-                                onChange={(e) => setReportedStock(e.target.value)}
-                                className="w-full h-12 text-2xl font-bold text-center border-2 border-slate-300 rounded-xl focus:border-blue-500 focus:outline-none"
-                                autoFocus
-                            />
-                        </div>
-                        <div>
-                            <label className="text-sm font-medium text-slate-700 block mb-1">
-                                メモ（任意）
-                            </label>
-                            <input
-                                type="text"
-                                value={reportNote}
-                                onChange={(e) => setReportNote(e.target.value)}
-                                placeholder="例: 棚に3個しかない"
-                                className="w-full h-10 text-sm border border-slate-300 rounded-lg px-3 focus:border-blue-500 focus:outline-none"
-                            />
-                        </div>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setReportingId(null)}
-                                className="flex-1 h-12 rounded-xl border-2 border-slate-300 text-slate-700 font-bold"
-                            >
-                                キャンセル
-                            </button>
-                            <button
-                                onClick={handleReport}
-                                disabled={submitting || !reportedStock}
-                                className="flex-1 h-12 rounded-xl bg-orange-500 text-white font-bold disabled:opacity-50"
-                            >
-                                {submitting ? "送信中..." : "報告する"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             )}
         </div>
     );

@@ -452,10 +452,10 @@ export default async function AdminDashboardPage() {
                                 ` 他${pendingDiscrepancies.length - 3}件`}）
                         </span>
                         <Link
-                            href="/admin/inventory"
+                            href="/admin/reports/discrepancies"
                             className="ml-auto text-xs text-orange-700 hover:underline whitespace-nowrap font-medium"
                         >
-                            棚卸管理へ →
+                            詳細を確認 →
                         </Link>
                     </div>
                 )}

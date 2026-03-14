@@ -2458,6 +2458,34 @@ export async function resolveDiscrepancies(productIds: number[]) {
     return result.count;
 }
 
+// 個別の在庫不一致申告を処理済みにする（管理画面から）
+export async function resolveDiscrepancy(id: number, resolveNote?: string) {
+    const discrepancy = await prisma.stockDiscrepancy.findUnique({ where: { id } });
+    if (!discrepancy) throw new Error('申告が見つかりません');
+    if (discrepancy.status === 'RESOLVED') throw new Error('既に処理済みです');
+
+    const updated = await prisma.stockDiscrepancy.update({
+        where: { id },
+        data: {
+            status: 'RESOLVED',
+            resolvedAt: new Date(),
+            note: resolveNote
+                ? (discrepancy.note ? `${discrepancy.note}\n【処理メモ】${resolveNote}` : `【処理メモ】${resolveNote}`)
+                : discrepancy.note,
+        },
+    });
+
+    await logOperation(
+        "STOCK_DISCREPANCY_RESOLVED",
+        `申告 #${id}`,
+        `在庫不一致申告 #${id} を処理済みに変更${resolveNote ? `: ${resolveNote}` : ''}`
+    );
+
+    revalidatePath('/admin/reports/discrepancies');
+    revalidatePath('/admin');
+    return updated;
+}
+
 
 export async function getInventoryCount(id: number) {
     const inventory = await prisma.inventoryCount.findUnique({

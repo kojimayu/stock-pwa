@@ -82,6 +82,8 @@ export function CheckoutButton({ stockCheckReady = true }: { stockCheckReady?: b
                         for (const item of pickingItems) {
                             if (stockMap.has(item.productId)) {
                                 item.expectedStock = stockMap.get(item.productId);
+                                item.vendorId = vendor.id;
+                                item.vendorUserId = vendorUser?.id ?? null;
                             }
                         }
                     }
