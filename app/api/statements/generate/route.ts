@@ -150,13 +150,13 @@ function drawStatementPDF(
     const totalPages = doc.bufferedPageRange().count;
     for (let i = 0; i < totalPages; i++) {
         doc.switchToPage(i);
-        // ページ番号
+        // ページ番号（lineBreak:falseで余計なページ生成を防止）
         doc.fontSize(8).fillColor("#94a3b8")
-            .text(`${i + 1} / ${totalPages}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "center" });
+            .text(`${i + 1} / ${totalPages}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "center", lineBreak: false, height: 12 });
         // 締め日時
         if (closedAtLabel) {
             doc.fontSize(7)
-                .text(`締め: ${closedAtLabel}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "right" });
+                .text(`締め: ${closedAtLabel}`, leftMargin, pageHeight - 25, { width: contentWidth, align: "right", lineBreak: false, height: 12 });
         }
         doc.fillColor("#000000");
     }
