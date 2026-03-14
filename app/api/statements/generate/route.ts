@@ -7,7 +7,6 @@ const pdfkit = require("pdfkit") as any;
 const PDFDocument = pdfkit.default || pdfkit;
 import path from "path";
 import fs from "fs";
-import { Readable } from "stream";
 import archiver from "archiver";
 
 const FONT_PATH = path.join(process.cwd(), "fonts", "NotoSansJP-Regular.ttf");
@@ -207,9 +206,8 @@ export async function POST(request: NextRequest) {
         const closedAtJST = new Date(closedAt.getTime() + 9 * 60 * 60 * 1000);
         const closedAtLabel = `${closedAtJST.getUTCFullYear()}/${String(closedAtJST.getUTCMonth() + 1).padStart(2, '0')}/${String(closedAtJST.getUTCDate()).padStart(2, '0')} ${String(closedAtJST.getUTCHours()).padStart(2, '0')}:${String(closedAtJST.getUTCMinutes()).padStart(2, '0')}`;
 
-        // 出力ディレクトリ
-        const outDir = path.join(process.cwd(), "public", "statements", `${year}-${String(month).padStart(2, "0")}`);
-        fs.mkdirSync(outDir, { recursive: true });
+        // 出力用データ構造（メモリ上で保持）
+        const pdfBuffers: { name: string; buf: Buffer }[] = [];
 
         const materialCols = [
             { header: "日付", width: 50, align: "center" },
@@ -243,7 +241,7 @@ export async function POST(request: NextRequest) {
                 }));
                 const buf = await drawStatementPDF("材料明細書", vendor.vendorName, year, month, rows, vendor.materialTotal, materialCols, closedAtLabel);
                 const fileName = `材料_${safeName}.pdf`;
-                fs.writeFileSync(path.join(outDir, fileName), buf);
+                pdfBuffers.push({ name: fileName, buf });
                 const tax = Math.round(vendor.materialTotal * 0.1);
                 fileList.push({ vendor: vendor.vendorName, type: "材料", file: fileName, subtotal: vendor.materialTotal, tax, total: vendor.materialTotal + tax });
             }
@@ -257,25 +255,24 @@ export async function POST(request: NextRequest) {
                 }));
                 const buf = await drawStatementPDF("エアコン明細書", vendor.vendorName, year, month, rows, vendor.airconTotal, airconCols, closedAtLabel);
                 const fileName = `エアコン_${safeName}.pdf`;
-                fs.writeFileSync(path.join(outDir, fileName), buf);
+                pdfBuffers.push({ name: fileName, buf });
                 const tax = Math.round(vendor.airconTotal * 0.1);
                 fileList.push({ vendor: vendor.vendorName, type: "エアコン", file: fileName, subtotal: vendor.airconTotal, tax, total: vendor.airconTotal + tax });
             }
         }
 
-        // チェックCSV生成
-        const csvLines = ["業者名,種別,小計,消費税,税込合計"];
+        // チェックCSV生成（メモリ上）
         let grandTotal = 0;
+        const csvLines = ["業者名,種別,小計,消費税,税込合計"];
         for (const f of fileList) {
             csvLines.push(`${f.vendor},${f.type},${f.subtotal},${f.tax},${f.total}`);
             grandTotal += f.total;
         }
         csvLines.push(`合計,,,, ${grandTotal}`);
+        const csvContent = "\ufeff" + csvLines.join("\n");
         const csvFileName = `チェックリスト_${year}-${String(month).padStart(2, "0")}.csv`;
-        // BOM付きUTF-8でCSV書き出し
-        fs.writeFileSync(path.join(outDir, csvFileName), "\ufeff" + csvLines.join("\n"), "utf-8");
 
-        // チェックリストPDF生成
+        // チェックリストPDF生成（メモリ上）
         const checklistPdfFileName = `チェックリスト_${year}-${String(month).padStart(2, "0")}.pdf`;
         const checkDoc = new PDFDocument({
             size: "A4",
@@ -291,12 +288,10 @@ export async function POST(request: NextRequest) {
         const crm = cpw - 35;
         const ccw = crm - clm;
 
-        // タイトル
         checkDoc.fontSize(16).text("チェックリスト", clm, 35, { width: ccw, align: "center" });
         checkDoc.fontSize(10).text(`${year}年${month}月分`, clm, 58, { width: ccw, align: "center" });
         checkDoc.fontSize(9).text("株式会社プラスカンパニー", crm - 180, 75, { width: 180, align: "right" });
 
-        // テーブルヘッダー
         const checkCols = [
             { header: "No", width: 30, align: "center" },
             { header: "業者名", width: 200, align: "left" },
@@ -311,7 +306,6 @@ export async function POST(request: NextRequest) {
         let cy = 95;
         const crh = 18;
 
-        // ヘッダー行
         checkDoc.rect(clm, cy, ccw, crh + 2).fill("#f1f5f9").stroke("#cbd5e1");
         checkDoc.fillColor("#334155").fontSize(9);
         checkCols.forEach((c, i) => {
@@ -320,7 +314,6 @@ export async function POST(request: NextRequest) {
         });
         cy += crh + 2;
 
-        // データ行
         checkDoc.fillColor("#000000").fontSize(8.5);
         fileList.forEach((f, idx) => {
             checkDoc.rect(clm, cy, ccw, crh).stroke("#e2e8f0");
@@ -341,7 +334,6 @@ export async function POST(request: NextRequest) {
             cy += crh;
         });
 
-        // 合計行
         cy += 4;
         checkDoc.moveTo(clm, cy).lineTo(crm, cy).stroke("#1e293b");
         cy += 4;
@@ -349,7 +341,6 @@ export async function POST(request: NextRequest) {
         checkDoc.text("合計（税込）", clm, cy, { width: ccw - 90, align: "right" });
         checkDoc.text(formatPrice(grandTotal), crm - 88, cy, { width: 85, align: "right" });
 
-        // フッター
         if (closedAtLabel) {
             checkDoc.fontSize(7).fillColor("#94a3b8")
                 .text(`締め: ${closedAtLabel}`, clm, cph - 25, { width: ccw, align: "right" });
@@ -357,7 +348,6 @@ export async function POST(request: NextRequest) {
 
         checkDoc.end();
         const checkBuf = await checkPromise;
-        fs.writeFileSync(path.join(outDir, checklistPdfFileName), checkBuf);
 
         // 月を締める
         const alreadyClosed = await isMonthClosed(year, month);
@@ -365,37 +355,39 @@ export async function POST(request: NextRequest) {
             await closeMonth(year, month, session.user?.name || session.user?.email || undefined);
         }
 
-        // ZIP生成（全PDF＋CSV＋チェックリストPDFをまとめて）
-        const zipFileName = `明細書_${year}年${String(month).padStart(2, "0")}月.zip`;
-        const zipPath = path.join(outDir, zipFileName);
-        await new Promise<void>((resolve, reject) => {
-            const output = fs.createWriteStream(zipPath);
+        // メモリ上でZIP生成
+        const zipBuffer = await new Promise<Buffer>((resolve, reject) => {
+            const chunks: Buffer[] = [];
             const archive = archiver("zip", { zlib: { level: 9 } });
-            output.on("close", () => resolve());
+            archive.on("data", (chunk: Buffer) => chunks.push(chunk));
+            archive.on("end", () => resolve(Buffer.concat(chunks)));
             archive.on("error", reject);
-            archive.pipe(output);
             // PDFファイルを追加
-            for (const f of fileList) {
-                archive.file(path.join(outDir, f.file), { name: f.file });
+            for (const pdf of pdfBuffers) {
+                archive.append(pdf.buf, { name: pdf.name });
             }
             // チェックリストPDFを追加
-            archive.file(path.join(outDir, checklistPdfFileName), { name: checklistPdfFileName });
+            archive.append(checkBuf, { name: checklistPdfFileName });
             // CSVファイルを追加
-            archive.file(path.join(outDir, csvFileName), { name: csvFileName });
+            archive.append(csvContent, { name: csvFileName });
             archive.finalize();
         });
 
-        return NextResponse.json({
-            success: true,
-            year,
-            month,
-            files: fileList.map(f => ({ ...f, url: `/statements/${year}-${String(month).padStart(2, "0")}/${f.file}` })),
-            csvUrl: `/statements/${year}-${String(month).padStart(2, "0")}/${csvFileName}`,
-            zipUrl: `/statements/${year}-${String(month).padStart(2, "0")}/${encodeURIComponent(zipFileName)}`,
-            vendorCount: statements.length,
-            grandTotal,
-            closed: true,
-            closedAt: closedAtLabel,
+        const zipFileName = `明細書_${year}年${String(month).padStart(2, "0")}月.zip`;
+
+        // ZIPバイナリをレスポンスとして返却
+        return new NextResponse(zipBuffer as unknown as BodyInit, {
+            status: 200,
+            headers: {
+                "Content-Type": "application/zip",
+                "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(zipFileName)}`,
+                "Content-Length": zipBuffer.length.toString(),
+                "X-Statement-Year": String(year),
+                "X-Statement-Month": String(month),
+                "X-Statement-VendorCount": String(statements.length),
+                "X-Statement-GrandTotal": String(grandTotal),
+                "X-Statement-ClosedAt": closedAtLabel,
+            },
         });
     } catch (error) {
         console.error("明細生成エラー:", error);

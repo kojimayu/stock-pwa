@@ -10,12 +10,8 @@ import { getMonthlyCloseInfo, finalizeMonth, reopenMonth } from "@/lib/actions";
 
 type GenerateResult = {
     success: boolean;
-    files: { vendor: string; type: string; file: string; url: string; subtotal: number; tax: number; total: number }[];
-    csvUrl: string;
-    zipUrl?: string;
     vendorCount: number;
     grandTotal: number;
-    closed: boolean;
     closedAt?: string;
 };
 
@@ -64,9 +60,30 @@ export default function StatementsPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ year: Number(year), month: Number(month) }),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "生成に失敗しました");
-            setResult(data);
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "生成に失敗しました");
+            }
+            // ZIPバイナリを受け取ってダウンロード
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const disposition = res.headers.get('Content-Disposition');
+            const filenameMatch = disposition?.match(/filename\*=UTF-8''(.+)/);
+            a.download = filenameMatch ? decodeURIComponent(filenameMatch[1]) : `明細書_${year}年${String(month).padStart(2, '0')}月.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // メタデータはヘッダーから取得
+            setResult({
+                success: true,
+                vendorCount: Number(res.headers.get('X-Statement-VendorCount') || 0),
+                grandTotal: Number(res.headers.get('X-Statement-GrandTotal') || 0),
+                closedAt: res.headers.get('X-Statement-ClosedAt') || undefined,
+            });
             await refreshCloseInfo();
         } catch (e) {
             setError(e instanceof Error ? e.message : "エラーが発生しました");
@@ -255,57 +272,9 @@ export default function StatementsPage() {
                         )}
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="sticky top-0 z-10 bg-white">
-                                    <tr className="border-b text-left">
-                                        <th className="py-2 font-medium">業者名</th>
-                                        <th className="py-2 font-medium">種別</th>
-                                        <th className="py-2 font-medium text-right">税込合計</th>
-                                        <th className="py-2 font-medium text-right">PDF</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {result.files.map((f, i) => (
-                                        <tr key={i} className="border-b last:border-0">
-                                            <td className="py-2">{f.vendor}</td>
-                                            <td className="py-2">{f.type}</td>
-                                            <td className="py-2 text-right">¥{f.total.toLocaleString()}</td>
-                                            <td className="py-2 text-right">
-                                                <a href={f.url} target="_blank" className="text-blue-600 hover:underline text-xs">
-                                                    📄 開く
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                                <tfoot>
-                                    <tr className="border-t-2 font-bold">
-                                        <td className="py-2" colSpan={2}>合計</td>
-                                        <td className="py-2 text-right">¥{result.grandTotal.toLocaleString()}</td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-
-                        <div className="flex gap-3 flex-wrap">
-                            {result.zipUrl && (
-                                <a
-                                    href={result.zipUrl}
-                                    download
-                                    className="inline-flex items-center gap-2 text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                                >
-                                    📦 ZIP一括ダウンロード
-                                </a>
-                            )}
-                            <a
-                                href={result.csvUrl}
-                                target="_blank"
-                                className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
-                            >
-                                📊 チェックリスト（CSV）
-                            </a>
+                        <div className="text-center text-sm text-slate-600">
+                            <p>合計（税込）: <strong className="text-lg">¥{result.grandTotal.toLocaleString()}</strong></p>
+                            <p className="text-xs text-slate-400 mt-2">ZIPファイルが自動ダウンロードされました</p>
                         </div>
                     </CardContent>
                 </Card>
