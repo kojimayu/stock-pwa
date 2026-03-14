@@ -1565,6 +1565,18 @@ export async function createTransaction(
                         data: { stock: { decrement: quantityToDeduct } },
                     });
                     // エアコンログを作成（買取記録 — 日時はトランザクションと統一）
+                    // 価格をProductテーブル（材料管理）から取得
+                    const airconPriceProduct = await tx.product.findUnique({
+                        where: { id: item.productId },
+                        select: { priceA: true, priceB: true },
+                    });
+                    const vendorForPrice = await tx.vendor.findUnique({
+                        where: { id: vendorId },
+                        select: { priceTier: true },
+                    });
+                    const airconPrice = airconPriceProduct
+                        ? (vendorForPrice?.priceTier === 'B' ? airconPriceProduct.priceB : airconPriceProduct.priceA)
+                        : 0;
                     await tx.airConditionerLog.create({
                         data: {
                             managementNo: null,
@@ -1573,6 +1585,7 @@ export async function createTransaction(
                             vendorUserId: vendorUserId,
                             airconProductId: aircon.id,
                             type: 'PURCHASE',
+                            price: airconPrice,
                             note: `材料買取 TX#${transaction.id}`,
                             createdAt: transaction.date, // トランザクション日時と統一
                         },
@@ -3479,16 +3492,13 @@ export async function getMonthlyStatements(year: number, month: number): Promise
     }
 
     // エアコンログを集計
-    // 買取品の価格はProductテーブル（材料管理側）から取得
-    // AirconProduct.capacity → Product.code (RSAJ{22,25,28,36}) のマッピング
-    const airconProducts = await prisma.product.findMany({
+    // ログに保存された取引時価格（price）を使用。price=0のレガシーデータはProductテーブルにフォールバック
+    const airconPriceProducts = await prisma.product.findMany({
         where: { code: { startsWith: 'RSAJ' } },
         select: { code: true, priceA: true, priceB: true },
     });
-    // 容量文字列 → Product価格のマップ (例: "2.2kW" → { priceA: 44000, priceB: 40000 })
     const capacityPriceMap = new Map<string, { priceA: number; priceB: number }>();
-    for (const ap of airconProducts) {
-        // RSAJ22 → 2.2, RSAJ25 → 2.5, RSAJ28 → 2.8, RSAJ36 → 3.6
+    for (const ap of airconPriceProducts) {
         const num = ap.code.replace('RSAJ', '');
         const kw = `${num.slice(0, -1)}.${num.slice(-1)}kW`;
         capacityPriceMap.set(kw, { priceA: ap.priceA, priceB: ap.priceB });
@@ -3497,17 +3507,17 @@ export async function getMonthlyStatements(year: number, month: number): Promise
     for (const log of airconLogs) {
         const vendor = getOrCreateVendor(log.vendorId, log.vendor.name, log.vendor.priceTier);
 
-        // 価格決定: Productテーブル（材料管理）を優先、なければAirconProductにフォールバック
-        let price = 0;
-        const capacity = log.airconProduct?.capacity || '';
-        const productPrice = capacityPriceMap.get(capacity);
-        if (productPrice) {
-            price = vendor.priceTier === 'B' ? productPrice.priceB : productPrice.priceA;
-        } else if (log.airconProduct) {
-            price = vendor.priceTier === 'B' ? log.airconProduct.priceB : log.airconProduct.priceA;
+        // 価格決定: ログに保存された価格を優先、0ならProductテーブルからフォールバック
+        let price = log.price || 0;
+        if (price === 0 && !log.isReturned) {
+            const capacity = log.airconProduct?.capacity || '';
+            const productPrice = capacityPriceMap.get(capacity);
+            if (productPrice) {
+                price = vendor.priceTier === 'B' ? productPrice.priceB : productPrice.priceA;
+            }
         }
 
-        // 返品はマイナス
+        // 返品は0
         const effectivePrice = log.isReturned ? 0 : price;
 
         vendor.airconItems.push({

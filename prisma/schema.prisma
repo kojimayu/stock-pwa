@@ -171,6 +171,7 @@ model AirConditionerLog {
   isProxyInput    Boolean        @default(false)
   isTemporaryLoan Boolean        @default(false) // 一時貸出フラグ（管理No付きでも業者持出しにカウント）
   note            String?        // メモ欄（新築物件名等）
+  price           Int            @default(0) // 取引時の販売価格（業者priceTierに応じたpriceA/priceB）
   returnedAt      DateTime?
   createdAt       DateTime       @default(now())
   airconProduct   AirconProduct? @relation(fields: [airconProductId], references: [id])
