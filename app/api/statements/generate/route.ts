@@ -264,13 +264,97 @@ export async function POST(request: NextRequest) {
         // BOM付きUTF-8でCSV書き出し
         fs.writeFileSync(path.join(outDir, csvFileName), "\ufeff" + csvLines.join("\n"), "utf-8");
 
+        // チェックリストPDF生成
+        const checklistPdfFileName = `チェックリスト_${year}-${String(month).padStart(2, "0")}.pdf`;
+        const checkDoc = new PDFDocument({
+            size: "A4",
+            margins: { top: 30, bottom: 30, left: 35, right: 35 },
+            font: FONT_PATH,
+        });
+        const checkChunks: Buffer[] = [];
+        const checkPromise = generatePDF(checkDoc, checkChunks);
+
+        const cpw = 595.28;
+        const cph = 841.89;
+        const clm = 35;
+        const crm = cpw - 35;
+        const ccw = crm - clm;
+
+        // タイトル
+        checkDoc.fontSize(16).text("チェックリスト", clm, 35, { width: ccw, align: "center" });
+        checkDoc.fontSize(10).text(`${year}年${month}月分`, clm, 58, { width: ccw, align: "center" });
+        checkDoc.fontSize(9).text("株式会社プラスカンパニー", crm - 180, 75, { width: 180, align: "right" });
+
+        // テーブルヘッダー
+        const checkCols = [
+            { header: "No", width: 30, align: "center" },
+            { header: "業者名", width: 200, align: "left" },
+            { header: "種別", width: 60, align: "center" },
+            { header: "小計", width: 80, align: "right" },
+            { header: "消費税", width: 70, align: "right" },
+            { header: "税込合計", width: 85, align: "right" },
+        ];
+        const checkColX: number[] = [clm];
+        checkCols.forEach(c => checkColX.push(checkColX[checkColX.length - 1] + c.width));
+
+        let cy = 95;
+        const crh = 18;
+
+        // ヘッダー行
+        checkDoc.rect(clm, cy, ccw, crh + 2).fill("#f1f5f9").stroke("#cbd5e1");
+        checkDoc.fillColor("#334155").fontSize(9);
+        checkCols.forEach((c, i) => {
+            checkDoc.text(c.header, checkColX[i] + 3, cy + 5, { width: c.width - 6, align: c.align as any });
+            if (i > 0) checkDoc.moveTo(checkColX[i], cy).lineTo(checkColX[i], cy + crh + 2).stroke("#cbd5e1");
+        });
+        cy += crh + 2;
+
+        // データ行
+        checkDoc.fillColor("#000000").fontSize(8.5);
+        fileList.forEach((f, idx) => {
+            checkDoc.rect(clm, cy, ccw, crh).stroke("#e2e8f0");
+            checkCols.forEach((c, i) => {
+                if (i > 0) checkDoc.moveTo(checkColX[i], cy).lineTo(checkColX[i], cy + crh).stroke("#e2e8f0");
+            });
+            const vals = [
+                String(idx + 1),
+                normalizeText(f.vendor),
+                f.type,
+                formatPrice(f.subtotal),
+                formatPrice(f.tax),
+                formatPrice(f.total),
+            ];
+            vals.forEach((val, i) => {
+                checkDoc.text(val, checkColX[i] + 3, cy + 5, { width: checkCols[i].width - 6, align: checkCols[i].align as any });
+            });
+            cy += crh;
+        });
+
+        // 合計行
+        cy += 4;
+        checkDoc.moveTo(clm, cy).lineTo(crm, cy).stroke("#1e293b");
+        cy += 4;
+        checkDoc.fontSize(11).font(FONT_PATH);
+        checkDoc.text("合計（税込）", clm, cy, { width: ccw - 90, align: "right" });
+        checkDoc.text(formatPrice(grandTotal), crm - 88, cy, { width: 85, align: "right" });
+
+        // フッター
+        if (closedAtLabel) {
+            checkDoc.fontSize(7).fillColor("#94a3b8")
+                .text(`締め: ${closedAtLabel}`, clm, cph - 25, { width: ccw, align: "right" });
+        }
+
+        checkDoc.end();
+        const checkBuf = await checkPromise;
+        fs.writeFileSync(path.join(outDir, checklistPdfFileName), checkBuf);
+
         // 月を締める
         const alreadyClosed = await isMonthClosed(year, month);
         if (!alreadyClosed) {
             await closeMonth(year, month, session.user?.name || session.user?.email || undefined);
         }
 
-        // ZIP生成（全PDF＋CSVをまとめて）
+        // ZIP生成（全PDF＋CSV＋チェックリストPDFをまとめて）
         const zipFileName = `明細書_${year}年${String(month).padStart(2, "0")}月.zip`;
         const zipPath = path.join(outDir, zipFileName);
         await new Promise<void>((resolve, reject) => {
@@ -283,6 +367,8 @@ export async function POST(request: NextRequest) {
             for (const f of fileList) {
                 archive.file(path.join(outDir, f.file), { name: f.file });
             }
+            // チェックリストPDFを追加
+            archive.file(path.join(outDir, checklistPdfFileName), { name: checklistPdfFileName });
             // CSVファイルを追加
             archive.file(path.join(outDir, csvFileName), { name: csvFileName });
             archive.finalize();
