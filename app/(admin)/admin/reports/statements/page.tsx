@@ -209,6 +209,36 @@ export default function StatementsPage() {
                             ⚠ {error}
                         </div>
                     )}
+
+                    {/* 締め済みの場合、常にダウンロードリンクを表示 */}
+                    {isClosed && !result && (
+                        <div className="border-t pt-4 space-y-2">
+                            <p className="text-sm font-medium text-slate-700">📁 出力済みファイル</p>
+                            <div className="flex gap-3 flex-wrap">
+                                <a
+                                    href={`/statements/${year}-${String(Number(month)).padStart(2, "0")}/${encodeURIComponent(`明細書_${year}年${String(Number(month)).padStart(2, "0")}月.zip`)}`}
+                                    download
+                                    className="inline-flex items-center gap-2 text-sm font-medium bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    📦 ZIP一括ダウンロード
+                                </a>
+                                <a
+                                    href={`/statements/${year}-${String(Number(month)).padStart(2, "0")}/${encodeURIComponent(`チェックリスト_${year}-${String(Number(month)).padStart(2, "0")}.pdf`)}`}
+                                    target="_blank"
+                                    className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                                >
+                                    📄 チェックリスト（PDF）
+                                </a>
+                                <a
+                                    href={`/statements/${year}-${String(Number(month)).padStart(2, "0")}/${encodeURIComponent(`チェックリスト_${year}-${String(Number(month)).padStart(2, "0")}.csv`)}`}
+                                    target="_blank"
+                                    className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline"
+                                >
+                                    📊 チェックリスト（CSV）
+                                </a>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
